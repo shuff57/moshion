@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>moSHion runner</title>
+<style>
+	html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #111; color: #eee; font-family: system-ui, sans-serif; }
+	body { display: flex; align-items: center; justify-content: center; }
+	canvas { display: block; }
+	#error { position: fixed; top: 0; left: 0; right: 0; background: rgba(220,38,38,0.92); color: #fff; padding: 8px 12px; font: 12px/1.4 monospace; white-space: pre-wrap; display: none; z-index: 100; }
+	#empty { color: #666; font: 13px system-ui; text-align: center; }
+</style>
+<script>
+// Pipe console + errors to parent (matches the existing preview-console protocol).
+// Student source is stashed on window.__previewSources so the error handler can
+// look up the offending source line for richer error messages.
+(function() {
+	function send(type, args) {
+		try {
+			var safe = Array.prototype.slice.call(args).map(function(a) {
+				if (a instanceof Error) return a.stack || a.message;
+				if (typeof a === 'object') { try { return JSON.parse(JSON.stringify(a)); } catch(e){ return String(a); } }
+				return a;
+			});
+			window.parent.postMessage({ source: 'preview-console', type: type, args: safe }, '*');
+		} catch (e) { /* parent gone */ }
+	}
+	['log','warn','error','info'].forEach(function(t) {
+		var orig = console[t];
+		console[t] = function() { send(t, arguments); orig.apply(console, arguments); };
+	});
+
+	function parseStudentFrame(stack) {
+		if (!stack) return null;
+		var sources = window.__previewSources || {};
+		var lines = String(stack).split('\n');
+		var rx = /([A-Za-z_][\w./-]*\.js):(\d+):(\d+)/;
+		for (var i = 0; i < lines.length; i++) {
+			var m = rx.exec(lines[i]);
+			if (m && Object.prototype.hasOwnProperty.call(sources, m[1])) {
+				return { file: m[1], line: parseInt(m[2], 10), col: parseInt(m[3], 10) };
+			}
+		}
+		return null;
+	}
+	function lineSnippet(file, line) {
+		var src = (window.__previewSources || {})[file];
+		if (!src || !line) return '';
+		var arr = src.split('\n');
+		return (arr[line - 1] || '').replace(/^\s+/, '').slice(0, 200);
+	}
+	function reportError(err, fallbackMsg, fbFile, fbLine, fbCol) {
+		var loc = parseStudentFrame(err && err.stack);
+		if (!loc && fbFile && (window.__previewSources || {})[fbFile]) {
+			loc = { file: fbFile, line: fbLine || 0, col: fbCol || 0 };
+		}
+		var name = (err && err.name) || 'Error';
+		var msg = (err && err.message) || fallbackMsg || String(err);
+		var file = loc ? loc.file : null;
+		var line = loc ? loc.line : null;
+		var col = loc ? loc.col : null;
+		try {
+			window.parent.postMessage({
+				source: 'preview-error',
+				error: { name: name, message: msg, file: file, line: line, col: col, snippet: file ? lineSnippet(file, line) : '' }
+			}, '*');
+		} catch (e) { /* parent gone */ }
+		var locStr = file ? file + ':' + line + (col ? ':' + col : '') : '';
+		send('error', [name + ': ' + msg + (locStr ? '  (' + locStr + ')' : '')]);
+		var el = document.getElementById('error');
+		if (el) {
+			el.style.display = 'block';
+			el.textContent = name + ': ' + msg + (locStr ? '  @ ' + locStr : '');
+		}
+	}
+	window.addEventListener('error', function(e) {
+		reportError(e.error, e.message, e.filename, e.lineno, e.colno);
+	});
+	window.addEventListener('unhandledrejection', function(e) {
+		var r = e.reason;
+		var err = (r && r.stack) ? r : new Error(r && r.message ? r.message : String(r));
+		reportError(err, 'Unhandled promise rejection');
+	});
+
+	// REPL: parent posts { source: 'preview-eval', id, expr }. We eval at
+	// global scope and post back { source: 'preview-eval-result', id, ok, text }.
+	// Indirect eval ( (0, eval) ) resolves through the global lexical env, so it
+	// sees top-level `let`/`const`/`class` bindings declared by the student script.
+	function inspect(v, depth) {
+		depth = depth || 0;
+		if (v === null) return 'null';
+		if (v === undefined) return 'undefined';
+		var t = typeof v;
+		if (t === 'string') return JSON.stringify(v);
+		if (t === 'number' || t === 'bigint' || t === 'boolean' || t === 'symbol') return String(v);
+		if (t === 'function') return 'ƒ ' + (v.name || '(anonymous)') + '()';
+		if (t !== 'object') return String(v);
+		if (v instanceof Error) return v.stack || v.message;
+		// Walk the class chain for a non-empty name so objects built from
+		// anonymous subclasses still display as `Parent { … }`.
+		var c = v.constructor;
+		var name = '';
+		while (c && c !== Function.prototype) {
+			if (c.name) { name = c.name; break; }
+			c = Object.getPrototypeOf(c);
+		}
+		var ctor = (name && name !== 'Object') ? name : '';
+		if (depth >= 1) return ctor ? ctor + ' { … }' : '{…}';
+		if (Array.isArray(v)) {
+			var items = v.slice(0, 6).map(function(x) { return inspect(x, depth + 1); });
+			if (v.length > 6) items.push('… +' + (v.length - 6));
+			return '[' + items.join(', ') + ']';
+		}
+		var keys;
+		try { keys = Object.keys(v); } catch (_) { return ctor ? ctor + ' { … }' : '{…}'; }
+		var shown = keys.slice(0, 6);
+		var pairs = shown.map(function(k) {
+			var val;
+			try { val = inspect(v[k], depth + 1); } catch (_) { val = '<unreadable>'; }
+			return k + ': ' + val;
+		});
+		if (keys.length > 6) pairs.push('… +' + (keys.length - 6));
+		return (ctor ? ctor + ' ' : '') + '{ ' + pairs.join(', ') + ' }';
+	}
+	window.addEventListener('message', function(e) {
+		var d = e.data;
+		if (!d || d.source !== 'preview-eval') return;
+		var out, ok = true, text;
+		try {
+			out = (0, eval)(d.expr);
+			text = inspect(out);
+		} catch (x) {
+			ok = false;
+			text = (x && (x.stack || x.message)) || String(x);
+		}
+		try {
+			window.parent.postMessage({ source: 'preview-eval-result', id: d.id, ok: ok, text: text }, '*');
+		} catch (_) { /* parent gone */ }
+	});
+})();
+</script>
+<script src="./planck.min.js"></script>
+<script src="./moshion.js"></script>
+</head>
+<body>
+<div id="error"></div>
+<div id="empty">Click Run to execute your sketch.</div>
+<script>
+// Read student code from ?code=<base64url>, inject as a <script> so declarations become globals
+(function() {
+	// Never execute ?code= as a top-level document. See the matching guard in
+	// public/reshape/runner.html for the full reasoning: embedded, this frame is
+	// sandboxed into an opaque origin; opened directly by a link, the injected
+	// script would run on the app's origin with the viewer's SameSite=Lax
+	// session cookie available to any same-origin fetch.
+	if (window.top === window.self) {
+		document.body.innerHTML = '';
+		var warn = document.createElement('p');
+		warn.style.cssText = 'font:14px system-ui;color:#f8f8f2;background:#282a36;margin:0;padding:24px';
+		warn.textContent = 'This preview only runs inside shCode. Open a lesson or the docs instead.';
+		document.body.appendChild(warn);
+		return;
+	}
+	var params = new URLSearchParams(location.search);
+	var encoded = params.get('code');
+	if (!encoded) return;
+	var code;
+	try {
+		var b64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
+		while (b64.length % 4) b64 += '=';
+		code = decodeURIComponent(escape(atob(b64)));
+	} catch (e) {
+		console.error('Failed to decode sketch: ' + (e.message || e));
+		return;
+	}
+	document.getElementById('empty').remove();
+	// Stash source so the error handler can look up the offending line
+	window.__previewSources = { 'sketch.js': code };
+
+	function inject() {
+		var s = document.createElement('script');
+		// The //# sourceURL pragma makes V8 attribute thrown errors to "sketch.js"
+		// with line numbers relative to the student's source instead of this host doc.
+		s.textContent = code + '\n//# sourceURL=sketch.js';
+		document.head.appendChild(s);
+		// The engine's auto-boot already ran and found no setup(); tell it to
+		// look again now that the sketch is actually here.
+		if (typeof window._moshionAutoBoot === 'function') window._moshionAutoBoot();
+	}
+
+	// Saves. Sandboxed into an opaque origin, this frame cannot so much as
+	// READ window.localStorage -- it throws SecurityError -- so the host page
+	// keeps the store and hands us a copy. Wait for it BEFORE running the
+	// sketch: moSHion's getItem() is synchronous, and a save that arrived after
+	// setup() had already read it would be worse than no save at all.
+	var started = false;
+	function start(store) {
+		if (started) return;
+		started = true;
+		clearInterval(ask);
+		window.removeEventListener('message', onInit);
+		window.__moshionStorage = (store && typeof store === 'object') ? store : {};
+		inject();
+	}
+	function onInit(e) {
+		if (e.data && e.data.source === 'preview-storage-init') start(e.data.data);
+	}
+	function request() {
+		try { window.parent.postMessage({ source: 'preview-storage-request' }, '*'); }
+		catch (e) { /* no parent */ }
+	}
+	window.addEventListener('message', onInit);
+	// Retried, because the host's listener is attached in a React effect and
+	// may not exist yet when this frame finishes loading. A host that never
+	// answers -- one that has not implemented the bridge -- gets an empty
+	// store after the timeout rather than a sketch that never starts.
+	var ask = setInterval(request, 40);
+	request();
+	setTimeout(function () { start({}); }, 400);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>moSHion — a tiny 2D game engine with real Box2D physics</title>
+<style>
+	:root { color-scheme: dark; }
+	html, body { margin: 0; padding: 0; background: #16161d; color: #f8f8f2; font-family: system-ui, sans-serif; }
+	.wrap { max-width: 880px; margin: 0 auto; padding: 28px 20px 48px; }
+	h1 { font-size: 28px; margin: 0 0 4px; }
+	h1 .sh { color: #ff79c6; }
+	p.tag { color: #8b8ba0; margin: 0 0 22px; }
+	a { color: #8be9fd; }
+	.frame { position: relative; border: 1px solid #44475a; border-radius: 8px; overflow: hidden; background: #111; }
+	.frame iframe { display: block; width: 100%; height: 480px; border: 0; }
+	.toolbar { display: flex; gap: 8px; margin: 14px 0 0; flex-wrap: wrap; }
+	button { font: 14px/1.2 system-ui, sans-serif; color: #f8f8f2; background: #44475a; border: 1px solid #6272a4; border-radius: 6px; padding: 9px 14px; cursor: pointer; }
+	button:hover { background: #6272a4; }
+	#out { font: 12px/1.5 'Fira Code', Consolas, monospace; background: #1b1b24; border: 1px solid #44475a; border-radius: 8px; padding: 12px 14px; margin-top: 14px; min-height: 60px; white-space: pre-wrap; color: #bd93f9; }
+	#out .err { color: #ff5555; }
+	.foot { color: #6272a4; font-size: 13px; margin-top: 26px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+	<h1>mo<span class="sh">SH</span>ion</h1>
+	<p class="tag">Sprites + real Box2D physics in a handful of globals. <a href="https://github.com/shuff57/moshion">Source on GitHub</a>.</p>
+
+	<div class="frame">
+		<iframe id="preview" title="moSHion demo sketch" sandbox="allow-scripts allow-downloads"></iframe>
+	</div>
+
+	<div class="toolbar">
+		<button data-sketch="bouncing">Bouncing ball</button>
+		<button data-sketch="paddle">Bounce paddle</button>
+		<button data-sketch="stack">Tower + wrecking ball</button>
+	</div>
+
+	<div id="out">console output appears here…</div>
+
+	<p class="foot">
+		The sketch runs in a sandboxed iframe (opaque origin, no same-origin access) —
+		the same containment model shCode uses for student code.
+	</p>
+</div>
+
+<script>
+// ---- demo sketches ---------------------------------------------------------
+var sketches = {
+	bouncing: [
+		'function setup() {',
+		'  new Canvas(800, 480);',
+		'  world.gravity.y = 10;',
+		'  ball = new Sprite(400, 60, 36);',
+		'  ball.bounciness = 0.92;',
+		'  ball.color = "purple";',
+		'  floor = new Sprite(400, 470, 800, 20, "static");',
+		'  wallL = new Sprite(-5, 240, 10, 480, "static");',
+		'  wallR = new Sprite(805, 240, 10, 480, "static");',
+		'}',
+		'',
+		'function draw() {',
+		'  background("#111");',
+		'  if (kb.presses("up")) ball.vel.y = -14;',
+		'  text("press UP to kick the ball", 400, 30, 14, "gray");',
+		'}'
+	].join('\n'),
+
+	paddle: [
+		'function setup() {',
+		'  new Canvas(800, 480);',
+		'  world.gravity.y = 10;',
+		'  ball = new Sprite(400, 60, 30);',
+		'  ball.bounciness = 1.0;',
+		'  ball.friction = 0;',
+		'  ball.color = "white";',
+		'  paddle = new Sprite(400, 440, 120, 16, "kinematic");',
+		'  paddle.color = "green";',
+		'  floor = new Sprite(400, 475, 800, 10, "static");',
+		'}',
+		'',
+		'function update() {',
+		'  paddle.vel.x = (mouse.x - paddle.x) * 0.2;',
+		'}',
+		'',
+		'function draw() {',
+		'  background("#111");',
+		'  text("keep it up — follow the mouse", 400, 30, 14, "gray");',
+		'}'
+	].join('\n'),
+
+	stack: [
+		'function setup() {',
+		'  new Canvas(800, 480);',
+		'  world.gravity.y = 10;',
+		'  floor = new Sprite(400, 468, 800, 24, "static");',
+		'  floor.color = "gray";',
+		'  for (var row = 0; row < 5; row++) {',
+		'    for (var i = 0; i < 3; i++) {',
+		'      var b = new Sprite(380 + i * 26, 440 - row * 28, 22, 24);',
+		'      b.color = "orange";',
+		'      b.bounciness = 0;',
+		'    }',
+		'  }',
+		'  wreck = new Sprite(60, 330, 60);',
+		'  wreck.color = "purple";',
+		'  wreck.vel.x = 14;',
+		'}',
+		'',
+		'function draw() {',
+		'  background("#111");',
+		'  text("a real Box2D tower of boxes", 400, 30, 14, "gray");',
+		'}'
+	].join('\n')
+};
+
+// ---- base64url (matches runner.html's decoder, unicode-safe) ---------------
+function b64url(s) {
+	var bytes = new TextEncoder().encode(s), bin = '';
+	for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+	var b64 = btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+	return b64;
+}
+
+// ---- host wiring -----------------------------------------------------------
+function load(sketch) {
+	var frame = document.getElementById('preview');
+	var src = 'runner.html?r=' + Date.now() + '&code=' + b64url(sketches[sketch]);
+	frame.src = src;
+}
+
+// Console + errors arrive over postMessage (source: 'preview-console' /
+// 'preview-error'), exactly the protocol a real host implements.
+window.addEventListener('message', function(e) {
+	var d = e.data;
+	if (!d || d.source !== 'preview-console' && d.source !== 'preview-error') return;
+	var out = document.getElementById('out');
+	if (d.source === 'preview-error') {
+		out.textContent += '\n[error] ' + (d.error && d.error.message ? d.error.message : JSON.stringify(d.error));
+	} else {
+		var line = (d.args || []).map(function(a) {
+			return typeof a === 'object' ? JSON.stringify(a) : String(a);
+		}).join(' ');
+		out.textContent += (d.type === 'error' ? '\n[error] ' : '\n[' + (d.type || 'log') + '] ') + line;
+	}
+	if (out.textContent.length > 4000) out.textContent = out.textContent.slice(-4000);
+});
+
+// Save-store bridge: the runner asks, we hand it an in-memory store. A host
+// that skips this simply gets a 400ms timeout and an empty store.
+window.addEventListener('message', function(e) {
+	if (e.data && e.data.source === 'preview-storage-request' && e.source) {
+		e.source.postMessage({ source: 'preview-storage-init', data: {} }, '*');
+	}
+});
+
+document.querySelectorAll('button[data-sketch]').forEach(function(btn) {
+	btn.addEventListener('click', function() { load(btn.dataset.sketch); });
+});
+
+load('bouncing');
+</script>
+</body>
+</html>
