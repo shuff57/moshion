@@ -137,6 +137,24 @@
 		padding: 14px;
 		box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 	}
+	.demo-tabs {
+		display: flex;
+		gap: 6px;
+		padding: 0 2px 10px;
+	}
+	.demo-tab {
+		background: transparent;
+		color: var(--code-comment);
+		font-family: inherit;
+		font-size: 11.5px;
+		border: 1px solid var(--code-border);
+		border-radius: 4px;
+		padding: 5px 10px;
+		cursor: pointer;
+	}
+	.demo-tab:hover { color: var(--text); border-color: var(--text); }
+	.demo-tab.active { color: var(--brand); border-color: var(--brand); }
+	.demo-code-toggle { margin-left: auto; }
 	.demo-frame {
 		border-radius: 6px;
 		overflow: hidden;
@@ -144,6 +162,52 @@
 		line-height: 0;
 	}
 	.demo-frame iframe { display: block; width: 100%; height: 300px; border: 0; }
+	.demo-code-view {
+		border-radius: 6px;
+		overflow: hidden;
+		background: #1e1f29;
+	}
+	#codeEditor {
+		display: block;
+		width: 100%;
+		height: 300px;
+		box-sizing: border-box;
+		resize: none;
+		border: 0;
+		background: #1e1f29;
+		color: var(--code-fg);
+		font: 12px/1.5 'Fira Code', 'Consolas', 'Courier New', monospace;
+		padding: 10px 12px;
+	}
+	#codeEditor:focus { outline: none; }
+	.demo-code-actions {
+		display: flex;
+		gap: 8px;
+		padding: 8px 2px 2px;
+	}
+	.demo-run-btn {
+		background: #22c55e;
+		color: #0d1117;
+		font-family: inherit;
+		font-weight: 700;
+		font-size: 12.5px;
+		border: 1px solid #22c55e;
+		border-radius: 4px;
+		padding: 6px 14px;
+		cursor: pointer;
+	}
+	.demo-run-btn:hover { background: #16a34a; border-color: #16a34a; }
+	.demo-reset-btn {
+		background: transparent;
+		color: var(--text);
+		font-family: inherit;
+		font-size: 12.5px;
+		border: 1px solid var(--code-border);
+		border-radius: 4px;
+		padding: 6px 14px;
+		cursor: pointer;
+	}
+	.demo-reset-btn:hover { border-color: var(--brand); color: var(--brand); }
 	.demo-caption {
 		font-size: 12px;
 		color: var(--code-comment);
@@ -258,10 +322,23 @@
 		</div>
 
 		<div class="demo-card">
-			<div class="demo-frame">
+			<div class="demo-tabs mono">
+				<button class="demo-tab" data-game="asteroids">Asteroids</button>
+				<button class="demo-tab" data-game="platformer">Platformer</button>
+				<button class="demo-tab" data-game="runner">Runner</button>
+				<button class="demo-tab demo-code-toggle" id="codeToggle">Code</button>
+			</div>
+			<div class="demo-frame" id="previewView">
 				<iframe id="preview" title="moSHion demo sketch" sandbox="allow-scripts allow-downloads"></iframe>
 			</div>
-			<p class="demo-caption mono">↑ or click to kick the ball.</p>
+			<div class="demo-code-view" id="codeView" hidden>
+				<textarea id="codeEditor" spellcheck="false"></textarea>
+				<div class="demo-code-actions">
+					<button class="demo-run-btn" id="runEdited">▶ Run</button>
+					<button class="demo-reset-btn" id="resetEdited">↺ Reset</button>
+				</div>
+			</div>
+			<p class="demo-caption mono" id="demoCaption"></p>
 		</div>
 	</div>
 
@@ -296,28 +373,231 @@
 </div>
 
 <script>
-// ---- starter sketch — real Box2D physics, sized to the demo panel -----------
-var STARTER = [
-	'function setup() {',
-	'  new Canvas(460, 300);',
-	'  world.gravity.y = 10;',
-	'  ball = new Sprite(230, 60, 30);',
-	'  ball.bounciness = 0.85;',
-	'  ball.color = "#5baafd";',
-	'  floor = new Sprite(230, 290, 460, 20, "static");',
-	'  floor.color = "#333844";',
-	'  wallL = new Sprite(-5, 150, 10, 300, "static");',
-	'  wallL.color = "#333844";',
-	'  wallR = new Sprite(465, 150, 10, 300, "static");',
-	'  wallR.color = "#333844";',
-	'}',
-	'',
-	'function draw() {',
-	'  background("#1e1f29");',
-	'  if (kb.presses("up") || mouse.presses()) ball.vel.y = -13;',
-	'  text("press ↑ or click to kick the ball", 230, 20, 11, "#6272a4");',
-	'}'
-].join('\n');
+// ---- three tiny games, real Box2D physics, each sized to the demo panel ----
+var GAMES = {
+	asteroids: {
+		caption: '← / → rotate · ↑ thrust · space fires',
+		code: [
+			'function setup() {',
+			'  new Canvas(460, 300);',
+			'  world.gravity.y = 0;',
+			'  ship = new Sprite(230, 150, 22, 16);',
+			'  ship.color = "#5baafd";',
+			'  ship.friction = 0;',
+			'  ship.bounciness = 0;',
+			'  bullets = new Group();',
+			'  bullets.color = "#f8f8f2";',
+			'  bullets.collider = "none";',
+			'  bullets.diameter = 4;',
+			'  asteroids = new Group();',
+			'  asteroids.color = "#333844";',
+			'  asteroids.friction = 0;',
+			'  asteroids.bounciness = 1;',
+			'  ship.autoDraw = false;',
+			'  score = 0;',
+			'  lastShot = 0;',
+			'  for (var i = 0; i < 5; i++) spawnAsteroid();',
+			'}',
+			'',
+			'function spawnAsteroid() {',
+			'  var edge = Math.floor(Math.random() * 4);',
+			'  var x, y;',
+			'  if (edge === 0) { x = Math.random() * 460; y = -20; }',
+			'  else if (edge === 1) { x = 480; y = Math.random() * 300; }',
+			'  else if (edge === 2) { x = Math.random() * 460; y = 320; }',
+			'  else { x = -20; y = Math.random() * 300; }',
+			'  var a = new asteroids.Sprite(x, y, 20 + Math.random() * 16);',
+			'  var ang = Math.random() * Math.PI * 2;',
+			'  var spd = 0.5 + Math.random() * 1;',
+			'  a.vel.x = Math.cos(ang) * spd;',
+			'  a.vel.y = Math.sin(ang) * spd;',
+			'}',
+			'',
+			'function wrap(s, pad) {',
+			'  if (s.x < -pad) s.x = 460 + pad;',
+			'  if (s.x > 460 + pad) s.x = -pad;',
+			'  if (s.y < -pad) s.y = 300 + pad;',
+			'  if (s.y > 300 + pad) s.y = -pad;',
+			'}',
+			'',
+			'function update() {',
+			'  if (kb.pressing("left")) ship.rotation -= 4;',
+			'  if (kb.pressing("right")) ship.rotation += 4;',
+			'  if (kb.pressing("up")) {',
+			'    var rad = ship.rotation * Math.PI / 180;',
+			'    ship.vel.x += Math.cos(rad) * 0.2;',
+			'    ship.vel.y += Math.sin(rad) * 0.2;',
+			'  }',
+			'  ship.vel.x *= 0.99;',
+			'  ship.vel.y *= 0.99;',
+			'  wrap(ship, 15);',
+			'  asteroids.forEach(function (a) { wrap(a, 30); });',
+			'',
+			'  if (kb.presses("space") && frameCount - lastShot > 14) {',
+			'    lastShot = frameCount;',
+			'    var rad = ship.rotation * Math.PI / 180;',
+			'    var b = new bullets.Sprite(ship.x + Math.cos(rad) * 16, ship.y + Math.sin(rad) * 16, 4);',
+			'    b.vel.x = Math.cos(rad) * 5 + ship.vel.x;',
+			'    b.vel.y = Math.sin(rad) * 5 + ship.vel.y;',
+			'    b.born = frameCount;',
+			'  }',
+			'',
+			'  bullets.slice().forEach(function (b) {',
+			'    if (frameCount - b.born > 50 || b.x < -10 || b.x > 470 || b.y < -10 || b.y > 310) { b.delete(); return; }',
+			'    b.overlaps(asteroids, function (bullet, asteroid) {',
+			'      bullet.delete();',
+			'      asteroid.delete();',
+			'      score++;',
+			'      spawnAsteroid();',
+			'    });',
+			'  });',
+			'}',
+			'',
+			'function draw() {',
+			'  background("#1e1f29");',
+			'  stroke("#5baafd");',
+			'  strokeWeight(2);',
+			'  var rad = ship.rotation * Math.PI / 180;',
+			'  var cos = Math.cos(rad), sin = Math.sin(rad);',
+			'  var pts = [[14, 0], [-10, -8], [-10, 8]];',
+			'  var sx = [], sy = [];',
+			'  for (var i = 0; i < 3; i++) {',
+			'    sx.push(ship.x + pts[i][0] * cos - pts[i][1] * sin);',
+			'    sy.push(ship.y + pts[i][0] * sin + pts[i][1] * cos);',
+			'  }',
+			'  line(sx[0], sy[0], sx[1], sy[1]);',
+			'  line(sx[1], sy[1], sx[2], sy[2]);',
+			'  line(sx[2], sy[2], sx[0], sy[0]);',
+			'  text("SCORE " + score, 14, 20, 12, "#6272a4");',
+			'}'
+		].join('\n')
+	},
+
+	platformer: {
+		caption: '← / → move · ↑ or space climbs',
+		code: [
+			'function setup() {',
+			'  new Canvas(460, 300);',
+			'  world.gravity.y = 10;',
+			'  player = new Sprite(230, 260, 18, 18);',
+			'  player.color = "#5baafd";',
+			'  player.bounciness = 0;',
+			'  player.friction = 0;',
+			'  platforms = new Group();',
+			'  platforms.color = "#333844";',
+			'  new platforms.Sprite(230, 290, 460, 20, "static");',
+			'  var y = 250, x = 230, dir = 1;',
+			'  for (var i = 0; i < 26; i++) {',
+			'    x += dir * (90 + Math.random() * 40);',
+			'    x = Math.max(60, Math.min(400, x));',
+			'    new platforms.Sprite(x, y, 70, 12, "static");',
+			'    y -= 42 + Math.random() * 10;',
+			'    dir = -dir;',
+			'  }',
+			'  startY = player.y;',
+			'  camera.y = 150;',
+			'  best = 0;',
+			'}',
+			'',
+			'function respawn() {',
+			'  player.x = 230; player.y = 260; player.vel.x = 0; player.vel.y = 0;',
+			'  camera.y = 150;',
+			'}',
+			'',
+			'function update() {',
+			'  if (kb.pressing("left")) player.vel.x = -2.2;',
+			'  else if (kb.pressing("right")) player.vel.x = 2.2;',
+			'  else player.vel.x = 0;',
+			'',
+			'  var grounded = player.colliding(platforms);',
+			'  if ((kb.presses("up") || kb.presses("space")) && grounded) player.vel.y = -4.5;',
+			'',
+			'  camera.y = Math.min(camera.y, player.y);',
+			'  if (player.y - camera.y > 220) respawn();',
+			'',
+			'  var climbed = Math.max(0, Math.floor((startY - player.y) / 4));',
+			'  best = Math.max(best, climbed);',
+			'}',
+			'',
+			'function draw() {',
+			'  background("#1e1f29");',
+			'  camera.off();',
+			'  text("HEIGHT " + best, 20, 20, 12, "#6272a4");',
+			'  camera.on();',
+			'}'
+		].join('\n')
+	},
+
+	runner: {
+		caption: '↑, space, or click to jump',
+		code: [
+			'function setup() {',
+			'  new Canvas(460, 300);',
+			'  world.gravity.y = 10;',
+			'  player = new Sprite(60, 240, 24, 24);',
+			'  player.color = "#5baafd";',
+			'  player.bounciness = 0;',
+			'  ground = new Sprite(230, 280, 460, 20, "static");',
+			'  ground.color = "#333844";',
+			'  groundSensor = new Sprite(60, 254, 18, 6, "kinematic");',
+			'  groundSensor.collider = "none";',
+			'  groundSensor.color = "transparent";',
+			'  groundSensor.debug = true;',
+			'  obstacles = new Group();',
+			'  obstacles.color = "#ffb86c";',
+			'  obstacles.friction = 0;',
+			'  score = 0;',
+			'  alive = true;',
+			'  speed = 3;',
+			'  nextSpawn = 60;',
+			'}',
+			'',
+			'function restart() {',
+			'  obstacles.slice().forEach(function (o) { o.delete(); });',
+			'  player.x = 60; player.y = 240; player.vel.x = 0; player.vel.y = 0;',
+			'  score = 0; alive = true; speed = 3; nextSpawn = 60;',
+			'}',
+			'',
+			'function update() {',
+			'  groundSensor.x = player.x;',
+			'  groundSensor.y = player.y + 16;',
+			'',
+			'  if (!alive) {',
+			'    if (kb.presses("up") || kb.presses("space") || mouse.presses()) restart();',
+			'    return;',
+			'  }',
+			'',
+			'  var grounded = groundSensor.overlaps(ground);',
+			'  if ((kb.presses("up") || kb.presses("space") || mouse.presses()) && grounded) player.vel.y = -3.5;',
+			'',
+			'  nextSpawn--;',
+			'  if (nextSpawn <= 0) {',
+			'    var h = 20 + Math.random() * 20;',
+			'    var o = new obstacles.Sprite(480, 267 - h / 2, 16, h, "kinematic");',
+			'    o.vel.x = -speed;',
+			'    nextSpawn = 55 + Math.random() * 45;',
+			'  }',
+			'',
+			'  obstacles.slice().forEach(function (o) {',
+			'    if (o.x < -20) { o.delete(); score++; }',
+			'  });',
+			'',
+			'  if (player.colliding(obstacles)) alive = false;',
+			'  speed += 0.0015;',
+			'}',
+			'',
+			'function draw() {',
+			'  background("#1e1f29");',
+			'  text("SCORE " + score, 14, 20, 12, "#6272a4");',
+			'  if (!alive) {',
+			'    textAlign("center");',
+			'    text("game over — press ↑ to restart", 230, 150, 13, "#f8f8f2");',
+			'    textAlign("left");',
+			'  }',
+			'}'
+		].join('\n')
+	}
+};
 
 // ---- base64url (matches runner.html's decoder, unicode-safe) ---------------
 function b64url(s) {
@@ -336,7 +616,66 @@ window.addEventListener('message', function(e) {
 });
 
 var frame = document.getElementById('preview');
-frame.src = 'runner.html?r=' + Date.now() + '&code=' + b64url(STARTER);
+var caption = document.getElementById('demoCaption');
+var tabs = document.querySelectorAll('.demo-tab[data-game]');
+var codeToggle = document.getElementById('codeToggle');
+var previewView = document.getElementById('previewView');
+var codeView = document.getElementById('codeView');
+var codeEditor = document.getElementById('codeEditor');
+var runEditedBtn = document.getElementById('runEdited');
+var resetEditedBtn = document.getElementById('resetEdited');
+
+var currentGame = null;
+var showingCode = false;
+
+function label(name) { return name.charAt(0).toUpperCase() + name.slice(1); }
+
+function loadGame(name) {
+	var game = GAMES[name];
+	if (!game) return;
+	currentGame = name;
+	frame.src = 'runner.html?r=' + Date.now() + '&code=' + b64url(game.code);
+	tabs.forEach(function(t) {
+		t.classList.toggle('active', t.dataset.game === name);
+	});
+	if (showingCode) {
+		codeEditor.value = game.code;
+		caption.textContent = 'Editing ' + label(name) + '. Press Run to try your changes.';
+	} else {
+		caption.textContent = game.caption;
+	}
+}
+
+function setCodeView(show) {
+	showingCode = show;
+	previewView.hidden = show;
+	codeView.hidden = !show;
+	codeToggle.textContent = show ? 'Preview' : 'Code';
+	codeToggle.classList.toggle('active', show);
+	if (show) {
+		codeEditor.value = GAMES[currentGame].code;
+		caption.textContent = 'Editing ' + label(currentGame) + '. Press Run to try your changes.';
+	} else {
+		caption.textContent = GAMES[currentGame].caption;
+	}
+}
+
+tabs.forEach(function(t) {
+	t.addEventListener('click', function() { loadGame(t.dataset.game); });
+});
+
+codeToggle.addEventListener('click', function() { setCodeView(!showingCode); });
+
+runEditedBtn.addEventListener('click', function() {
+	frame.src = 'runner.html?r=' + Date.now() + '&code=' + b64url(codeEditor.value);
+	setCodeView(false);
+});
+
+resetEditedBtn.addEventListener('click', function() {
+	codeEditor.value = GAMES[currentGame].code;
+});
+
+loadGame('asteroids');
 </script>
 </body>
 </html>
