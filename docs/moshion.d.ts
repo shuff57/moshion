@@ -395,9 +395,9 @@ interface Kb {
   // same key work: what the browser reports ('ArrowRight', ' '), the reference API's
   // name ('arrowRight'), and the course's ('right', 'space'). Pressing an
   // arrow OR its WASD twin both answer to 'up'/'down'/'left'/'right'.
-  // pressing() returns the frame count while held (0 when idle), not a
-  // plain boolean — truthy in every existing `if (kb.pressing(...))` check.
-  pressing(key: string): number;
+  // pressing() returns a plain boolean, true every frame the key is held
+  // (matches the course: 5.1.5/6.3.3). Use holding(key) for the frame count.
+  pressing(key: string): boolean;
   presses(key: string): boolean;
   holds(key: string): boolean;
   holding(key: string): number;
@@ -407,30 +407,30 @@ interface Kb {
   // key-UP, not key-down. See the comment above the `kb` object in moshion.js.
   pressed(key: string): boolean;
 
-  // Named-key shorthands: same value kb.pressing(name) returns (0, or the
-  // held-frame count). The reference API exposes the raw signed counter here, which is
-  // truthy on the release frame too — a deliberate divergence, DECISIONS D13.
-  readonly space: number;
-  readonly enter: number;
-  readonly escape: number;
-  readonly tab: number;
-  readonly backspace: number;
-  readonly shift: number;
-  readonly control: number;
-  readonly ctrl: number;
-  readonly alt: number;
-  readonly capsLock: number;
-  readonly arrowUp: number;
-  readonly arrowDown: number;
-  readonly arrowLeft: number;
-  readonly arrowRight: number;
-  readonly meta: number;
-  readonly cmd: number;
-  readonly command: number;
-  readonly win: number;
-  readonly windows: number;
-  readonly opt: number;
-  readonly option: number;
+  // Named-key shorthands: same value kb.pressing(name) returns (a plain
+  // boolean). The reference API exposes the raw signed counter here, which is
+  // truthy on the release frame too — a deliberate divergence.
+  readonly space: boolean;
+  readonly enter: boolean;
+  readonly escape: boolean;
+  readonly tab: boolean;
+  readonly backspace: boolean;
+  readonly shift: boolean;
+  readonly control: boolean;
+  readonly ctrl: boolean;
+  readonly alt: boolean;
+  readonly capsLock: boolean;
+  readonly arrowUp: boolean;
+  readonly arrowDown: boolean;
+  readonly arrowLeft: boolean;
+  readonly arrowRight: boolean;
+  readonly meta: boolean;
+  readonly cmd: boolean;
+  readonly command: boolean;
+  readonly win: boolean;
+  readonly windows: boolean;
+  readonly opt: boolean;
+  readonly option: boolean;
   /** Alias of released() — true on the frame the key comes back up. */
   releases(key: string): boolean;
 }
@@ -445,7 +445,7 @@ interface Mouse {
   readonly position: Vec2;
   readonly canvasPos: Vec2;
   holdThreshold: number;
-  pressing(): number;
+  pressing(): boolean;
   presses(): boolean;
   holds(): boolean;
   holding(): number;

@@ -121,7 +121,11 @@
 
   const kb = {
     holdThreshold: 12,
-    pressing: (k) => { const v = KEYS_[_key(k)] || 0; return v === -3 ? 1 : v > 0 ? v : 0; },
+    // Boolean, matching the course (5.1.5/6.3.3: "returns true every frame
+    // the key is held down") — not the raw frame count. Use holding(key) if
+    // you need the count; nothing in the curriculum reads pressing() as a
+    // number, and this is now the documented public contract.
+    pressing: (k) => { const v = KEYS_[_key(k)] || 0; return v === -3 || v > 0; },
     presses: (k) => { const v = KEYS_[_key(k)] || 0; return v === 1 || v === -3; },
     holds: (k) => (KEYS_[_key(k)] || 0) === kb.holdThreshold,
     holding: (k) => { const v = KEYS_[_key(k)] || 0; return v >= kb.holdThreshold ? v : 0; },
@@ -156,7 +160,9 @@
     // it, a HUD button hit-tested against mouse.x starts answering wrong the
     // moment the camera moves, and nothing errors.
     get canvasPos() { return { x: MOUSE.x - _camLeft(), y: MOUSE.y - _camTop() }; },
-    pressing: () => { const v = MOUSE._c; return v === -3 ? 1 : v > 0 ? v : 0; },
+    // Boolean, matching mouse.pressing() as taught in 6.7.3/6.7.8 (used as
+    // `if (!mouse.pressing())` in the drag-and-drop lesson).
+    pressing: () => { const v = MOUSE._c; return v === -3 || v > 0; },
     presses: () => { const v = MOUSE._c; return v === 1 || v === -3; },
     holds: () => MOUSE._c === mouse.holdThreshold,
     holding: () => { const v = MOUSE._c; return v >= mouse.holdThreshold ? v : 0; },
@@ -210,9 +216,8 @@
   //
   // The reference API exposes these as the RAW signed counter, which is truthy on the
   // release frames (-1/-2) — `if (kb.space) jump()` there fires a second time
-  // when the key comes back up. Ours returns what kb.pressing() returns: 0, or
-  // the held-frame count. A deliberate divergence (DECISIONS.md D13); the
-  // parity check that measures it is marked informational.
+  // when the key comes back up. Ours returns what kb.pressing() returns: a
+  // plain boolean, true only while actually held. A deliberate divergence.
   for (const [prop, key] of Object.entries({
     space: ' ', enter: 'enter', escape: 'escape', tab: 'tab', backspace: 'backspace',
     shift: 'shift', control: 'control', ctrl: 'control', alt: 'alt', capsLock: 'capslock',
