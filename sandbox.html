@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>moSHion Sandbox</title>
+<style>
+	:root {
+		color-scheme: dark;
+		--bg: #252525;
+		--card: #1e1e1e;
+		--border: #333;
+		--muted: #2a2a2a;
+		--text: #cccccc;
+		--brand: #5baafd;
+		--brand-hover: #7cc0ff;
+		--code-bg: #282a36;
+		--code-border: #44475a;
+		--code-comment: #6272a4;
+		--code-fg: #f8f8f2;
+		--highlight: #ffb86c;
+	}
+	* { box-sizing: border-box; }
+	html, body { margin: 0; padding: 0; }
+	body {
+		background: var(--bg);
+		color: var(--text);
+		font-family: 'Courier', 'Consolas', monospace;
+	}
+	a { color: var(--brand); text-decoration: none; }
+	a:hover { color: var(--brand-hover); }
+	.mono { font-family: 'Fira Code', 'Consolas', 'Courier New', monospace; }
+	.wrap { max-width: 1040px; margin: 0 auto; padding: 28px 24px 64px; }
+
+	/* nav -- matches index.html */
+	.nav {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 16px;
+		padding-bottom: 32px;
+	}
+	.brand { font-size: 19px; font-weight: 700; letter-spacing: -0.01em; color: var(--text); }
+	.brand .sh { color: var(--brand); }
+	.nav-links { display: flex; align-items: center; gap: 22px; font-size: 14px; }
+	.nav-links a.ghost { color: var(--text); opacity: 0.7; }
+	.nav-links a.ghost:hover { color: var(--text); opacity: 1; }
+	.gh-link { display: inline-flex; align-items: center; gap: 6px; }
+
+	.page-head { padding-bottom: 22px; }
+	h1 {
+		font-size: 24px;
+		margin: 0 0 8px;
+		font-weight: 700;
+		color: var(--text);
+	}
+	.lede { font-size: 14.5px; line-height: 1.6; color: var(--text); opacity: 0.8; margin: 0; max-width: 62ch; }
+
+	/* editor card, matches shCode's lesson workspace shell */
+	.editor-card {
+		background: var(--card);
+		border: 1px solid var(--border);
+		border-radius: 8px;
+		padding: 14px;
+		box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+	}
+
+	.run-toolbar {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		flex-wrap: wrap;
+		padding: 0 2px 12px;
+	}
+	.btn-run {
+		background: #22c55e;
+		color: #0d1117;
+		font-family: inherit;
+		font-weight: 700;
+		font-size: 14px;
+		border: 1px solid #22c55e;
+		border-radius: 4px;
+		padding: 8px 20px;
+		cursor: pointer;
+	}
+	.btn-run:hover { background: #16a34a; border-color: #16a34a; }
+	.btn-chip {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		background: transparent;
+		color: var(--text);
+		font-family: inherit;
+		font-size: 13px;
+		border: 1px solid var(--code-border);
+		border-radius: 4px;
+		padding: 6px 14px;
+		cursor: pointer;
+	}
+	.btn-chip:hover { border-color: var(--brand); color: var(--brand); }
+	.run-hint { margin-left: auto; font-size: 12px; color: var(--code-comment); }
+
+	.editor-preview-container {
+		display: flex;
+		position: relative;
+		height: 420px;
+		border: 1px solid var(--code-border);
+		border-radius: 6px;
+		overflow: hidden;
+	}
+	/* Sits over the iframe only while dragging -- a pointer that crosses into
+	   the iframe's own document breaks the divider's pointer capture, so this
+	   overlay keeps every pointer event on the parent document instead. */
+	.drag-overlay {
+		position: absolute;
+		inset: 0;
+		display: none;
+		cursor: col-resize;
+		z-index: 5;
+	}
+	.drag-overlay.active { display: block; }
+	.pane {
+		flex: 1 1 50%;
+		min-width: 220px;
+		display: flex;
+		flex-direction: column;
+		background: var(--code-bg);
+		min-height: 0;
+	}
+	.editor-file-toolbar {
+		font-size: 12px;
+		color: var(--code-comment);
+		padding: 8px 12px;
+		border-bottom: 1px solid var(--code-border);
+		flex-shrink: 0;
+	}
+	#code {
+		flex: 1;
+		width: 100%;
+		resize: none;
+		border: 0;
+		background: var(--code-bg);
+		color: var(--code-fg);
+		font: 13px/1.5 'Fira Code', 'Consolas', 'Courier New', monospace;
+		padding: 12px 14px;
+	}
+	#code:focus { outline: none; }
+	#previewPane iframe { flex: 1; width: 100%; height: 100%; border: 0; display: block; }
+
+	.divider {
+		flex: 0 0 6px;
+		background: var(--code-border);
+		cursor: col-resize;
+		position: relative;
+	}
+	.divider:hover, .divider.dragging { background: var(--brand); }
+	.divider:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
+
+	.console-panel {
+		margin-top: 12px;
+		border: 1px solid var(--code-border);
+		border-radius: 6px;
+		background: var(--code-bg);
+	}
+	.console-panel > summary {
+		cursor: pointer;
+		list-style: none;
+		padding: 8px 12px;
+		font-size: 12px;
+		color: var(--code-comment);
+	}
+	.console-panel > summary::-webkit-details-marker { display: none; }
+	.console-panel > summary::before { content: '\25B8\a0'; }
+	.console-panel[open] > summary::before { content: '\25BE\a0'; }
+	#out {
+		font: 12px/1.5 'Fira Code', 'Consolas', 'Courier New', monospace;
+		padding: 10px 14px;
+		color: var(--brand);
+		white-space: pre-wrap;
+		border-top: 1px solid var(--code-border);
+		min-height: 60px;
+		max-height: 220px;
+		overflow: auto;
+	}
+	#out .err { color: #ef4444; }
+
+	footer { border-top: 1px solid var(--border); margin-top: 28px; padding-top: 22px; }
+	footer .meta { font-size: 12px; color: var(--text); opacity: 0.5; }
+
+	@media (max-width: 760px) {
+		.editor-preview-container { flex-direction: column; height: auto; }
+		.pane { height: 280px; min-width: 0; }
+		.divider { display: none; }
+		.nav-links { gap: 16px; }
+	}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+	<nav class="nav">
+		<span class="brand">mo<span class="sh">SH</span>ion</span>
+		<div class="nav-links">
+			<a class="ghost" href="index.html">Home</a>
+			<a class="ghost" href="docs/index.html">Docs</a>
+			<a class="gh-link" href="https://github.com/shuff57/moshion"><svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z"></path></svg>GitHub</a>
+		</div>
+	</nav>
+
+	<div class="page-head">
+		<h1>Sandbox</h1>
+		<p class="lede">Write moSHion code and run it live: sprites, physics, keyboard and mouse input, all in the browser.</p>
+	</div>
+
+	<div class="editor-card">
+		<div class="run-toolbar">
+			<button class="btn-run" id="run">&#9654; Run</button>
+			<button class="btn-chip" id="reset">&#8634; Reset</button>
+			<button class="btn-chip" id="clear">Clear console</button>
+			<span class="run-hint mono">Ctrl+Enter runs</span>
+		</div>
+
+		<div class="editor-preview-container" id="split">
+			<div class="pane" id="editorPane">
+				<div class="editor-file-toolbar mono">sketch.js</div>
+				<textarea id="code" spellcheck="false"></textarea>
+			</div>
+			<div class="divider" id="divider" role="separator" aria-orientation="vertical" aria-label="Resize editor and preview" tabindex="0"></div>
+			<div class="pane" id="previewPane">
+				<iframe id="preview" title="moSHion sandbox sketch" sandbox="allow-scripts allow-downloads"></iframe>
+			</div>
+			<div class="drag-overlay" id="dragOverlay"></div>
+		</div>
+
+		<details class="console-panel" open>
+			<summary class="mono">Console</summary>
+			<div id="out">console output appears here&#8230;</div>
+		</details>
+	</div>
+
+	<footer>
+		<span class="meta mono">MIT licensed</span>
+	</footer>
+
+</div>
+
+<script>
+// ---- starter sketch (same as the homepage's bouncing-ball demo) -----------
+var STARTER = [
+	'function setup() {',
+	'  new Canvas(800, 480);',
+	'  world.gravity.y = 10;',
+	'  ball = new Sprite(400, 60, 36);',
+	'  ball.bounciness = 0.92;',
+	'  ball.color = "#5baafd";',
+	'  floor = new Sprite(400, 470, 800, 20, "static");',
+	'  floor.color = "#333844";',
+	'  wallL = new Sprite(-5, 240, 10, 480, "static");',
+	'  wallL.color = "#333844";',
+	'  wallR = new Sprite(805, 240, 10, 480, "static");',
+	'  wallR.color = "#333844";',
+	'}',
+	'',
+	'function draw() {',
+	'  background("#1e1f29");',
+	'  if (kb.presses("up")) ball.vel.y = -14;',
+	'  text("press UP to kick the ball", 400, 30, 14, "#6272a4");',
+	'}'
+].join('\n');
+
+// ---- base64url (matches runner.html's decoder, unicode-safe) ---------------
+function b64url(s) {
+	var bytes = new TextEncoder().encode(s), bin = '';
+	for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+	var b64 = btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+	return b64;
+}
+
+// ---- host wiring -----------------------------------------------------------
+var editor = document.getElementById('code');
+var out = document.getElementById('out');
+
+function run() {
+	var frame = document.getElementById('preview');
+	var src = 'runner.html?r=' + Date.now() + '&code=' + b64url(editor.value);
+	frame.src = src;
+}
+
+// Console + errors arrive over postMessage (source: 'preview-console' /
+// 'preview-error'), exactly the protocol a real host implements.
+window.addEventListener('message', function(e) {
+	var d = e.data;
+	if (!d || d.source !== 'preview-console' && d.source !== 'preview-error') return;
+	if (d.source === 'preview-error') {
+		out.textContent += '\n[error] ' + (d.error && d.error.message ? d.error.message : JSON.stringify(d.error));
+	} else {
+		var line = (d.args || []).map(function(a) {
+			return typeof a === 'object' ? JSON.stringify(a) : String(a);
+		}).join(' ');
+		out.textContent += (d.type === 'error' ? '\n[error] ' : '\n[' + (d.type || 'log') + '] ') + line;
+	}
+	if (out.textContent.length > 4000) out.textContent = out.textContent.slice(-4000);
+});
+
+// Save-store bridge: the runner asks, we hand it an in-memory store. A host
+// that skips this simply gets a 400ms timeout and an empty store.
+window.addEventListener('message', function(e) {
+	if (e.data && e.data.source === 'preview-storage-request' && e.source) {
+		e.source.postMessage({ source: 'preview-storage-init', data: {} }, '*');
+	}
+});
+
+document.getElementById('run').addEventListener('click', run);
+document.getElementById('reset').addEventListener('click', function() {
+	editor.value = STARTER;
+});
+document.getElementById('clear').addEventListener('click', function() {
+	out.textContent = 'console output appears here…';
+});
+editor.addEventListener('keydown', function(e) {
+	if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); run(); }
+});
+
+// ---- resizable split, matching shCode's editor/preview divider ------------
+(function() {
+	var container = document.getElementById('split');
+	var editorPane = document.getElementById('editorPane');
+	var divider = document.getElementById('divider');
+	var dragOverlay = document.getElementById('dragOverlay');
+	var dragging = false;
+	var MIN = 220;
+
+	function clamp(x) {
+		var rect = container.getBoundingClientRect();
+		var max = rect.width - MIN - 6;
+		return Math.max(MIN, Math.min(max, x));
+	}
+	function setWidth(px) {
+		editorPane.style.flex = '0 0 ' + clamp(px) + 'px';
+	}
+
+	divider.addEventListener('pointerdown', function(e) {
+		dragging = true;
+		divider.classList.add('dragging');
+		// The drag overlay covers the iframe for the duration of the drag --
+		// without it, the moment the pointer crosses into the iframe's own
+		// document, this window's pointermove/pointerup listeners stop firing
+		// (pointer capture on the divider does not reach across that boundary).
+		dragOverlay.classList.add('active');
+	});
+	window.addEventListener('pointermove', function(e) {
+		if (!dragging) return;
+		var rect = container.getBoundingClientRect();
+		setWidth(e.clientX - rect.left);
+	});
+	window.addEventListener('pointerup', function() {
+		dragging = false;
+		divider.classList.remove('dragging');
+		dragOverlay.classList.remove('active');
+	});
+	divider.addEventListener('keydown', function(e) {
+		var step = 24;
+		var cur = editorPane.getBoundingClientRect().width;
+		if (e.key === 'ArrowLeft') cur -= step;
+		else if (e.key === 'ArrowRight') cur += step;
+		else return;
+		e.preventDefault();
+		setWidth(cur);
+	});
+})();
+
+editor.value = STARTER;
+run();
+</script>
+</body>
+</html>

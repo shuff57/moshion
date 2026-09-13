@@ -2,53 +2,495 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>moSHion docs</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>moSHion Docs</title>
 <style>
-  html, body { margin: 0; padding: 0; background: #282a36; color: #f8f8f2; font-family: system-ui, -apple-system, sans-serif; }
-  main { max-width: 720px; margin: 40px auto; padding: 0 24px; }
-  h1 { margin: 0 0 6px; font-size: 28px; }
-  .sub { color: #6272a4; margin-bottom: 28px; }
-  a.card { display: block; text-decoration: none; color: inherit; background: #1e1f29; border: 1px solid #44475a; border-radius: 8px; padding: 16px 20px; margin-bottom: 12px; transition: border-color 120ms; }
-  a.card:hover { border-color: #bd93f9; }
-  a.card h2 { margin: 0 0 4px; font-size: 16px; color: #f8f8f2; }
-  a.card p { margin: 0; font-size: 13px; color: #6272a4; }
-  footer { margin-top: 32px; font-size: 12px; color: #6272a4; }
-  a { color: #8be9fd; }
+	:root {
+		color-scheme: dark;
+		--bg: #252525;
+		--card: #1e1e1e;
+		--border: #333;
+		--muted: #2a2a2a;
+		--text: #cccccc;
+		--brand: #5baafd;
+		--brand-hover: #7cc0ff;
+		--code-bg: #282a36;
+		--code-border: #44475a;
+		--code-comment: #6272a4;
+		--code-fg: #f8f8f2;
+		--highlight: #ffb86c;
+	}
+	* { box-sizing: border-box; }
+	html, body { margin: 0; padding: 0; }
+	body {
+		background: var(--bg);
+		color: var(--text);
+		font-family: 'Courier', 'Consolas', monospace;
+	}
+	a { color: var(--brand); text-decoration: none; }
+	a:hover { color: var(--brand-hover); }
+	.mono { font-family: 'Fira Code', 'Consolas', 'Courier New', monospace; }
+
+	/* nav -- matches index.html / sandbox.html */
+	.nav {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 16px;
+		padding: 20px 24px;
+	}
+	.brand { font-size: 19px; font-weight: 700; letter-spacing: -0.01em; color: var(--text); }
+	.brand .sh { color: var(--brand); }
+	.nav-links { display: flex; align-items: center; gap: 22px; font-size: 14px; }
+	.nav-links a.ghost { color: var(--text); opacity: 0.7; }
+	.nav-links a.ghost:hover { color: var(--text); opacity: 1; }
+	.gh-link { display: inline-flex; align-items: center; gap: 6px; }
+
+	/* layout */
+	.shell {
+		display: flex;
+		align-items: stretch;
+		min-height: calc(100vh - 61px);
+		border-top: 1px solid var(--border);
+	}
+	.sidebar {
+		flex: 0 0 240px;
+		width: 240px;
+		background: var(--card);
+		border-right: 1px solid var(--border);
+		padding: 16px 14px;
+		overflow-y: auto;
+	}
+	#search {
+		width: 100%;
+		background: var(--code-bg);
+		border: 1px solid var(--code-border);
+		border-radius: 4px;
+		color: var(--text);
+		font-family: inherit;
+		font-size: 13px;
+		padding: 8px 10px;
+		margin-bottom: 14px;
+	}
+	#search:focus { outline: none; border-color: var(--brand); }
+	#search::placeholder { color: var(--code-comment); }
+
+	.sec { margin-bottom: 2px; }
+	.sec-btn {
+		display: block;
+		width: 100%;
+		text-align: left;
+		background: none;
+		border: none;
+		border-left: 2px solid transparent;
+		color: var(--text);
+		opacity: 0.75;
+		font-family: inherit;
+		font-size: 13.5px;
+		padding: 7px 10px;
+		cursor: pointer;
+		border-radius: 4px;
+	}
+	.sec-btn:hover { opacity: 1; background: var(--muted); }
+	.sec.active > .sec-btn {
+		opacity: 1;
+		color: var(--brand);
+		border-left-color: var(--brand);
+		font-weight: 700;
+	}
+	.sub-pages { list-style: none; margin: 2px 0 8px; padding: 0 0 0 12px; }
+	.sub-pages li { margin: 0; }
+	.page-link {
+		display: block;
+		padding: 5px 10px;
+		font-size: 12.5px;
+		color: var(--text);
+		opacity: 0.65;
+		border-radius: 4px;
+		border-left: 2px solid transparent;
+	}
+	.page-link:hover { opacity: 1; color: var(--text); background: var(--muted); }
+	.page-link.active { opacity: 1; color: var(--brand); border-left-color: var(--brand); }
+
+	.search-results { list-style: none; margin: 0; padding: 0; }
+	.search-results li { margin: 0; }
+	.search-hit {
+		display: block;
+		padding: 7px 10px;
+		font-size: 12.5px;
+		color: var(--text);
+		border-radius: 4px;
+	}
+	.search-hit:hover { background: var(--muted); color: var(--brand); }
+	.search-hit .hit-section { display: block; font-size: 11px; color: var(--code-comment); }
+	.no-results { font-size: 12.5px; color: var(--code-comment); padding: 7px 10px; }
+
+	main {
+		flex: 1 1 auto;
+		min-width: 0;
+		max-width: 760px;
+		margin: 0 auto;
+		padding: 32px 28px 64px;
+	}
+	.breadcrumb {
+		font-size: 12px;
+		color: var(--code-comment);
+		margin: 0 0 10px;
+	}
+	h1 {
+		font-size: 24px;
+		margin: 0 0 18px;
+		font-weight: 700;
+		color: var(--text);
+	}
+	.body-text p {
+		font-size: 15px;
+		line-height: 1.65;
+		color: var(--text);
+		opacity: 0.85;
+		margin: 0 0 14px;
+	}
+
+	.code-block {
+		background: var(--code-bg);
+		border: 1px solid var(--code-border);
+		border-radius: 4px;
+		padding: 12px 14px;
+		font-family: 'Fira Code', 'Consolas', 'Courier New', monospace;
+		font-size: 13px;
+		color: var(--code-fg);
+		white-space: pre;
+		overflow-x: auto;
+		margin: 18px 0 0;
+	}
+	.btn-run {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		background: transparent;
+		color: var(--text);
+		font-family: inherit;
+		font-size: 12.5px;
+		border: 1px solid var(--code-border);
+		border-radius: 4px;
+		padding: 6px 12px;
+		cursor: pointer;
+		margin: 10px 0 0;
+	}
+	.btn-run:hover { border-color: var(--brand); color: var(--brand); }
+
+	.preview-wrap {
+		margin-top: 12px;
+		background: var(--code-bg);
+		border: 1px solid var(--code-border);
+		border-radius: 8px;
+		overflow: hidden;
+		display: none;
+	}
+	.preview-wrap.open { display: block; }
+	.preview-wrap iframe { display: block; width: 100%; height: 320px; border: 0; }
+
+	.pagination {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-top: 32px;
+		padding-top: 18px;
+		border-top: 1px solid var(--border);
+		font-size: 13.5px;
+	}
+	.pagination a { color: var(--brand); }
+	.pagination a.disabled { color: var(--code-comment); opacity: 0.5; pointer-events: none; }
+	.pagination .spacer { flex: 1; }
+
+	.old-links {
+		margin-top: 40px;
+		padding-top: 14px;
+		border-top: 1px solid var(--border);
+		font-size: 12px;
+		color: var(--code-comment);
+	}
+	.old-links a { color: var(--code-comment); margin-right: 14px; }
+	.old-links a:hover { color: var(--brand); }
+
+	@media (max-width: 760px) {
+		.shell { flex-direction: column; }
+		.sidebar {
+			flex: 0 0 auto;
+			width: auto;
+			max-height: 50vh;
+			border-right: none;
+			border-bottom: 1px solid var(--border);
+		}
+		main { padding: 24px 18px 48px; max-width: 100%; }
+		.nav-links { gap: 16px; }
+	}
 </style>
 </head>
 <body>
-<main>
-  <h1>moSHion docs</h1>
-  <p class="sub">Reference material for the moSHion game engine. Open any of these in a new tab while you work.</p>
 
-  <a class="card" href="./moshion.d.ts" target="_blank">
-    <h2>API Reference (moshion.d.ts)</h2>
-    <p>Every class, method, and property the engine exposes. Dense but authoritative — Ctrl+F is your friend.</p>
-  </a>
+<nav class="nav">
+	<span class="brand">mo<span class="sh">SH</span>ion</span>
+	<div class="nav-links">
+		<a class="ghost" href="../index.html">Home</a>
+		<a class="ghost" href="../sandbox.html">Sandbox</a>
+		<a class="gh-link" href="https://github.com/shuff57/moshion"><svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z"></path></svg>GitHub</a>
+	</div>
+</nav>
 
-  <a class="card" href="./challenges.md" target="_blank">
-    <h2>Challenges</h2>
-    <p>The 15-challenge ladder the lesson set is built from. Concepts + verifiable goals per tier.</p>
-  </a>
+<div class="shell">
+	<div class="sidebar">
+		<input id="search" type="text" placeholder="Search docs&#8230;" autocomplete="off">
+		<div id="tree"></div>
+		<ul id="searchResults" class="search-results" style="display:none;"></ul>
+	</div>
 
-  <a class="card" href="./CLAUDE.md" target="_blank">
-    <h2>Architecture Notes</h2>
-    <p>How the engine is wired: sprite↔planck mapping, px/frame units, input edge counters.</p>
-  </a>
+	<main>
+		<p class="breadcrumb mono" id="breadcrumb"></p>
+		<h1 id="pageTitle"></h1>
+		<div class="body-text" id="pageBody"></div>
+		<div id="codeArea"></div>
 
-  <a class="card" href="./README.md" target="_blank">
-    <h2>README</h2>
-    <p>Project overview, runtime layout, and credits.</p>
-  </a>
+		<div class="pagination">
+			<a id="prevLink" href="#">&#8592; Prev</a>
+			<span class="spacer"></span>
+			<a id="nextLink" href="#">Next &#8594;</a>
+		</div>
 
-  <a class="card" href="./LICENSE.md" target="_blank">
-    <h2>License</h2>
-    <p>MIT for the engine facade; MIT (upstream) for vendored planck.js.</p>
-  </a>
+		<div class="old-links mono">
+			<a href="moshion.d.ts" target="_blank">moshion.d.ts</a><a href="challenges.md" target="_blank">challenges.md</a><a href="CLAUDE.md" target="_blank">CLAUDE.md</a><a href="README.md" target="_blank">README.md</a><a href="LICENSE.md" target="_blank">LICENSE.md</a>
+		</div>
+	</main>
+</div>
 
-  <footer>
-    Runtime files live at <a href="../">/moshion/</a>. Standalone sandbox: <a href="../runner.html">runner.html</a>.
-  </footer>
-</main>
+<script src="data/moshion-docs.js"></script>
+<script>
+var sections = window.MOSHION_DOCS || [];
+
+// ---- flat ordered sequence across all sections/pages, for Prev/Next -------
+var flat = [];
+sections.forEach(function(sec, si) {
+	sec.pages.forEach(function(pg, pi) {
+		flat.push({ sectionIndex: si, pageIndex: pi, slug: sec.slug });
+	});
+});
+function flatIndexOf(slug, pageIndex) {
+	for (var i = 0; i < flat.length; i++) {
+		if (flat[i].slug === slug && flat[i].pageIndex === pageIndex) return i;
+	}
+	return -1;
+}
+
+// ---- base64url (matches runner.html's decoder, unicode-safe) ---------------
+function b64url(s) {
+	var bytes = new TextEncoder().encode(s), bin = '';
+	for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+	var b64 = btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+	return b64;
+}
+
+// Save-store bridge: the runner asks, we hand it an in-memory store. A host
+// that skips this simply gets a 400ms timeout and an empty store.
+window.addEventListener('message', function(e) {
+	if (e.data && e.data.source === 'preview-storage-request' && e.source) {
+		e.source.postMessage({ source: 'preview-storage-init', data: {} }, '*');
+	}
+});
+
+var activeSectionIndex = 0;
+
+// ---- sidebar tree -----------------------------------------------------------
+function renderTree() {
+	var tree = document.getElementById('tree');
+	tree.innerHTML = '';
+	sections.forEach(function(sec, si) {
+		var wrap = document.createElement('div');
+		wrap.className = 'sec' + (si === activeSectionIndex ? ' active' : '');
+
+		var btn = document.createElement('button');
+		btn.className = 'sec-btn';
+		btn.textContent = sec.title;
+		btn.addEventListener('click', function() {
+			activeSectionIndex = si;
+			location.hash = '#' + sec.slug + '/0';
+		});
+		wrap.appendChild(btn);
+
+		if (si === activeSectionIndex) {
+			var ul = document.createElement('ul');
+			ul.className = 'sub-pages';
+			sec.pages.forEach(function(pg, pi) {
+				var li = document.createElement('li');
+				var a = document.createElement('a');
+				a.className = 'page-link' + (pi === currentPageIndex ? ' active' : '');
+				a.href = '#' + sec.slug + '/' + pi;
+				a.textContent = pg.title;
+				li.appendChild(a);
+				ul.appendChild(li);
+			});
+			wrap.appendChild(ul);
+		}
+
+		tree.appendChild(wrap);
+	});
+}
+
+// ---- search -------------------------------------------------------------
+var searchInput = document.getElementById('search');
+var treeEl = document.getElementById('tree');
+var resultsEl = document.getElementById('searchResults');
+
+searchInput.addEventListener('input', function() {
+	var q = searchInput.value.trim().toLowerCase();
+	if (!q) {
+		treeEl.style.display = '';
+		resultsEl.style.display = 'none';
+		return;
+	}
+	treeEl.style.display = 'none';
+	resultsEl.style.display = '';
+	resultsEl.innerHTML = '';
+
+	var hits = [];
+	sections.forEach(function(sec) {
+		sec.pages.forEach(function(pg, pi) {
+			if (pg.title.toLowerCase().indexOf(q) !== -1) {
+				hits.push({ section: sec, pageIndex: pi, page: pg });
+			}
+		});
+	});
+
+	if (!hits.length) {
+		var none = document.createElement('li');
+		none.className = 'no-results';
+		none.textContent = 'No matches';
+		resultsEl.appendChild(none);
+		return;
+	}
+
+	hits.forEach(function(hit) {
+		var li = document.createElement('li');
+		var a = document.createElement('a');
+		a.className = 'search-hit';
+		a.href = '#' + hit.section.slug + '/' + hit.pageIndex;
+		var secLabel = document.createElement('span');
+		secLabel.className = 'hit-section mono';
+		secLabel.textContent = hit.section.title;
+		a.appendChild(secLabel);
+		a.appendChild(document.createTextNode(hit.page.title));
+		li.appendChild(a);
+		resultsEl.appendChild(li);
+	});
+});
+
+// ---- main content render ----------------------------------------------------
+var currentPageIndex = 0;
+
+function renderPage(sectionIndex, pageIndex) {
+	var sec = sections[sectionIndex];
+	var pg = sec.pages[pageIndex];
+
+	document.getElementById('breadcrumb').textContent =
+		sec.title + ' · Page ' + (pageIndex + 1) + ' of ' + sec.pages.length;
+	document.getElementById('pageTitle').textContent = pg.title;
+
+	var bodyEl = document.getElementById('pageBody');
+	bodyEl.innerHTML = '';
+	(pg.body || '').split('\n\n').forEach(function(para) {
+		if (!para) return;
+		var p = document.createElement('p');
+		p.textContent = para;
+		bodyEl.appendChild(p);
+	});
+
+	var codeArea = document.getElementById('codeArea');
+	codeArea.innerHTML = '';
+	if (pg.code) {
+		var pre = document.createElement('pre');
+		pre.className = 'code-block mono';
+		pre.textContent = pg.code;
+		codeArea.appendChild(pre);
+
+		var runBtn = document.createElement('button');
+		runBtn.className = 'btn-run mono';
+		runBtn.textContent = '▶ Run';
+		codeArea.appendChild(runBtn);
+
+		var previewWrap = document.createElement('div');
+		previewWrap.className = 'preview-wrap';
+		var iframe = document.createElement('iframe');
+		iframe.title = pg.title + ' preview';
+		iframe.setAttribute('sandbox', 'allow-scripts allow-downloads');
+		previewWrap.appendChild(iframe);
+		codeArea.appendChild(previewWrap);
+
+		runBtn.addEventListener('click', function() {
+			iframe.src = '../runner.html?r=' + Date.now() + '&code=' + b64url(pg.code);
+			previewWrap.classList.add('open');
+		});
+	}
+
+	// pagination
+	var flatIdx = flatIndexOf(sec.slug, pageIndex);
+	var prevLink = document.getElementById('prevLink');
+	var nextLink = document.getElementById('nextLink');
+
+	if (flatIdx > 0) {
+		var prev = flat[flatIdx - 1];
+		prevLink.href = '#' + prev.slug + '/' + prev.pageIndex;
+		prevLink.classList.remove('disabled');
+	} else {
+		prevLink.href = '#';
+		prevLink.classList.add('disabled');
+	}
+
+	if (flatIdx >= 0 && flatIdx < flat.length - 1) {
+		var next = flat[flatIdx + 1];
+		nextLink.href = '#' + next.slug + '/' + next.pageIndex;
+		nextLink.classList.remove('disabled');
+	} else {
+		nextLink.href = '#';
+		nextLink.classList.add('disabled');
+	}
+
+	activeSectionIndex = sectionIndex;
+	currentPageIndex = pageIndex;
+	renderTree();
+
+	// clear search when navigating via a result / prev-next
+	if (searchInput.value) {
+		searchInput.value = '';
+		treeEl.style.display = '';
+		resultsEl.style.display = 'none';
+	}
+
+	window.scrollTo(0, 0);
+}
+
+// ---- hash routing -------------------------------------------------------
+function parseHash() {
+	var raw = location.hash.replace(/^#/, '');
+	var parts = raw.split('/');
+	var slug = parts[0];
+	var pageIndex = parseInt(parts[1], 10);
+
+	var sectionIndex = -1;
+	for (var i = 0; i < sections.length; i++) {
+		if (sections[i].slug === slug) { sectionIndex = i; break; }
+	}
+
+	if (sectionIndex === -1 || isNaN(pageIndex) || pageIndex < 0 || pageIndex >= sections[sectionIndex].pages.length) {
+		if (sections.length) {
+			location.hash = '#' + sections[0].slug + '/0';
+		}
+		return;
+	}
+
+	renderPage(sectionIndex, pageIndex);
+}
+
+window.addEventListener('hashchange', parseHash);
+parseHash();
+</script>
 </body>
 </html>
