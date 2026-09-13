@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>moSHion Sandbox</title>
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
 <style>
 	:root {
 		color-scheme: dark;
@@ -41,7 +42,37 @@
 		padding-bottom: 32px;
 	}
 	.brand { font-size: 19px; font-weight: 700; letter-spacing: -0.01em; color: var(--text); }
-	.brand .sh { color: var(--brand); }
+	.brand .sh {
+		color: var(--brand);
+		display: inline-block;
+		transform-origin: 50% 90%;
+		animation: jolt 4s infinite;
+	}
+	.brand .i-slot { position: relative; display: inline-block; }
+	.brand .i-slot .ball {
+		position: absolute; left: 50%; top: 2px; width: 5px; height: 5px; border-radius: 50%;
+		background: var(--brand); transform: translate(-50%, 0); animation: drop 4s infinite;
+	}
+	@keyframes drop {
+		0%   { transform: translate(-50%, -18px) scale(1, 1); box-shadow: 0 0 6px 1px color-mix(in srgb, var(--brand) 70%, transparent); }
+		15%  { transform: translate(-50%, 0) scale(1.35, 0.6); box-shadow: none; }
+		19%  { transform: translate(-50%, -6px) scale(0.9, 1.1); }
+		24%  { transform: translate(-50%, 0) scale(1.2, 0.75); }
+		28%  { transform: translate(-50%, -2px) scale(0.95, 1.05); }
+		32%  { transform: translate(-50%, 0) scale(1.08, 0.9); }
+		36%, 100% { transform: translate(-50%, 0) scale(1, 1); box-shadow: none; }
+	}
+	@keyframes jolt {
+		0%, 14%  { transform: rotate(0deg); }
+		15%      { transform: rotate(-6deg); }
+		19%      { transform: rotate(3deg); }
+		24%      { transform: rotate(-1.5deg); }
+		28%      { transform: rotate(0.5deg); }
+		32%, 100% { transform: rotate(0deg); }
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.brand .i-slot .ball, .brand .sh { animation: none; }
+	}
 	.nav-links { display: flex; align-items: center; gap: 22px; font-size: 14px; }
 	.nav-links a.ghost { color: var(--text); opacity: 0.7; }
 	.nav-links a.ghost:hover { color: var(--text); opacity: 1; }
@@ -199,7 +230,7 @@
 <div class="wrap">
 
 	<nav class="nav">
-		<span class="brand">mo<span class="sh">SH</span>ion</span>
+		<span class="brand">mo<span class="sh">SH</span><span class="i-slot">&#305;<span class="ball" aria-hidden="true"></span></span>on</span>
 		<div class="nav-links">
 			<a class="ghost" href="index.html">Home</a>
 			<a class="ghost" href="docs/index.html">Docs</a>
