@@ -45,13 +45,14 @@
 		color: var(--brand);
 		display: inline-block;
 		transform-origin: 50% 90%;
-		animation: jolt 4s infinite;
 	}
 	.brand .i-slot { position: relative; display: inline-block; }
 	.brand .i-slot .ball {
 		position: absolute; left: 50%; top: 2px; width: 5px; height: 5px; border-radius: 50%;
-		background: var(--brand); transform: translate(-50%, 0); animation: drop 4s infinite;
+		background: var(--brand); transform: translate(-50%, 0);
 	}
+	.brand:hover .sh { animation: jolt 4s infinite; }
+	.brand:hover .i-slot .ball { animation: drop 4s infinite; }
 	@keyframes drop {
 		0%   { transform: translate(-50%, -18px) scale(1, 1); box-shadow: 0 0 6px 1px color-mix(in srgb, var(--brand) 70%, transparent); }
 		15%  { transform: translate(-50%, 0) scale(1.35, 0.6); box-shadow: none; }
@@ -70,7 +71,7 @@
 		32%, 100% { transform: rotate(0deg); }
 	}
 	@media (prefers-reduced-motion: reduce) {
-		.brand .i-slot .ball, .brand .sh { animation: none; }
+		.brand .sh, .brand:hover .sh, .brand .i-slot .ball, .brand:hover .i-slot .ball { animation: none; }
 	}
 	.nav-links { display: flex; align-items: center; gap: 22px; font-size: 14px; }
 	.nav-links a.ghost { color: var(--text); opacity: 0.7; }
@@ -261,7 +262,7 @@
 <body>
 
 <nav class="nav">
-	<span class="brand">mo<span class="sh">SH</span><span class="i-slot">&#305;<span class="ball" aria-hidden="true"></span></span>on</span>
+	<a class="brand" href="../index.html" aria-label="moSHion home">mo<span class="sh">SH</span><span class="i-slot">&#305;<span class="ball" aria-hidden="true"></span></span>on</a>
 	<div class="nav-links">
 		<a class="ghost" href="../index.html">Home</a>
 		<a class="ghost" href="../sandbox.html">Sandbox</a>
