@@ -385,6 +385,27 @@ interface World {
   physicsUpdate(step?: number): void;
   /** Restitution velocity threshold, px/frame. */
   bounceThreshold: number;
+  /**
+   * Ray-cast the world for all fixtures in the path of the ray.
+   * @param x1 - Start X (pixels) or {x, y} object
+   * @param y1 - Start Y (pixels) or {x, y} object for end point
+   * @param x2 - End X (pixels)
+   * @param y2 - End Y (pixels)
+   * @param callback - Called for each fixture hit. Receives (sprite, point, normal, fraction).
+   *   Return `fraction` (0..1) to clip ray at hit and continue (finds closest).
+   *   Return `0` to stop at first hit (finds any).
+   *   Return `1` to continue without clipping (finds all).
+   *   Return `-1` to filter this fixture and continue.
+   *   `point` and `normal` are in world pixels; `fraction` is 0..1 along the ray.
+   *   `sprite` is the hit Sprite, or null if the fixture has no sprite userData.
+   */
+  rayCast(
+    x1: number | { x: number; y: number },
+    y1: number | { x: number; y: number },
+    x2: number,
+    y2: number,
+    callback: (sprite: Sprite | null, point: Vec2, normal: Vec2, fraction: number) => number
+  ): void;
 }
 
 // ---- input ---------------------------------------------------------------

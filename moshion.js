@@ -1628,6 +1628,42 @@
     }
   };
 
+  // rayCast: cast a ray through the physics world and call callback for each
+  // fixture hit. Matches planck.js/Box2D signature:
+  //   world.rayCast(x1, y1, x2, y2, callback)
+  //   world.rayCast({x, y}, {x, y}, callback)
+  // callback(fixture, point, normal, fraction) → return:
+  //   fraction (0..1): clip ray at hit, continue → finds CLOSEST
+  //   0: stop at first hit → finds ANY
+  //   1: continue without clipping → finds ALL
+  //  -1: ignore this fixture, continue
+  // point/normal are in PIXELS (world coords), fraction is 0..1
+  world.rayCast = function (x1, y1, x2, y2, callback) {
+    // Support object form: world.rayCast({x, y}, {x, y}, callback)
+    if (x1 !== null && typeof x1 === 'object') {
+    [x1, y1, x2, y2, callback] = [x1.x, x1.y, y1.x, y1.y, x2];
+    }
+    if (typeof callback !== 'function') return;
+    const p1 = pl.Vec2(x1 / PXM, y1 / PXM);
+    const p2 = pl.Vec2(x2 / PXM, y2 / PXM);
+    _world().rayCast(p1, p2, function (fixture, point, normal, fraction) {
+      // Convert hit point and normal back to pixels
+      const hitPoint = { x: point.x * PXM, y: point.y * PXM };
+      const hitNormal = { x: normal.x, y: normal.y }; // already unit vector
+      // Find the sprite owning this fixture
+      const body = fixture.getBody();
+      const sprite = body.getUserData();
+      // Call user callback with sprite (or null), point, normal, fraction
+      const result = callback(sprite instanceof Sprite ? sprite : null, hitPoint, hitNormal, fraction);
+      // Return value controls raycast continuation (Box2D convention)
+      if (result === 0) return 0;       // stop
+      if (result === 1) return 1;       // continue, don't clip
+      if (result === -1) return -1;     // filter fixture
+      if (typeof result === 'number' && result >= 0 && result <= 1) return result; // clip at fraction
+      return fraction; // default: clip at hit, continue (closest)
+    });
+  };
+
   // ---- joints (W17) — thin facades over planck joints ---------------------
 
   function _anchor(a, b, opt) {
