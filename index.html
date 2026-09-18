@@ -563,9 +563,11 @@ function setCodeView(show) {
 	}
 }
 
+var userPicked = false;
 tabs.forEach(function(t) {
 	t.addEventListener('click', function() {
 		var name = t.dataset.game;
+		userPicked = true;
 		loadGame(name);
 		if (isPending(name)) gamesReady.then(function() { loadGame(name); });
 	});
@@ -583,7 +585,7 @@ resetEditedBtn.addEventListener('click', function() {
 });
 
 loadGame('portal');
-gamesReady.then(function() { loadGame('portal'); });
+gamesReady.then(function() { if (!userPicked) loadGame('portal'); });
 </script>
 </body>
 </html>

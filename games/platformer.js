@@ -5,10 +5,11 @@ function setup() {
   player.color = "#5baafd";
   player.bounciness = 0;
   player.friction = 0;
+  player.rotationLock = true;
   platforms = new Group();
   platforms.color = "#333844";
   new platforms.Sprite(230, 290, 460, 20, "static");
-  var y = 250, x = 230, dir = 1;
+  var y = 235, x = 230, dir = 1;
   for (var i = 0; i < 26; i++) {
     x += dir * (90 + Math.random() * 40);
     x = Math.max(60, Math.min(400, x));

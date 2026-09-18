@@ -49,7 +49,7 @@ function update() {
     if (o.x < -20) { o.delete(); score++; }
   });
 
-  if (player.colliding(obstacles)) alive = false;
+  if (player.colliding(obstacles)) { alive = false; player.vel.x = 0; player.vel.y = 0; }
   speed += 0.0015;
 }
 
