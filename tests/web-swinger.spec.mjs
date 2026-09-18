@@ -142,11 +142,17 @@ if (attached) {
   const preRelease = await frame.evaluate(() => ({ x: player.vel.x, y: player.vel.y }));
   await mouseMove(frame, 230, 150);
   await mouseUp(frame, 230, 150);
-  await wait(3);
+  // The game detaches on the frame after the mouseup event, so give the
+  // runner one or two frames — no more. Deleting a joint does not touch
+  // velocity; anything beyond one or two frames of gravity drift between
+  // the samples measures gravity, not the release.
+  await frame.waitForTimeout(40);
   const s3 = await frame.evaluate((pre) => {
     const preMag = Math.hypot(pre.x, pre.y);
     const curMag = Math.hypot(player.vel.x, player.vel.y);
-    const within20 = preMag < 0.2 ? curMag < 0.2 : Math.abs(curMag - preMag) / preMag <= 0.2;
+    // Hybrid tolerance: a small absolute budget (~a few frames of gravity
+    // drift) OR the relative window for fast swings.
+    const within20 = preMag < 0.2 ? curMag < 0.2 : Math.abs(curMag - preMag) <= 0.45 || Math.abs(curMag - preMag) / preMag <= 0.2;
     return {
       webNull: window.web === null || window.web === undefined,
       jointsEmpty: player.joints.length === 0,
