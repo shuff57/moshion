@@ -143,9 +143,12 @@ try {
     player.vel.y = 12;
   }, placed.blue);
 
+  // Poll fast: the exit-velocity window is ~2 frames wide (12px/frame flight vs
+  // a 40px radius), so the sample has to land within a couple of frames of the
+  // teleport — waitFrames(3)'s +150ms slack made polls ~12 game-frames apart.
   let teleportState = null;
-  for (let i = 0; i < 25 && !(teleportState && teleportState.teleports >= 1); i++) {
-    await waitFrames(frame, 3);
+  for (let i = 0; i < 60 && !(teleportState && teleportState.teleports >= 1); i++) {
+    await frame.waitForTimeout(20);
     teleportState = await frame.evaluate(() => ({
       teleports: teleports, cooldown: cooldown,
       vx: player.vel.x, vy: player.vel.y, x: player.x, y: player.y,
