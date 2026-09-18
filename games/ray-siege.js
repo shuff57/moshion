@@ -64,6 +64,8 @@ function setup() {
   flashX = 0;
   flashY = 0;
   flashT = 0;
+  tracerT = 0;
+  tracerX1 = 0; tracerY1 = 0; tracerX2 = 0; tracerY2 = 0;
   tracer = null;
   supportDirty = false;
 
@@ -190,6 +192,8 @@ function fire(tx, ty) {
   }
   fireCooldown = 12;
   flashX = tx; flashY = ty; flashT = 6;
+  tracerX1 = player.x; tracerY1 = player.y;
+  tracerX2 = tx; tracerY2 = ty; tracerT = 5;
 
   var hit = castAim(tx, ty);
   if (weapon === 1) {
@@ -323,6 +327,13 @@ function draw() {
     fill(flashT % 2 ? "#ffb86c" : "#f8f8f2");
     circle(flashX, flashY, 14 - flashT);
     noFill();
+  }
+  // Hitscan tracer: a fading line from the muzzle toward the last shot.
+  if (tracerT > 0) {
+    tracerT--;
+    stroke("#ffb86c");
+    strokeWeight(tracerT > 3 ? 3 : 1);
+    line(tracerX1, tracerY1, tracerX2, tracerY2);
   }
 
   camera.off();

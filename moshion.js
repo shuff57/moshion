@@ -1928,7 +1928,7 @@
   // screens, game-over messages — 27 real script.js/solution.js files).
   let TEXT_COLOR = 'white', TEXT_SIZE = 14, TEXT_ALIGN = 'left';
   const CENTER = 'center', LEFT = 'left', RIGHT = 'right';
-  function fill(c) { TEXT_COLOR = typeof c === 'number' ? `rgb(${c},${c},${c})` : c; }
+  function fill(c) { TEXT_COLOR = typeof c === 'number' ? `rgb(${c},${c},${c})` : c; HAS_FILL = true; }
   function textSize(px) { TEXT_SIZE = px; }
   function textAlign(mode) { TEXT_ALIGN = mode; }
 

@@ -148,7 +148,7 @@ function update() {
   else if (kb.pressing("right")) player.vel.x = 2.6;
 
   if ((kb.presses("up") || kb.presses("space")) && grounded()) {
-    player.vel.y = -6.5;
+    player.vel.y = -4.2; // rise ~106px — the goal ledge (152px up) needs a portal fling
   }
 
   // Placement with a latch so a quick tap only fires once (the engine's
@@ -191,6 +191,26 @@ function update() {
   crate._pvy = crate.vel.y;
 }
 
+function drawGhostRing(tx, ty) {
+  var hit = castAim(tx, ty);
+  if (!hit) return;
+  var p = { x: hit.point.x, y: hit.point.y, nx: hit.normal.x, ny: hit.normal.y };
+  var col = mouse.left > 0 ? "#ff9f43" : "#5b8cff";
+  stroke(col);
+  strokeWeight(1);
+  var tx2 = -p.ny, ty2 = p.nx;
+  var steps = 26;
+  var px = 0, py = 0;
+  for (var i = 0; i <= steps; i++) {
+    var t = (i / steps) * Math.PI * 2;
+    var ox = tx2 * Math.cos(t) * 21 + p.nx * Math.sin(t) * 5;
+    var oy = ty2 * Math.cos(t) * 21 + p.ny * Math.sin(t) * 5;
+    var nx = p.x + ox, ny = p.y + oy;
+    if (i > 0) line(px, py, nx, ny);
+    px = nx; py = ny;
+  }
+}
+
 function drawPortalRing(which) {
   var p = portals[which];
   if (!p) return;
@@ -220,10 +240,12 @@ function draw() {
   drawPortalRing("orange");
   drawPortalRing("blue");
 
-  // Aim tracer from the player toward the cursor.
-  stroke("#6272a4");
-  strokeWeight(1);
+  // Aim tracer from the player toward the cursor, with a ghost ring showing
+  // where the next placement would land.
+  stroke("#8b95a8");
+  strokeWeight(2);
   line(player.x, player.y, mouse.x, mouse.y);
+  drawGhostRing(mouse.x, mouse.y);
 
   // Goal marker on the ledge.
   stroke("#ffb86c");

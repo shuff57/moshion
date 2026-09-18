@@ -72,7 +72,9 @@ function buildTower(x, topY, w, h) {
 function spawnOrb() {
   var slot = orbSlots[orbIndex % orbSlots.length];
   orbIndex++;
-  new collectibles.Sprite(slot[0], slot[1], 16);
+  var orb = new collectibles.Sprite(slot[0], slot[1], 16);
+  orb.collider = "none";   // sensor: collectible, not a solid body
+  orb.gravityScale = 0;    // orbs float where the city needs them
 }
 
 // The web cast: a ray from the player toward the cursor, up to MAXWEB long.
@@ -191,7 +193,10 @@ function update() {
   }
 
   // Camera follows, clamped to the world.
-  var tx = Math.max(230, Math.min(1370, player.x));
+  // Follow the player with a half-view margin so a big swing on the left
+  // anchor tower never carries the player off-screen; only the right side is
+  // clamped (the world ends at x=1600).
+  var tx = Math.min(1370, Math.max(0, player.x));
   var ty = Math.max(150, Math.min(570, player.y));
   camera.x += (tx - camera.x) * 0.1;
   camera.y += (ty - camera.y) * 0.1;
@@ -206,7 +211,7 @@ function draw() {
     var ddx = anchor.x - player.x, ddy = anchor.y - player.y;
     var dl = Math.hypot(ddx, ddy) || 1;
     var rest = web.length;
-    var sag = Math.max(0, rest - dl) * 0.4 + 2;
+    var sag = Math.max(0, rest - dl) * 0.9 + 4;
     stroke("#f8f8f2");
     strokeWeight(2);
     var steps = 8;
@@ -230,7 +235,7 @@ function draw() {
 
   // Speed lines when fast.
   var spd = Math.hypot(player.vel.x, player.vel.y);
-  if (spd > 8) {
+  if (spd > 5) {
     stroke("#6272a4");
     strokeWeight(1);
     line(player.x - player.vel.x * 1.5, player.y - player.vel.y * 1.5,
@@ -240,6 +245,6 @@ function draw() {
   camera.off();
   text("SCORE " + score, 14, 22, 12, "#6272a4");
   text("SPEED " + Math.round(spd * 10) / 10, 14, 40, 12, "#6272a4");
-  text("hold click to swing · release to fly · W reels in", 90, 292, 11, "#6272a4");
+  text("hold click to swing · release to fly · W reels in", 90, 288, 11, "#6272a4");
   camera.on();
 }
