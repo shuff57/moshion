@@ -135,6 +135,27 @@ try {
     JSON.stringify(placed.orange),
   );
 
+  // Capture the exit state in-page. A rAF probe installed before the drop
+  // fires on the first frame `teleports` increments, so the sample is at most
+  // one frame old. Polling across the process boundary landed 2-3 frames late
+  // instead, and at 12px/frame of flight that straddled the 40px radius
+  // asserted below (28.2px on most runs, 40.5px on some — a coin-flip FAIL).
+  await frame.evaluate(() => {
+    window.__exitProbe = null;
+    const before = teleports;
+    (function watch() {
+      if (window.__exitProbe) return;
+      if (teleports > before) {
+        window.__exitProbe = {
+          teleports: teleports, cooldown: cooldown,
+          vx: player.vel.x, vy: player.vel.y, x: player.x, y: player.y,
+        };
+        return;
+      }
+      requestAnimationFrame(watch);
+    })();
+  });
+
   // Drop the player straight down through the floor (blue) portal.
   await frame.evaluate((b) => {
     player.x = b.x;
@@ -143,16 +164,10 @@ try {
     player.vel.y = 12;
   }, placed.blue);
 
-  // Poll fast: the exit-velocity window is ~2 frames wide (12px/frame flight vs
-  // a 40px radius), so the sample has to land within a couple of frames of the
-  // teleport — waitFrames(3)'s +150ms slack made polls ~12 game-frames apart.
   let teleportState = null;
-  for (let i = 0; i < 60 && !(teleportState && teleportState.teleports >= 1); i++) {
+  for (let i = 0; i < 60 && !teleportState; i++) {
     await frame.waitForTimeout(20);
-    teleportState = await frame.evaluate(() => ({
-      teleports: teleports, cooldown: cooldown,
-      vx: player.vel.x, vy: player.vel.y, x: player.x, y: player.y,
-    }));
+    teleportState = await frame.evaluate(() => window.__exitProbe);
   }
 
   const orangeNow = placed.orange;

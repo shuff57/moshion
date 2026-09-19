@@ -96,7 +96,13 @@
 	/* hero */
 	.hero {
 		display: grid;
-		grid-template-columns: minmax(280px, 1fr) minmax(320px, 460px);
+		/* The demo column carries the games, so it gets every pixel the typography
+		   can spare: 560px of card is a 530px canvas, ~1.15x the 460px sketches.
+		   Past ~560 the hero text starts paying for it -- at 600 the h1 wraps to a
+		   fourth line and the lede drops under its own 48ch measure. runner.html
+		   is loaded with ?fit=1 so a sketch scales up to fill this instead of
+		   sitting letterboxed in the middle of it. */
+		grid-template-columns: minmax(280px, 1fr) minmax(320px, 560px);
 		gap: 40px;
 		align-items: center;
 		padding-bottom: 56px;
@@ -189,14 +195,16 @@
 	.demo-tab.active { color: var(--brand); border-color: var(--brand); }
 	.demo-tab:disabled { opacity: 0.45; cursor: default; }
 	.demo-tab:disabled:hover { color: var(--code-comment); border-color: var(--code-border); }
-	.demo-code-toggle { margin-left: auto; }
 	.demo-frame {
 		border-radius: 6px;
 		overflow: hidden;
 		background: #1e1f29;
 		line-height: 0;
 	}
-	.demo-frame iframe { display: block; width: 100%; height: 300px; border: 0; }
+	/* Matching the sketch's own ratio keeps the frame exactly as tall as the
+	   canvas at every width — at 460 it is 300px, narrower it shrinks with the
+	   scaled-down canvas instead of leaving a dead band under it. */
+	.demo-frame iframe { display: block; width: 100%; aspect-ratio: 460 / 300; height: auto; border: 0; }
 	.demo-code-view {
 		border-radius: 6px;
 		overflow: hidden;
@@ -248,7 +256,22 @@
 		color: var(--code-comment);
 		padding: 10px 2px 0;
 		line-height: 1.5;
+		/* Flex alignment measures the margin box, so the UA's default <p> margin
+		   would push the toggle out of line with the caption it sits beside. */
+		margin: 0;
 	}
+	/* Caption left, Code toggle bottom-right. The toggle swaps the whole panel
+	   between preview and editor, so it belongs to the panel rather than to the
+	   row of games — and out of .demo-tabs the six tabs stop wrapping to a
+	   ragged second row. Bottom-aligned so the toggle stays in the card's corner
+	   when the caption wraps to two lines on a narrow screen. */
+	.demo-footer {
+		display: flex;
+		align-items: flex-end;
+		justify-content: space-between;
+		gap: 12px;
+	}
+	.demo-code-toggle { flex-shrink: 0; margin-top: 10px; }
 
 	/* cards row */
 	.section-label {
@@ -364,7 +387,6 @@
 				<button class="demo-tab" data-game="asteroids">Asteroids</button>
 				<button class="demo-tab" data-game="platformer">Platformer</button>
 				<button class="demo-tab" data-game="runner">Runner</button>
-				<button class="demo-tab demo-code-toggle" id="codeToggle">Code</button>
 			</div>
 			<div class="demo-frame" id="previewView">
 				<iframe id="preview" title="moSHion demo sketch" sandbox="allow-scripts allow-downloads"></iframe>
@@ -376,7 +398,10 @@
 					<button class="demo-reset-btn" id="resetEdited">↺ Reset</button>
 				</div>
 			</div>
-			<p class="demo-caption mono" id="demoCaption"></p>
+			<div class="demo-footer">
+				<p class="demo-caption mono" id="demoCaption"></p>
+				<button class="demo-tab demo-code-toggle" id="codeToggle">Code</button>
+			</div>
 		</div>
 	</div>
 
@@ -536,7 +561,7 @@ function loadGame(name) {
 		return;
 	}
 	currentGame = name;
-	frame.src = 'runner.html?r=' + Date.now() + '&code=' + b64url(game.code);
+	frame.src = 'runner.html?fit=1&r=' + Date.now() + '&code=' + b64url(game.code);
 	tabs.forEach(function(t) {
 		t.classList.toggle('active', t.dataset.game === name);
 	});
@@ -576,7 +601,7 @@ tabs.forEach(function(t) {
 codeToggle.addEventListener('click', function() { setCodeView(!showingCode); });
 
 runEditedBtn.addEventListener('click', function() {
-	frame.src = 'runner.html?r=' + Date.now() + '&code=' + b64url(codeEditor.value);
+	frame.src = 'runner.html?fit=1&r=' + Date.now() + '&code=' + b64url(codeEditor.value);
 	setCodeView(false);
 });
 

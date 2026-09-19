@@ -38,7 +38,8 @@ const srv = await serve(PORT);
 const browser = await launch();
 
 try {
-  // ---- I1: tab inventory — 7 buttons, DOM order, labels, Code last, flex-wrap ----
+  // ---- I1: tab inventory — 6 game tabs, DOM order, labels, the Code toggle in
+  // the card footer at the bottom-right, flex-wrap ----
   {
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     await page.goto(srv.base + '/', { waitUntil: 'load' });
@@ -46,7 +47,7 @@ try {
 
     const buttons = page.locator('.demo-tabs > button');
     const count = await buttons.count();
-    check('I1: .demo-tabs has exactly 7 buttons', count === 7, 'count=' + count);
+    check('I1: .demo-tabs has exactly 6 game buttons', count === 6, 'count=' + count);
 
     const ids = [];
     const texts = [];
@@ -56,20 +57,46 @@ try {
       texts.push(((await b.textContent()) || '').trim());
     }
 
-    const gameIds = ids.slice(0, -1);
     check('I1: data-game order is [portal, ray-siege, web-swinger, asteroids, platformer, runner]',
-      JSON.stringify(gameIds) === JSON.stringify(EXPECTED_IDS), JSON.stringify(gameIds));
+      JSON.stringify(ids) === JSON.stringify(EXPECTED_IDS), JSON.stringify(ids));
 
-    const lastButtonId = count > 0 ? await buttons.nth(count - 1).getAttribute('id') : null;
-    check('I1: Code toggle (id=codeToggle) is the last button', lastButtonId === 'codeToggle', String(lastButtonId));
-
-    const gameLabels = texts.slice(0, -1);
     const expectedLabels = EXPECTED_IDS.map((id) => LABELS[id]);
     check('I1: visible labels are Portal, Ray Siege, Web Swinger, Asteroids, Platformer, Runner',
-      JSON.stringify(gameLabels) === JSON.stringify(expectedLabels), JSON.stringify(gameLabels));
+      JSON.stringify(texts) === JSON.stringify(expectedLabels), JSON.stringify(texts));
 
-    const lastLabel = texts[texts.length - 1];
-    check('I1: Code toggle text is "Code"', lastLabel === 'Code', String(lastLabel));
+    // The Code toggle switches the whole panel between the preview and the
+    // editor, so it lives in the card's footer next to the caption rather than
+    // as a seventh game tab.
+    const toggle = await page.evaluate(() => {
+      const t = document.getElementById('codeToggle');
+      if (!t) return null;
+      const card = document.querySelector('.demo-card');
+      const shown = [...card.querySelectorAll('button')].filter((b) => b.offsetParent !== null);
+      return {
+        inTabs: !!t.closest('.demo-tabs'),
+        inFooter: !!t.closest('.demo-footer'),
+        text: (t.textContent || '').trim(),
+        isLastShown: shown[shown.length - 1] === t,
+        prevSibling: t.previousElementSibling ? t.previousElementSibling.id : null,
+      };
+    });
+    check('I1: Code toggle sits in the card footer, not in the tab strip',
+      !!toggle && toggle.inFooter && !toggle.inTabs, JSON.stringify(toggle));
+    check('I1: Code toggle is the last shown button in the card, right after the caption',
+      !!toggle && toggle.isLastShown && toggle.prevSibling === 'demoCaption', JSON.stringify(toggle));
+    check('I1: Code toggle text is "Code"', !!toggle && toggle.text === 'Code',
+      String(toggle && toggle.text));
+
+    // Bottom-RIGHT, measured: its right edge lines up with the preview frame's
+    // and it sits below the frame. A toggle left in the tab strip would satisfy
+    // a DOM-only check while still rendering in the wrong corner.
+    const corner = await page.evaluate(() => {
+      const t = document.getElementById('codeToggle').getBoundingClientRect();
+      const f = document.getElementById('previewView').getBoundingClientRect();
+      return { offRight: +(f.right - t.right).toFixed(1), belowFrame: +(t.top - f.bottom).toFixed(1) };
+    });
+    check('I1: Code toggle renders at the panel\'s bottom-right corner',
+      Math.abs(corner.offRight) <= 4 && corner.belowFrame > 0, JSON.stringify(corner));
 
     const flexWrap = await page.locator('.demo-tabs').evaluate((el) => getComputedStyle(el).flexWrap);
     check('I1: .demo-tabs computed flex-wrap is "wrap"', flexWrap === 'wrap', flexWrap);
