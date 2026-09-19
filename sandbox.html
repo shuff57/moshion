@@ -221,7 +221,13 @@
 
 	@media (max-width: 760px) {
 		.editor-preview-container { flex-direction: column; height: auto; }
-		.pane { height: 280px; min-width: 0; }
+		/* Stacked, each pane gets its own height. `flex: 1 1 50%` from .pane wins
+		   over `height` on a flex item, so the old rule never applied and the
+		   panes collapsed to their content — a 94px editor and a preview that
+		   squeezed a 400x400 sketch down to 150px. Pin the basis to fix both. */
+		.pane { flex: 0 0 auto; min-width: 0; }
+		#editorPane { height: 320px; }
+		#previewPane { height: 420px; }
 		.divider { display: none; }
 		.nav-links { gap: 16px; }
 	}

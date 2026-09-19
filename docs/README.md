@@ -21,23 +21,25 @@ The whole API is a handful of globals: `Sprite`, `Group`, `world`, `camera`,
 
 ## Runtime layout
 
-- `moshion.js` — the entire engine (~800 lines, hand-authored, no build step).
+- `moshion.js` — the entire engine (~2,800 lines, hand-authored, no build step).
 - `planck.min.js` — planck.js v1.5.0 (Box2D port), MIT.
 - `runner.html` — sandbox host: loads planck + moSHion, injects a student sketch
   from `?code=<base64url>`, pipes console/errors back to the parent app.
-- `assets/` — sprite-sheet art used by lesson examples.
+- `assets/` — sprite-sheet art used by lesson examples, and `coin.wav` / `music.wav` for the Sound example.
 
 ## Licensing
 
 `moshion.js` is an original MIT-licensed facade written for this course. It is
-**not** the reference API and carries no the reference API license obligations. `planck.min.js` is
-MIT (Erin Catto, Ali Shakiba). See `LICENSE.md` for the full text.
+**not** the reference API and carries none of its license obligations.
+`planck.min.js` is MIT (Erin Catto, Ali Shakiba). See `LICENSE.md` for the
+full text.
 
 ## Credits
 
 - [planck.js][] — Ali Shakiba's pure-JS/TS port of Box2D (MIT).
 - Erin Catto — creator of the Box2D physics simulator.
-- The the reference API project (Quinton Ashley) — the API surface moSHion mirrors was
-  designed there; moSHion is an independent, license-clean reimplementation.
+- The reference API project (Quinton Ashley) — the API surface moSHion mirrors
+  was designed there; moSHion is an independent, license-clean
+  reimplementation.
 
 [planck.js]: https://github.com/shakiba/planck.js
