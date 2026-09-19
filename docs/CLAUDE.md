@@ -39,6 +39,7 @@ bun tests/web-swinger.spec.mjs    # games/web-swinger.js
 bun tests/starter-games.spec.mjs  # games/{asteroids,platformer,runner}.js
 bun tests/integration.spec.mjs    # index.html demo panel
 bun tests/viewport.spec.mjs       # the demo viewport shows the whole sketch
+bun tests/docs.spec.mjs           # every example on the docs site actually runs
 ```
 
 `tests/harness.mjs`'s `serve()` raises Node's default 16KB header limit — a

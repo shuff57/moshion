@@ -112,9 +112,23 @@ async function openExample(title) {
 }
 
 // ---------------------------------------------------------------------------
-// D3: every example's preview frame is sized to its own canvas, and every
-// example runs without errors. This walks all 55 — the two broken ones above
-// were found precisely because nothing was walking them.
+// D3: the Touch page — added after this sweep first shipped, so there was a
+// stretch where the docs site taught mouse input with no page mentioning that
+// a finger drives the same properties. Pins that it exists and runs.
+{
+  const { ctx, page, frame, errors } = await openExample('Touch: a finger drives the mouse');
+  const st = await frame.evaluate(() => ({ dotExists: typeof dot !== 'undefined' && !!dot }));
+  check('D3a the Touch example runs (the dot sprite exists)', st.dotExists === true, JSON.stringify(st));
+  check('D3b no errors on the Touch page',
+    errors.length === 0 && (await frameErrors(page)).length === 0,
+    JSON.stringify({ page: errors, runner: await frameErrors(page) }));
+  await ctx.close();
+}
+
+// ---------------------------------------------------------------------------
+// D4: every example's preview frame is sized to its own canvas, and every
+// example runs without errors. This walks every runnable page — the Ray
+// casting and Sound defects were found precisely because nothing was.
 {
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
   const page = await ctx.newPage();
@@ -141,9 +155,9 @@ async function openExample(title) {
       if (!st || !st.has || st.err) broken.push(sec.slug + '/' + pg.title + (st && st.err ? ': ' + st.err.slice(0, 60) : ''));
     }
   }
-  check('D3a all ' + ran + ' runnable examples produce a canvas with zero runner errors',
+  check('D4a all ' + ran + ' runnable examples produce a canvas with zero runner errors',
     broken.length === 0, JSON.stringify({ ran, broken }));
-  check('D3b zero page-level errors while walking every example',
+  check('D4b zero page-level errors while walking every example',
     errors.length === 0, JSON.stringify(errors));
   await ctx.close();
 }
