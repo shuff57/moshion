@@ -14,7 +14,13 @@ function setup() {
   asteroids.friction = 0;
   asteroids.bounciness = 1;
   ship.autoDraw = false;
+  // Rocks are a hazard, not a bumper: a sensor ship loses a life on contact
+  // instead of being shoved (and set spinning) by every glancing hit.
+  ship.collider = "none";
   score = 0;
+  lives = 3;
+  alive = true;
+  invuln = 0;
   lastShot = 0;
   for (var i = 0; i < 5; i++) spawnAsteroid();
 }
@@ -40,7 +46,20 @@ function wrap(s, pad) {
   if (s.y > 300 + pad) s.y = -pad;
 }
 
+function restart() {
+  asteroids.slice().forEach(function (a) { a.delete(); });
+  bullets.slice().forEach(function (b) { b.delete(); });
+  ship.x = 230; ship.y = 150; ship.vel.x = 0; ship.vel.y = 0; ship.rotation = 0;
+  score = 0; lives = 3; alive = true; invuln = 0;
+  for (var i = 0; i < 5; i++) spawnAsteroid();
+}
+
 function update() {
+  if (!alive) {
+    asteroids.forEach(function (a) { wrap(a, 30); });
+    if (kb.presses("space")) restart();
+    return;
+  }
   if (kb.pressing("left")) ship.rotation -= 4;
   if (kb.pressing("right")) ship.rotation += 4;
   if (kb.pressing("up")) {
@@ -71,22 +90,60 @@ function update() {
       spawnAsteroid();
     });
   });
+
+  // Hit by a rock: lose a life and respawn at centre, briefly invulnerable so
+  // a rock drifting through the spawn point can't take the next life instantly.
+  if (invuln > 0) {
+    invuln--;
+  } else {
+    ship.overlaps(asteroids, function (self, asteroid) {
+      asteroid.delete();
+      spawnAsteroid();
+      lives--;
+      ship.x = 230; ship.y = 150; ship.vel.x = 0; ship.vel.y = 0; ship.rotation = 0;
+      invuln = 90;
+      if (lives <= 0) alive = false;
+    });
+  }
 }
 
 function draw() {
   background("#1e1f29");
-  stroke("#5baafd");
-  strokeWeight(2);
-  var rad = ship.rotation * Math.PI / 180;
-  var cos = Math.cos(rad), sin = Math.sin(rad);
-  var pts = [[14, 0], [-10, -8], [-10, 8]];
-  var sx = [], sy = [];
-  for (var i = 0; i < 3; i++) {
-    sx.push(ship.x + pts[i][0] * cos - pts[i][1] * sin);
-    sy.push(ship.y + pts[i][0] * sin + pts[i][1] * cos);
+  // Hidden once dead; blinks through the post-hit invulnerability window.
+  if (alive && (invuln === 0 || Math.floor(invuln / 6) % 2 === 0)) {
+    stroke("#5baafd");
+    strokeWeight(2);
+    var rad = ship.rotation * Math.PI / 180;
+    var cos = Math.cos(rad), sin = Math.sin(rad);
+    var pts = [[14, 0], [-10, -8], [-10, 8]];
+    var sx = [], sy = [];
+    for (var i = 0; i < 3; i++) {
+      sx.push(ship.x + pts[i][0] * cos - pts[i][1] * sin);
+      sy.push(ship.y + pts[i][0] * sin + pts[i][1] * cos);
+    }
+    line(sx[0], sy[0], sx[1], sy[1]);
+    line(sx[1], sy[1], sx[2], sy[2]);
+    line(sx[2], sy[2], sx[0], sy[0]);
   }
-  line(sx[0], sy[0], sx[1], sy[1]);
-  line(sx[1], sy[1], sx[2], sy[2]);
-  line(sx[2], sy[2], sx[0], sy[0]);
-  text("SCORE " + score, 14, 20, 12, "#6272a4");
+}
+
+// The engine calls drawTop() after the world is on the canvas, in screen
+// space — so a HUD lands on top of the scenery instead of behind it.
+function drawTop() {
+  // Rocks wrap through every edge by design, so one drifts behind the counters
+  // sooner or later and the muted #6272a4 loses its contrast against #333844.
+  // A backing plate fixes that without pinning the rocks out of the corner.
+  // 12px monospace advances exactly 7.2px per character (measured), so the
+  // plate tracks the string as the score grows into more digits.
+  var hud = "SCORE " + score + "   LIVES " + lives;
+  noStroke();
+  fill("rgba(30, 31, 41, 0.82)");
+  rect(8, 8, hud.length * 7.2 + 12, 20, 4);
+  noFill();
+  text(hud, 14, 20, 12, "#6272a4");
+  if (!alive) {
+    textAlign("center");
+    text("game over — press space to restart", 230, 150, 13, "#f8f8f2");
+    textAlign("left");
+  }
 }

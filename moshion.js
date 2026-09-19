@@ -2549,6 +2549,10 @@
     const setupFn = window.setup || (() => {});
     const updateFn = window.update || (() => {});
     const drawFn = window.draw || (() => {});
+    // Optional fourth lifecycle hook — see the call site in loop() for why a
+    // HUD needs one. Resolved here with the other three so the same rule
+    // applies: the sketch defines it before start() runs.
+    const drawTopFn = window.drawTop || (() => {});
 
     // Anchored immediately before setup() runs, matching real q5's own
     // `millisStart = performance.now()` placement right before `await
@@ -2677,6 +2681,21 @@
       }
       drawFn();
       render();
+      // drawTop(): the HUD hook. render() paints sprites AFTER the sketch's
+      // draw(), so anything draw() puts on the canvas with primitives ends up
+      // UNDERNEATH every sprite — a score at the top-left vanishes behind
+      // whatever wall happens to be there, which is not a bug a beginner can
+      // diagnose. drawTop() runs after the world is on the canvas.
+      //
+      // It also runs in SCREEN space: the camera is off for its duration, so
+      // text('SCORE ' + score, 14, 20) means 14px from the canvas's left edge
+      // no matter where the camera has scrolled to. The sketch's own camera
+      // state is saved and restored around it, so a sketch that drew with the
+      // camera off in draw() is not handed a surprise.
+      const camWasActive = camera._active;
+      camera._active = false;
+      drawTopFn();
+      camera._active = camWasActive;
 
       // Counter sweep AFTER this frame's update/draw ran, not before —
       // keydown/mousedown fire asynchronously between rAF calls, so

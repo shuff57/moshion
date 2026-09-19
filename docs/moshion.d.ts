@@ -456,6 +456,11 @@ interface Kb {
   releases(key: string): boolean;
 }
 
+// `mouse` is the pointer, not strictly a mouse: a single touch drives exactly
+// these same properties, so a sketch written against mouse.x / mouse.presses()
+// works on a phone with no changes. A second finger is ignored — there is no
+// touch gesture standing in for the right button, so .right never fires from
+// touch and a sketch that needs two buttons needs a keyboard fallback too.
 interface Mouse {
   x: number;
   y: number;
@@ -528,6 +533,27 @@ declare const width: number;
 declare const height: number;
 declare const mouseX: number;
 declare const mouseY: number;
+
+// ---- sketch lifecycle ----------------------------------------------------
+
+// The four hooks the engine calls. A sketch defines the ones it needs as
+// plain global functions; the engine auto-boots as soon as it sees setup().
+
+/** Runs once, before the first frame. Must call `new Canvas(w, h)`. */
+declare function setup(): void;
+/** Runs each frame BEFORE the physics step, so a sprite moved here is moved
+  * before this frame's collisions are resolved. `step` is the frame's
+  * duration in seconds, capped at 0.05. */
+declare function update(step: number): void;
+/** Runs each frame after physics, BEFORE sprites are rendered. Anything drawn
+  * here is painted underneath every sprite — draw backgrounds and world
+  * decoration here, and put a HUD in drawTop(). */
+declare function draw(): void;
+/** Runs each frame AFTER sprites are rendered, in screen space (the camera is
+  * off for its duration and restored afterwards). This is where a HUD goes:
+  * `text('SCORE ' + score, 14, 20)` lands 14px from the canvas's left edge and
+  * on top of the world, instead of behind whatever sprite is there. */
+declare function drawTop(): void;
 
 declare function background(color: string): void;
 declare function text(str: string, x: number, y: number, size?: number, color?: string): void;

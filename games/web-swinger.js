@@ -242,9 +242,12 @@ function draw() {
          player.x - player.vel.x * 2.5, player.y - player.vel.y * 2.5);
   }
 
-  camera.off();
+}
+
+// The engine calls drawTop() after the world is on the canvas, in screen
+// space — so a HUD lands on top of the scenery instead of behind it.
+function drawTop() {
+  var spd = Math.hypot(player.vel.x, player.vel.y);
   text("SCORE " + score, 14, 22, 12, "#6272a4");
   text("SPEED " + Math.round(spd * 10) / 10, 14, 40, 12, "#6272a4");
-  text("hold click to swing · release to fly · W reels in", 90, 288, 11, "#6272a4");
-  camera.on();
 }

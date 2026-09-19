@@ -336,7 +336,11 @@ function draw() {
     line(tracerX1, tracerY1, tracerX2, tracerY2);
   }
 
-  camera.off();
+}
+
+// The engine calls drawTop() after the world is on the canvas, in screen
+// space — so a HUD lands on top of the scenery instead of behind it.
+function drawTop() {
   var pct = BRICKS0 ? Math.round((destroyed / BRICKS0) * 100) : 0;
   text("SCORE " + score + "   DESTROYED " + pct + "%", 14, 22, 12, "#6272a4");
   text("MODE " + (weapon === 1 ? "RIFLE" : weapon === 2 ? "CANNON" : "BEAM"), 14, 40, 12, "#6272a4");
@@ -346,5 +350,4 @@ function draw() {
     rect(14 + i * 16, 50, 10, 10, 2);
     noFill();
   }
-  camera.on();
 }

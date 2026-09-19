@@ -241,25 +241,30 @@ function draw() {
   drawPortalRing("blue");
 
   // Aim tracer from the player toward the cursor, with a ghost ring showing
-  // where the next placement would land.
-  stroke("#8b95a8");
-  strokeWeight(2);
-  line(player.x, player.y, mouse.x, mouse.y);
-  drawGhostRing(mouse.x, mouse.y);
+  // where the next placement would land. An untouched mouse reads (0,0) — a
+  // real world coordinate — so without the isActive guard the demo opens with
+  // a rope drawn to its own top-left corner before anyone has aimed anything.
+  if (mouse.isActive) {
+    stroke("#8b95a8");
+    strokeWeight(2);
+    line(player.x, player.y, mouse.x, mouse.y);
+    drawGhostRing(mouse.x, mouse.y);
+  }
 
   // Goal marker on the ledge.
   stroke("#ffb86c");
   strokeWeight(2);
   line(392, 116, 452, 116);
+}
 
-  camera.off();
+// The engine calls drawTop() after the world is on the canvas, in screen
+// space — so a HUD lands on top of the scenery instead of behind it.
+function drawTop() {
   var secs = Math.floor(timer / 60);
   text("TIME " + secs + "s", 14, 22, 12, "#6272a4");
-  text("left = orange · right = blue · momentum is conserved", 70, 292, 11, "#6272a4");
   if (won) {
     textAlign("center");
     text("CHAMBER COMPLETE", 230, 120, 18, "#ffb86c");
     textAlign("left");
   }
-  camera.on();
 }

@@ -44,9 +44,14 @@ Sketch source is passed as base64url in `?code=`. Inside the sketch you get the
 full global API ([`docs/moshion.d.ts`](docs/moshion.d.ts) is the complete,
 hand-authored reference):
 
+- `setup()` / `update()` / `draw()` / `drawTop()` — the lifecycle hooks the
+  engine calls. `drawTop()` runs after sprites are drawn, in screen space, so
+  a HUD lands on top of the world instead of behind it
 - `Canvas`, `Sprite`, `Group`, `allSprites` — drawing + physics
 - `world`, `camera` — gravity, hit-testing, viewport
-- `kb`, `mouse` — input with edge-triggered events (`kb.presses('w')`)
+- `kb`, `mouse` — input with edge-triggered events (`kb.presses('w')`). A
+  single touch drives the same `mouse` properties, so a pointer sketch works
+  on a phone unchanged (no right-button equivalent: a second finger is ignored)
 - Joints: `HingeJoint`, `DistanceJoint`, `SliderJoint`, `WheelJoint`,
   `GrabberJoint`, `GlueJoint`
 - `storeItem`/`getItem` — saves, bridged to the host page via postMessage
@@ -65,7 +70,11 @@ starts after 400 ms with an empty store either way.
 | `moshion.js` | The entire engine, hand-authored, no build step |
 | `planck.min.js` | planck.js v1.5.0 (Box2D port), MIT, vendored |
 | `runner.html` | Sandboxed iframe host: loads the engine, injects `?code=`, pipes console/errors out |
-| `assets/` | Sprite-sheet art (regenerable via `scripts/make-moshion-assets.py` in shCode) |
+| `index.html` | The homepage: a demo panel that runs any of the six games, plus an inline editor |
+| `sandbox.html` | Live editor — write a sketch, hit Run, see it in the sandboxed iframe |
+| `games/` | The six demo sketches (`portal`, `ray-siege`, `web-swinger`, `asteroids`, `platformer`, `runner`) |
+| `tests/` | Playwright specs driving the real browser surface: `bun tests/<name>.spec.mjs` |
+| `assets/` | Sprite-sheet art (regenerable via `scripts/make-moshion-assets.py` in shCode) plus `coin.wav` / `music.wav`, the synthesized sounds the docs' Sound example loads |
 | `docs/` | Full API types (`moshion.d.ts`), challenge ladder, architecture notes, license notes |
 
 ## Security model

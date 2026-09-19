@@ -9,7 +9,6 @@ function setup() {
   groundSensor = new Sprite(60, 254, 18, 6, "kinematic");
   groundSensor.collider = "none";
   groundSensor.color = "transparent";
-  groundSensor.debug = true;
   obstacles = new Group();
   obstacles.color = "#ffb86c";
   obstacles.friction = 0;
@@ -49,12 +48,24 @@ function update() {
     if (o.x < -20) { o.delete(); score++; }
   });
 
-  if (player.colliding(obstacles)) { alive = false; player.vel.x = 0; player.vel.y = 0; }
+  if (player.colliding(obstacles)) {
+    alive = false;
+    player.vel.x = 0; player.vel.y = 0;
+    // Kinematic obstacles keep their velocity once update() stops running, and
+    // they bulldoze the dead player off the left end of the ground into an
+    // endless fall. Freeze the track instead so the game-over frame holds.
+    obstacles.forEach(function (o) { o.vel.x = 0; });
+  }
   speed += 0.0015;
 }
 
 function draw() {
   background("#1e1f29");
+}
+
+// The engine calls drawTop() after the world is on the canvas, in screen
+// space — so a HUD lands on top of the scenery instead of behind it.
+function drawTop() {
   text("SCORE " + score, 14, 20, 12, "#6272a4");
   if (!alive) {
     textAlign("center");
