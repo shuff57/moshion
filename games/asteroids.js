@@ -1,3 +1,30 @@
+// On-screen controls: shown only on a touch-capable device (no keyboard) so
+// a mouse/keyboard desktop never sees them. Held buttons read mouse.pressing()
+// against these rects via mouse.canvasPos -- screen space, so the hit test
+// stays correct even though this game's camera never actually moves.
+var BTN = {
+  rotL: { x: 8, y: 250, w: 42, h: 42 },
+  rotR: { x: 54, y: 250, w: 42, h: 42 },
+  thrust: { x: 100, y: 250, w: 42, h: 42 },
+  fire: { x: 400, y: 250, w: 52, h: 42 },
+};
+function inRect(p, r) {
+  return p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h;
+}
+function btnHeld(name) { return TOUCH && mouse.pressing() && inRect(mouse.canvasPos, BTN[name]); }
+function btnTapped(name) { return TOUCH && mouse.presses() && inRect(mouse.canvasPos, BTN[name]); }
+function drawBtn(b, label) {
+  fill("rgba(30, 31, 41, 0.82)");
+  stroke("#44475a");
+  strokeWeight(1);
+  rect(b.x, b.y, b.w, b.h, 6);
+  noStroke();
+  textAlign("center");
+  text(label, b.x + b.w / 2, b.y + b.h / 2 + 6, 18, "#8b95a8");
+  textAlign("left");
+  noFill();
+}
+
 function setup() {
   new Canvas(460, 300);
   world.gravity.y = 0;
@@ -22,6 +49,7 @@ function setup() {
   alive = true;
   invuln = 0;
   lastShot = 0;
+  TOUCH = navigator.maxTouchPoints > 0;
   for (var i = 0; i < 5; i++) spawnAsteroid();
 }
 
@@ -57,12 +85,12 @@ function restart() {
 function update() {
   if (!alive) {
     asteroids.forEach(function (a) { wrap(a, 30); });
-    if (kb.presses("space")) restart();
+    if (kb.presses("space") || (TOUCH && mouse.presses())) restart();
     return;
   }
-  if (kb.pressing("left")) ship.rotation -= 4;
-  if (kb.pressing("right")) ship.rotation += 4;
-  if (kb.pressing("up")) {
+  if (kb.pressing("left") || btnHeld("rotL")) ship.rotation -= 4;
+  if (kb.pressing("right") || btnHeld("rotR")) ship.rotation += 4;
+  if (kb.pressing("up") || btnHeld("thrust")) {
     var rad = ship.rotation * Math.PI / 180;
     ship.vel.x += Math.cos(rad) * 0.2;
     ship.vel.y += Math.sin(rad) * 0.2;
@@ -72,7 +100,7 @@ function update() {
   wrap(ship, 15);
   asteroids.forEach(function (a) { wrap(a, 30); });
 
-  if (kb.presses("space") && frameCount - lastShot > 14) {
+  if ((kb.presses("space") || btnTapped("fire")) && frameCount - lastShot > 14) {
     lastShot = frameCount;
     var rad = ship.rotation * Math.PI / 180;
     var b = new bullets.Sprite(ship.x + Math.cos(rad) * 16, ship.y + Math.sin(rad) * 16, 4);
@@ -145,5 +173,11 @@ function drawTop() {
     textAlign("center");
     text("game over — press space to restart", 230, 150, 13, "#f8f8f2");
     textAlign("left");
+  }
+  if (TOUCH) {
+    drawBtn(BTN.rotL, "\u25C0");
+    drawBtn(BTN.rotR, "\u25B6");
+    drawBtn(BTN.thrust, "\u25B2");
+    drawBtn(BTN.fire, "\u25CF");
   }
 }

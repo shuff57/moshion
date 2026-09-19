@@ -18,7 +18,12 @@ const MIME = {
 };
 
 export async function serve(port = 8177) {
-  const srv = createServer((req, res) => {
+  // maxHeaderSize: Node's default is 16KB, and the runner passes a sketch's
+  // full source as base64url in the URL -- ray-siege.js plus its on-screen
+  // touch controls base64-encodes to ~16.7KB, just over that default, so the
+  // request line alone 431'd here while working fine on GitHub Pages (which
+  // has no such header cap). Matching production, not an artificial ceiling.
+  const srv = createServer({ maxHeaderSize: 1048576 }, (req, res) => {
     let p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
     if (p === '/') p = '/index.html';
     try {

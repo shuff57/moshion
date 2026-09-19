@@ -7,6 +7,17 @@
 // cooldown, won, timer. The whole chamber fits one 460x300 screen; the camera
 // stays at its default so screen coordinates match world coordinates.
 
+// On-screen controls: touch has no right-click equivalent, so without this
+// the blue portal is unreachable on a phone. TOGGLE_BTN is a small pill in
+// the corner; tapping it (touch only -- desktop keeps right-click) flips
+// which color the next tap places. Hit-tested against mouse.canvasPos,
+// which is screen space regardless of camera (this game's camera never
+// moves, but the pattern matches every other game's HUD buttons).
+var TOGGLE_BTN = { x: 382, y: 8, w: 70, h: 24 };
+function inRect(p, r) {
+  return p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h;
+}
+
 function setup() {
   new Canvas(460, 300);
   world.gravity.y = 10;
@@ -49,6 +60,9 @@ function setup() {
 
   latchL = false;
   latchR = false;
+
+  TOUCH = navigator.maxTouchPoints > 0;
+  placeColor = "orange";
 
   window.addEventListener("contextmenu", function (e) { e.preventDefault(); });
 }
@@ -154,7 +168,14 @@ function update() {
   // Placement with a latch so a quick tap only fires once (the engine's
   // per-button counters read 1 both on press and on a quick release).
   if (mouse.presses()) {
-    if (mouse.left > 0 && !latchL) { latchL = true; placePortal("orange", mouse.x, mouse.y); }
+    if (TOUCH && !latchL && inRect(mouse.canvasPos, TOGGLE_BTN)) {
+      // Touch has no right button -- this is the only way to reach blue.
+      latchL = true;
+      placeColor = placeColor === "orange" ? "blue" : "orange";
+    } else if (mouse.left > 0 && !latchL) {
+      latchL = true;
+      placePortal(placeColor, mouse.x, mouse.y);
+    }
     if (mouse.right > 0 && !latchR) { latchR = true; placePortal("blue", mouse.x, mouse.y); }
   }
   if (mouse.left === 0) latchL = false;
@@ -195,7 +216,7 @@ function drawGhostRing(tx, ty) {
   var hit = castAim(tx, ty);
   if (!hit) return;
   var p = { x: hit.point.x, y: hit.point.y, nx: hit.normal.x, ny: hit.normal.y };
-  var col = mouse.left > 0 ? "#ff9f43" : "#5b8cff";
+  var col = mouse.right > 0 ? "#5b8cff" : (placeColor === "orange" ? "#ff9f43" : "#5b8cff");
   stroke(col);
   strokeWeight(1);
   var tx2 = -p.ny, ty2 = p.nx;
@@ -266,5 +287,16 @@ function drawTop() {
     textAlign("center");
     text("CHAMBER COMPLETE", 230, 120, 18, "#ffb86c");
     textAlign("left");
+  }
+  if (TOUCH) {
+    fill("rgba(30, 31, 41, 0.82)");
+    stroke("#44475a");
+    strokeWeight(1);
+    rect(TOGGLE_BTN.x, TOGGLE_BTN.y, TOGGLE_BTN.w, TOGGLE_BTN.h, 5);
+    noStroke();
+    fill(placeColor === "orange" ? "#ff9f43" : "#5b8cff");
+    circle(TOGGLE_BTN.x + 12, TOGGLE_BTN.y + TOGGLE_BTN.h / 2, 10);
+    noFill();
+    text(placeColor === "orange" ? "ORANGE" : "BLUE", TOGGLE_BTN.x + 22, TOGGLE_BTN.y + 16, 10, "#8b95a8");
   }
 }

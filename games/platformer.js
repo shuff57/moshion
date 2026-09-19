@@ -1,3 +1,27 @@
+// On-screen controls: touch-capable devices only (see asteroids.js for why,
+// and for the hit-test pattern every game here shares).
+var BTN = {
+  moveL: { x: 8, y: 254, w: 60, h: 38 },
+  moveR: { x: 76, y: 254, w: 60, h: 38 },
+  jump: { x: 392, y: 254, w: 60, h: 38 },
+};
+function inRect(p, r) {
+  return p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h;
+}
+function btnHeld(name) { return TOUCH && mouse.pressing() && inRect(mouse.canvasPos, BTN[name]); }
+function btnTapped(name) { return TOUCH && mouse.presses() && inRect(mouse.canvasPos, BTN[name]); }
+function drawBtn(b, label) {
+  fill("rgba(30, 31, 41, 0.82)");
+  stroke("#44475a");
+  strokeWeight(1);
+  rect(b.x, b.y, b.w, b.h, 6);
+  noStroke();
+  textAlign("center");
+  text(label, b.x + b.w / 2, b.y + b.h / 2 + 6, 18, "#8b95a8");
+  textAlign("left");
+  noFill();
+}
+
 function setup() {
   new Canvas(460, 300);
   world.gravity.y = 10;
@@ -27,6 +51,7 @@ function setup() {
   startY = player.y;
   camera.y = 150;
   best = 0;
+  TOUCH = navigator.maxTouchPoints > 0;
 }
 
 function respawn() {
@@ -35,12 +60,12 @@ function respawn() {
 }
 
 function update() {
-  if (kb.pressing("left")) player.vel.x = -2.2;
-  else if (kb.pressing("right")) player.vel.x = 2.2;
+  if (kb.pressing("left") || btnHeld("moveL")) player.vel.x = -2.2;
+  else if (kb.pressing("right") || btnHeld("moveR")) player.vel.x = 2.2;
   else player.vel.x = 0;
 
   var grounded = player.colliding(platforms);
-  if ((kb.presses("up") || kb.presses("space")) && grounded) player.vel.y = -4.5;
+  if ((kb.presses("up") || kb.presses("space") || btnTapped("jump")) && grounded) player.vel.y = -4.5;
 
   camera.y = Math.min(camera.y, player.y);
   // The camera is centred, so the canvas bottom is camera.y + 150 and an 18px
@@ -60,4 +85,9 @@ function draw() {
 // space — so a HUD lands on top of the scenery instead of behind it.
 function drawTop() {
   text("HEIGHT " + best, 20, 20, 12, "#6272a4");
+  if (TOUCH) {
+    drawBtn(BTN.moveL, "\u25C0");
+    drawBtn(BTN.moveR, "\u25B6");
+    drawBtn(BTN.jump, "\u25B2");
+  }
 }

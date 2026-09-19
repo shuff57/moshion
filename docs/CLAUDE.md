@@ -32,6 +32,7 @@ and prints `PASS`/`FAIL` per assertion (exit 0 only if all pass):
 bun tests/raycast.spec.mjs        # engine: world.rayCast
 bun tests/drawtop.spec.mjs        # engine: the drawTop() HUD hook
 bun tests/touch.spec.mjs          # engine: touch drives the mouse counters
+bun tests/touch-controls.spec.mjs # games' own on-screen touch controls
 bun tests/portal.spec.mjs         # games/portal.js
 bun tests/ray-siege.spec.mjs      # games/ray-siege.js
 bun tests/web-swinger.spec.mjs    # games/web-swinger.js
@@ -39,6 +40,12 @@ bun tests/starter-games.spec.mjs  # games/{asteroids,platformer,runner}.js
 bun tests/integration.spec.mjs    # index.html demo panel
 bun tests/viewport.spec.mjs       # the demo viewport shows the whole sketch
 ```
+
+`tests/harness.mjs`'s `serve()` raises Node's default 16KB header limit — a
+sketch's full source travels as base64url in `?code=`, and `ray-siege.js` plus
+its on-screen controls encodes to ~16.7KB, over that default. Production
+(GitHub Pages) has no such cap; the harness now matches it rather than 431ing
+on a sketch that would run fine there.
 
 There is no lint or typecheck script for the engine itself. The app's
 TypeScript (`tsc --noEmit`) does not type-check `moshion.js` — it's plain JS
@@ -143,10 +150,21 @@ Key classes and where they live in `moshion.js`:
      press stuck down forever.
   Multi-touch is deliberately unmapped: every gesture that could stand in for
   a right-click needs a timing state machine that guesses wrong too often. So
-  `runner` and `web-swinger` are fully touch-playable, `portal` (needs the
-  right button) and `ray-siege` (needs WASD) are partly, and `asteroids` and
-  `platformer` are arrow-keys-only — on-screen controls, if they are ever
-  wanted, belong in the games rather than in the engine.
+  the four games that needed more than the mouse's left button — a right-click,
+  WASD, or arrow keys with no mouse at all — each draw their own on-screen
+  controls, gated on `navigator.maxTouchPoints > 0` so a desktop mouse/keyboard
+  never sees them:
+  - `portal`: no right-click on touch, so a small pill toggle (tap it) picks
+    which color the next tap places; right-click still forces blue on desktop.
+  - `asteroids` / `platformer` / `ray-siege`: on-screen buttons for rotate/
+    move/thrust/jump (held, via `mouse.pressing()` + `mouse.canvasPos` against
+    a button rect) and fire/weapon-select (tapped, via `mouse.presses()`).
+    `ray-siege` also excludes a tap landing on any button from also firing —
+    a button and the world share one input, so a weapon swap must not also
+    take a shot at that screen point.
+  This is a game-level pattern (`BTN`/`inRect`/`btnHeld`/`btnTapped`), not new
+  engine API — `mouse.canvasPos` already existed for exactly this kind of
+  screen-pinned hit-test.
 - **`moshion.js` and `moshion.d.ts` ship together** — public API changes must be
   reflected in both. The `.d.ts` is hand-authored, not generated.
 - **The in-app docs** (`lib/moshion-docs.ts`, rendered at `/docs/moshion`) are

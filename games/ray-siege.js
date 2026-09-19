@@ -8,6 +8,45 @@
 // destroyed, hp, score. The camera stays at its default so screen coordinates
 // equal world coordinates.
 
+// On-screen controls: touch-capable devices only (see asteroids.js for the
+// hit-test pattern). Weapon buttons are taps; move/jump read mouse.pressing()
+// for a held finger. A tap that lands on any of these is excluded from firing
+// -- otherwise every weapon swap or step would also loose a shot at that spot.
+var BTN = {
+  // y/h fit inside the ground strip (top y=270, canvas bottom y=300): the
+  // player spawns at x=70 and never dips below y=270 while grounded, and
+  // every brick sits above y=270 too, so this band is the one strip on the
+  // screen neither ever occupies -- putting the buttons anywhere in the
+  // player's resting y-range overlapped its own sprite.
+  moveL: { x: 8, y: 272, w: 42, h: 26 },
+  moveR: { x: 54, y: 272, w: 42, h: 26 },
+  jump: { x: 100, y: 272, w: 42, h: 26 },
+  w1: { x: 350, y: 8, w: 32, h: 26 },
+  w2: { x: 386, y: 8, w: 32, h: 26 },
+  w3: { x: 422, y: 8, w: 32, h: 26 },
+};
+function inRect(p, r) {
+  return p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h;
+}
+function btnHeld(name) { return TOUCH && mouse.pressing() && inRect(mouse.canvasPos, BTN[name]); }
+function btnTapped(name) { return TOUCH && mouse.presses() && inRect(mouse.canvasPos, BTN[name]); }
+function overAnyButton() {
+  if (!TOUCH) return false;
+  var p = mouse.canvasPos;
+  return inRect(p, BTN.moveL) || inRect(p, BTN.moveR) || inRect(p, BTN.jump)
+    || inRect(p, BTN.w1) || inRect(p, BTN.w2) || inRect(p, BTN.w3);
+}
+function drawBtn(b, label) {
+  fill("rgba(30, 31, 41, 0.82)");
+  stroke("#44475a");
+  strokeWeight(1);
+  rect(b.x, b.y, b.w, b.h, 5);
+  noStroke();
+  textAlign("center");
+  text(label, b.x + b.w / 2, b.y + b.h / 2 + 5, 14, "#8b95a8");
+  textAlign("left");
+  noFill();
+}
 function setup() {
   new Canvas(460, 300);
   world.gravity.y = 10;
@@ -72,6 +111,7 @@ function setup() {
   // Prev-velocity snapshots for the same landing-crossing reason as portal.js.
   player._pvx = 0;
   player._pvy = 0;
+  TOUCH = navigator.maxTouchPoints > 0;
 }
 
 // Drops a brick column of `count` bricks starting at ground level upward.
@@ -255,19 +295,19 @@ function update() {
   if (beamCooldown > 0) beamCooldown--;
   if (invuln > 0) invuln--;
 
-  if (kb.pressing("left") || kb.pressing("a")) player.vel.x = -2.4;
-  else if (kb.pressing("right") || kb.pressing("d")) player.vel.x = 2.4;
+  if (kb.pressing("left") || kb.pressing("a") || btnHeld("moveL")) player.vel.x = -2.4;
+  else if (kb.pressing("right") || kb.pressing("d") || btnHeld("moveR")) player.vel.x = 2.4;
   else player.vel.x = player.vel.x * 0.85;
 
-  if ((kb.presses("up") || kb.presses("space") || kb.presses("w")) && grounded()) {
+  if ((kb.presses("up") || kb.presses("space") || kb.presses("w") || btnTapped("jump")) && grounded()) {
     player.vel.y = -6;
   }
 
-  if (kb.presses("1")) weapon = 1;
-  if (kb.presses("2")) weapon = 2;
-  if (kb.presses("3")) weapon = 3;
+  if (kb.presses("1") || btnTapped("w1")) weapon = 1;
+  if (kb.presses("2") || btnTapped("w2")) weapon = 2;
+  if (kb.presses("3") || btnTapped("w3")) weapon = 3;
 
-  if (mouse.presses() && fireCooldown === 0 && (weapon !== 3 || beamCooldown === 0)) {
+  if (mouse.presses() && fireCooldown === 0 && !overAnyButton() && (weapon !== 3 || beamCooldown === 0)) {
     fire(mouse.x, mouse.y);
   }
   // Drones spawn from the right edge and seek the player.
@@ -349,5 +389,13 @@ function drawTop() {
     fill("#ef4444");
     rect(14 + i * 16, 50, 10, 10, 2);
     noFill();
+  }
+  if (TOUCH) {
+    drawBtn(BTN.moveL, "\u25C0");
+    drawBtn(BTN.moveR, "\u25B6");
+    drawBtn(BTN.jump, "\u25B2");
+    drawBtn(BTN.w1, "1");
+    drawBtn(BTN.w2, "2");
+    drawBtn(BTN.w3, "3");
   }
 }
