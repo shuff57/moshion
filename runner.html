@@ -6,7 +6,19 @@
 <style>
 	html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #111; color: #eee; font-family: system-ui, sans-serif; }
 	body { display: flex; align-items: center; justify-content: center; }
-	canvas { display: block; }
+	/* Fit the sketch to the host frame instead of cropping it: a canvas is a
+	   replaced element with an intrinsic ratio, so capping both axes scales it
+	   down whole. The engine divides mouse coords by this scale (see the
+	   mousemove handler in moshion.js), so aiming still lands where it looks. */
+	canvas { display: block; max-width: 100%; max-height: 100%; }
+	/* ?fit=1 additionally scales the sketch UP to fill the frame. Opt-in, because
+	   only a curated showcase wants it: in the sandbox a student who asks for a
+	   200x200 canvas should get 200x200, not a blurry blow-up. `height:100%` with
+	   `width:auto` lets the intrinsic ratio pick the width, and max-width re-
+	   derives the height from the same ratio when the frame is the narrow axis --
+	   so the element box stays tight to the pixels and getBoundingClientRect()
+	   (which the mouse scaling reads) never includes letterbox padding. */
+	body.fit canvas { width: auto; height: 100%; max-width: 100%; max-height: none; }
 	#error { position: fixed; top: 0; left: 0; right: 0; background: rgba(220,38,38,0.92); color: #fff; padding: 8px 12px; font: 12px/1.4 monospace; white-space: pre-wrap; display: none; z-index: 100; }
 	#empty { color: #666; font: 13px system-ui; text-align: center; }
 </style>
@@ -162,6 +174,8 @@
 		return;
 	}
 	var params = new URLSearchParams(location.search);
+	// ?fit=1 -- scale the sketch up to fill this frame (see the CSS above).
+	if (params.get('fit')) document.body.classList.add('fit');
 	var encoded = params.get('code');
 	if (!encoded) return;
 	var code;

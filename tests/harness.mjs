@@ -13,6 +13,7 @@ export const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const MIME = {
   '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
   '.svg': 'image/svg+xml', '.avif': 'image/avif', '.webp': 'image/webp',
+  '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.ogg': 'audio/ogg',
   '.d.ts': 'text/plain', '.md': 'text/plain',
 };
 
@@ -22,7 +23,17 @@ export async function serve(port = 8177) {
     if (p === '/') p = '/index.html';
     try {
       const data = readFileSync(join(ROOT, p));
-      res.writeHead(200, { 'content-type': MIME[extname(p)] || 'application/octet-stream' });
+      res.writeHead(200, {
+        'content-type': MIME[extname(p)] || 'application/octet-stream',
+        // The runner iframe is sandboxed without allow-same-origin, so its
+        // requests carry origin `null` — cross-origin even for a file on this
+        // very server. <img src> does not care, but fetch() does, and
+        // Sound._load() uses fetch. Without this header every loadSound() in
+        // a spec fails with 'Failed to fetch' while working fine in
+        // production, where GitHub Pages serves access-control-allow-origin:*
+        // (verified 2026-09-18). Matching it here keeps the harness honest.
+        'access-control-allow-origin': '*',
+      });
       res.end(data);
     } catch {
       res.writeHead(404);
@@ -64,12 +75,17 @@ export async function keyUp(frame, keyName) {
 }
 
 // Click at game-world canvas coords (same space as Sprite x/y).
+// runner.html scales the canvas down when the host frame is narrower than the
+// sketch, so every helper converts game coords through the displayed scale
+// (r.width / canvas.width) exactly the way the engine converts them back.
 export async function mouseDown(frame, x, y, button = 'left') {
   await frame.evaluate(([cx, cy, b]) => {
     const canvas = document.querySelector('canvas');
     const r = canvas.getBoundingClientRect();
+    const sx = canvas.width ? r.width / canvas.width : 1;
+    const sy = canvas.height ? r.height / canvas.height : 1;
     const opts = {
-      clientX: r.left + cx, clientY: r.top + cy,
+      clientX: r.left + cx * sx, clientY: r.top + cy * sy,
       button: b === 'right' ? 2 : 0, buttons: b === 'right' ? 2 : 1, bubbles: true,
     };
     canvas.dispatchEvent(new MouseEvent('mousedown', opts));
@@ -80,8 +96,10 @@ export async function mouseUp(frame, x, y, button = 'left') {
   await frame.evaluate(([cx, cy, b]) => {
     const canvas = document.querySelector('canvas');
     const r = canvas.getBoundingClientRect();
+    const sx = canvas.width ? r.width / canvas.width : 1;
+    const sy = canvas.height ? r.height / canvas.height : 1;
     const opts = {
-      clientX: r.left + cx, clientY: r.top + cy,
+      clientX: r.left + cx * sx, clientY: r.top + cy * sy,
       button: b === 'right' ? 2 : 0, buttons: 0, bubbles: true,
     };
     canvas.dispatchEvent(new MouseEvent('mouseup', opts));
@@ -93,8 +111,10 @@ export async function mouseMove(frame, x, y) {
   await frame.evaluate(([cx, cy]) => {
     const canvas = document.querySelector('canvas');
     const r = canvas.getBoundingClientRect();
+    const sx = canvas.width ? r.width / canvas.width : 1;
+    const sy = canvas.height ? r.height / canvas.height : 1;
     canvas.dispatchEvent(new MouseEvent('mousemove', {
-      clientX: r.left + cx, clientY: r.top + cy, bubbles: true,
+      clientX: r.left + cx * sx, clientY: r.top + cy * sy, bubbles: true,
     }));
   }, [x, y]);
 }

@@ -2591,11 +2591,22 @@
       );
       if (!stillHeld) _releaseKey(dir);
     });
-    CANVAS_.addEventListener('mousemove', (e) => {
+    // Canvas-relative pointer position, in sketch pixels. A host is free to
+    // display the canvas at a size other than its backing store — runner.html
+    // scales it to fit a narrow frame rather than cropping it. Divide the
+    // offset by the displayed scale so mouse.x/y stay in sketch pixels; at 1:1
+    // (r.width === CANVAS_.width) this is a no-op. Shared by the mouse and
+    // touch handlers below so the two can never drift apart.
+    const _pointerTo = (clientX, clientY) => {
       const r = CANVAS_.getBoundingClientRect();
-      MOUSE.x = e.clientX - r.left + _camLeft();
-      MOUSE.y = e.clientY - r.top + _camTop();
+      const sx = r.width ? CANVAS_.width / r.width : 1;
+      const sy = r.height ? CANVAS_.height / r.height : 1;
+      MOUSE.x = (clientX - r.left) * sx + _camLeft();
+      MOUSE.y = (clientY - r.top) * sy + _camTop();
       MOUSE._seen = true;
+    };
+    CANVAS_.addEventListener('mousemove', (e) => {
+      _pointerTo(e.clientX, e.clientY);
       // A mousemove on the canvas IS the cursor being over the canvas. Relying
       // on mouseenter alone left isOnCanvas false for a cursor already inside
       // the element when the sketch started (no enter event is ever fired for
