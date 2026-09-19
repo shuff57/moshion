@@ -2652,6 +2652,65 @@
       if (dragSlot && MOUSE[dragSlot] > 0) MOUSE[dragSlot] = -1;
     });
 
+    // ---- touch ----------------------------------------------------------
+    //
+    // The engine used to listen for mouse events only, so on a phone every
+    // sketch was dead: mouse.x/y stayed at their initial (0, 0) and
+    // mouse.presses() never once fired. A single touch drives the same
+    // counters as the left mouse button, which is what sketches already read —
+    // no new API, and `mouse` keeps its name because that is what the
+    // curriculum teaches.
+    //
+    // Multi-touch is deliberately not mapped. A second finger has no mouse
+    // button to be, and every gesture that could stand in for a right-click
+    // (two-finger tap, long press) needs a timing state machine that guesses
+    // wrong often enough to be worse than not offering it.
+    const _touchAt = (e) => (e.changedTouches && e.changedTouches[0]) || null;
+
+    CANVAS_.addEventListener('touchstart', (e) => {
+      const t = _touchAt(e);
+      if (!t) return;
+      _unlockAudio(); // same reason as keydown/mousedown above
+      // Position BEFORE the press counter, and not optional: a tap carries
+      // its position and its press in the same event — there is no hover
+      // first — so a sketch reading mouse.x on the frame it sees presses()
+      // would otherwise get the previous touch's spot, or (0, 0) on the very
+      // first tap of the session.
+      _pointerTo(t.clientX, t.clientY);
+      MOUSE._onCanvas = true;
+      if (!MOUSE._c || MOUSE._c < 0) MOUSE._c = 1;
+      if (!MOUSE._bl || MOUSE._bl < 0) MOUSE._bl = 1;
+      // Without this the browser replays the whole gesture as synthetic
+      // mousedown/mouseup about 300ms later — pressing everything a second
+      // time — and scrolls or zooms the page out from under the sketch.
+      // Needs the explicit passive:false to be allowed to.
+      e.preventDefault();
+    }, { passive: false });
+
+    CANVAS_.addEventListener('touchmove', (e) => {
+      const t = _touchAt(e);
+      if (!t) return;
+      _pointerTo(t.clientX, t.clientY);
+      MOUSE._onCanvas = true;
+      if (MOUSE._bl > 0) MOUSE._mvl = true; // drag tracking, as for the mouse
+      e.preventDefault();
+    }, { passive: false });
+
+    // On window, matching mouseup: a finger that slides off the canvas before
+    // it lifts still has to end the press, or the sketch is left holding it
+    // forever. touchcancel is the same event as far as a sketch is concerned
+    // (the OS took the gesture away — a call came in, the gesture became a
+    // system swipe); not handling it was the other way to get stuck holding.
+    const _endTouch = (e) => {
+      // A lift with fingers still down is not the end of the gesture.
+      if (e && e.touches && e.touches.length) return;
+      MOUSE._c = MOUSE._c >= mouse.holdThreshold ? -2 : MOUSE._c > 1 ? -1 : -3;
+      MOUSE._bl = MOUSE._bl >= mouse.holdThreshold ? -2 : MOUSE._bl > 1 ? -1 : -3;
+      if (MOUSE._dl > 0) MOUSE._dl = -1; // flat -1, as in the mouseup handler
+    };
+    window.addEventListener('touchend', _endTouch);
+    window.addEventListener('touchcancel', _endTouch);
+
     let last = performance.now();
     function loop(now) {
       if (!_loopRunning) return; // noLoop(): fully stop, don't idle-spin rAF
