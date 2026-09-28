@@ -51,7 +51,14 @@ function setup() {
   lastShot = 0;
   thrusting = false;
   TOUCH = navigator.maxTouchPoints > 0;
-  for (var i = 0; i < 5; i++) spawnAsteroid();
+  // Five rocks AT BOOT, not more. Denser was tempting -- 11s of play logged a
+  // lot of empty screen -- but the same 11s logged 2 of 3 lives gone, so this game
+  // is already too punishing and more would make it worse. The field instead
+  // grows +1 per 3 kills up to 9 (see the bullet handler), which rewards playing
+  // well rather than taxing the first ten seconds. The speed floor in
+  // spawnAsteroid is the other dial. starter-games A1 pins boot at 5.
+  ROCKS = 5;
+  for (var i = 0; i < ROCKS; i++) spawnAsteroid();
 }
 
 function spawnAsteroid() {
@@ -88,7 +95,7 @@ function restart() {
   bullets.slice().forEach(function (b) { b.delete(); });
   ship.x = 230; ship.y = 150; ship.vel.x = 0; ship.vel.y = 0; ship.rotation = 0;
   score = 0; lives = 3; alive = true; invuln = 0;
-  for (var i = 0; i < 5; i++) spawnAsteroid();
+  for (var i = 0; i < ROCKS; i++) spawnAsteroid();
 }
 
 function update() {
@@ -138,6 +145,12 @@ function update() {
     invuln--;
   } else {
     ship.overlaps(asteroids, function (self, asteroid) {
+      // overlaps() fires once PER overlapping rock, and the ship is recentred to
+      // dead centre where a second rock can easily be sitting. Without this guard
+      // a single collision cost two lives whenever two rocks overlapped on the
+      // same frame. Latent for a long time; the spec suite only caught it because
+      // rock drift is random, so it passes on most runs.
+      if (invuln > 0) return;
       asteroid.delete();
       spawnAsteroid();
       lives--;

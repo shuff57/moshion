@@ -96,6 +96,21 @@ async function boot(rel) {
     shot.score === 1 && shot.rocks === 1, JSON.stringify(shot));
 
   // Ram a rock three times: a life each, then game over.
+  //
+  // Reset the scenario first. The ship spends A2/A3 sitting motionless at dead
+  // centre (230,150) in a live rock field, so it can be hit at random before we
+  // get here, and lives is then already spent -- A4a saw 1 where it expected 2 on
+  // roughly one run in three. That is a property of a stationary ship, not of the
+  // collision code, and this section is supposed to be measuring deliberate
+  // ramming, so it pins the state it depends on.
+  await frame.evaluate(() => {
+    asteroids.slice().forEach((a) => a.delete());
+    spawnAsteroid();
+    lives = 3; alive = true; invuln = 0; score = 0; lastShot = 0;
+    ship.x = 230; ship.y = 150; ship.vel.x = 0; ship.vel.y = 0; ship.rotation = 0;
+  });
+  await waitFrames(frame, 10);
+
   const hits = [];
   for (let i = 0; i < 3; i++) {
     await frame.evaluate(() => {
