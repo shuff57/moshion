@@ -31,16 +31,23 @@ runner in a sandboxed iframe, exactly the way a host app is meant to.
 
 ## Use it in your own page
 
-moSHion runs inside a host iframe. The host loads `runner.html?code=...` with
-a **sandboxed iframe without `allow-same-origin`** — student/visitor code then
+moSHion runs inside a host iframe. The host loads `runner.html` with a
+**sandboxed iframe without `allow-same-origin`** — student/visitor code then
 runs in an opaque origin and cannot touch your app:
 
 ```html
 <iframe sandbox="allow-scripts allow-downloads"
-        src="https://shuff57.github.io/moshion/runner.html?code=..."></iframe>
+        src="https://shuff57.github.io/moshion/runner.html"></iframe>
 ```
 
-Sketch source is passed as base64url in `?code=`. Inside the sketch you get the
+The frame posts `{source: 'preview-storage-request'}` to its parent; the host
+answers `{source: 'preview-storage-init', data: <store>, code: <sketch>}`. One
+handshake carries both the save store and the sketch, and the sketch never
+touches the URL — a full sketch base64s to ~17KB and GitHub Pages (Varnish)
+answers `414 Error: URI Too Long` past a ~6.1KB request line. A host that
+skips the bridge gets an empty store after 400ms; `?code=<base64url>` still
+works as a fallback for small sketches. Inside the sketch you get the full
+global API ([`docs/moshion.d.ts`](docs/moshion.d.ts) is the complete,
 full global API ([`docs/moshion.d.ts`](docs/moshion.d.ts) is the complete,
 hand-authored reference):
 
@@ -69,7 +76,7 @@ starts after 400 ms with an empty store either way.
 |---|---|
 | `moshion.js` | The entire engine, hand-authored, no build step |
 | `planck.min.js` | planck.js v1.5.0 (Box2D port), MIT, vendored |
-| `runner.html` | Sandboxed iframe host: loads the engine, injects `?code=`, pipes console/errors out |
+| `runner.html` | Sandboxed iframe host: loads the engine, takes the sketch over postMessage, pipes console/errors out |
 | `index.html` | The homepage: a demo panel that runs any of the six games, plus an inline editor |
 | `sandbox.html` | Live editor — write a sketch, hit Run, see it in the sandboxed iframe |
 | `games/` | The six demo sketches (`portal`, `ray-siege`, `web-swinger`, `asteroids`, `platformer`, `runner`) |

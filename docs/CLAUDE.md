@@ -16,7 +16,8 @@ tooling is the Playwright spec suite under `tests/`.
   runtime behavior in `moshion.js`.
 - `planck.min.js` — vendored planck.js v1.5.0 (MIT). Do not edit.
 - `runner.html` — sandbox host used by the app's preview iframes
-  (`/moshion/runner.html?code=<base64url>`).
+  (`/moshion/runner.html`; the sketch rides the postMessage bridge, with
+  `?code=<base64url>` as a small-sketch fallback).
 - `index.html` / `sandbox.html` — the public homepage (demo panel) and the
   live editor. Both embed `runner.html` in a sandboxed iframe.
 - `games/*.js` — the six demo sketches the homepage loads by `fetch`.
@@ -42,11 +43,14 @@ bun tests/viewport.spec.mjs       # the demo viewport shows the whole sketch
 bun tests/docs.spec.mjs           # every example on the docs site actually runs
 ```
 
-`tests/harness.mjs`'s `serve()` raises Node's default 16KB header limit — a
-sketch's full source travels as base64url in `?code=`, and `ray-siege.js` plus
-its on-screen controls encodes to ~16.7KB, over that default. Production
-(GitHub Pages) has no such cap; the harness now matches it rather than 431ing
-on a sketch that would run fine there.
+`tests/harness.mjs`'s `serve()` caps the request line at 6KB — what production
+actually accepts. GitHub Pages is fronted by Varnish, which 414s "Error:
+URI Too Long" past ~6.1KB (measured 2026-09-28: 6.0KB served, 6.2KB 414'd).
+That is not a theoretical cap: while the sketch travelled as `?code=`,
+ray-siege, portal, web-swinger and asteroids all shipped broken while this
+suite stayed green, because this file used to raise the cap to 1MB on the
+belief that production had no limit. The source now rides the postMessage
+bridge, so the cap only ever bites a regression — leave it tight.
 
 There is no lint or typecheck script for the engine itself. The app's
 TypeScript (`tsc --noEmit`) does not type-check `moshion.js` — it's plain JS

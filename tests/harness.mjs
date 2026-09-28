@@ -18,12 +18,15 @@ const MIME = {
 };
 
 export async function serve(port = 8177) {
-  // maxHeaderSize: Node's default is 16KB, and the runner passes a sketch's
-  // full source as base64url in the URL -- ray-siege.js plus its on-screen
-  // touch controls base64-encodes to ~16.7KB, just over that default, so the
-  // request line alone 431'd here while working fine on GitHub Pages (which
-  // has no such header cap). Matching production, not an artificial ceiling.
-  const srv = createServer({ maxHeaderSize: 1048576 }, (req, res) => {
+  // maxHeaderSize: capped to what production actually accepts, which is NOT
+  // Node's 16KB default and NOT "no cap". GitHub Pages is fronted by Varnish,
+  // which 414s "Error: URI Too Long" past a ~6.1KB request line (measured
+  // 2026-09-28: 6.0KB of ?code= served 200, 6.2KB 414'd). That is what shipped
+  // ray-siege, portal, web-swinger and asteroids broken while this suite was
+  // green -- an earlier version of this file raised the cap to 1MB on the
+  // belief that production had no limit. Sketch source now rides the
+  // postMessage bridge instead of the URL, so the cap only bites a regression.
+  const srv = createServer({ maxHeaderSize: 6144 }, (req, res) => {
     let p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
     if (p === '/') p = '/index.html';
     try {

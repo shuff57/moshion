@@ -319,19 +319,16 @@ function flatIndexOf(slug, pageIndex) {
 	return -1;
 }
 
-// ---- base64url (matches runner.html's decoder, unicode-safe) ---------------
-function b64url(s) {
-	var bytes = new TextEncoder().encode(s), bin = '';
-	for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
-	var b64 = btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-	return b64;
-}
 
-// Save-store bridge: the runner asks, we hand it an in-memory store. A host
-// that skips this simply gets a 400ms timeout and an empty store.
+// Save-store bridge: the runner asks, we hand it an in-memory store AND the
+// sketch source. A host that skips this simply gets a 400ms timeout, an empty
+// store, and no sketch. The code rides the reply rather than the URL because a
+// full sketch base64s to ~17KB and Varnish -- what serves GitHub Pages -- 414s
+// "Error: URI Too Long" past a ~6.1KB request line. Measured 2026-09-28.
+var pendingCode = null;
 window.addEventListener('message', function(e) {
 	if (e.data && e.data.source === 'preview-storage-request' && e.source) {
-		e.source.postMessage({ source: 'preview-storage-init', data: {} }, '*');
+		e.source.postMessage({ source: 'preview-storage-init', data: {}, code: pendingCode }, '*');
 	}
 });
 
@@ -473,7 +470,8 @@ function renderPage(sectionIndex, pageIndex) {
 		codeArea.appendChild(previewWrap);
 
 		runBtn.addEventListener('click', function() {
-			iframe.src = '../runner.html?r=' + Date.now() + '&code=' + b64url(pg.code);
+			pendingCode = pg.code;
+			iframe.src = '../runner.html?r=' + Date.now();
 			previewWrap.classList.add('open');
 		});
 	}

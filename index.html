@@ -469,19 +469,18 @@ var GAMES = {
 	}
 };
 
-// ---- base64url (matches runner.html's decoder, unicode-safe) ---------------
-function b64url(s) {
-	var bytes = new TextEncoder().encode(s), bin = '';
-	for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
-	var b64 = btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-	return b64;
-}
-
-// Save-store bridge: the runner asks, we hand it an in-memory store. A host
-// that skips this simply gets a 400ms timeout and an empty store.
+// Save-store bridge: the runner asks, we hand it an in-memory store AND the
+// sketch source. A host that skips this simply gets a 400ms timeout and an
+// empty store -- and, unless it also put the code in ?code=, no sketch at all.
+//
+// The code rides the reply rather than the URL because a full sketch base64s
+// to ~17KB, and Varnish -- what serves GitHub Pages -- answers "414 Error:
+// URI Too Long" past a ~6.1KB request line. ray-siege.js is 17.2KB that way, so
+// four of the six games could not load at all. Measured 2026-09-28.
+var pendingCode = null;
 window.addEventListener('message', function(e) {
 	if (e.data && e.data.source === 'preview-storage-request' && e.source) {
-		e.source.postMessage({ source: 'preview-storage-init', data: {} }, '*');
+		e.source.postMessage({ source: 'preview-storage-init', data: {}, code: pendingCode }, '*');
 	}
 });
 
@@ -561,7 +560,8 @@ function loadGame(name) {
 		return;
 	}
 	currentGame = name;
-	frame.src = 'runner.html?fit=1&r=' + Date.now() + '&code=' + b64url(game.code);
+	pendingCode = game.code;
+	frame.src = 'runner.html?fit=1&r=' + Date.now();
 	tabs.forEach(function(t) {
 		t.classList.toggle('active', t.dataset.game === name);
 	});
@@ -601,7 +601,8 @@ tabs.forEach(function(t) {
 codeToggle.addEventListener('click', function() { setCodeView(!showingCode); });
 
 runEditedBtn.addEventListener('click', function() {
-	frame.src = 'runner.html?fit=1&r=' + Date.now() + '&code=' + b64url(codeEditor.value);
+	pendingCode = codeEditor.value;
+	frame.src = 'runner.html?fit=1&r=' + Date.now();
 	setCodeView(false);
 });
 

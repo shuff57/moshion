@@ -158,7 +158,8 @@
 <div id="error"></div>
 <div id="empty">Click Run to execute your sketch.</div>
 <script>
-// Read student code from ?code=<base64url>, inject as a <script> so declarations become globals
+// Run the student's sketch as a <script> so declarations become globals. The
+// source comes from the host over postMessage; ?code= is the small-sketch fallback.
 (function() {
 	// Never execute ?code= as a top-level document. See the matching guard in
 	// public/reshape/runner.html for the full reasoning: embedded, this frame is
@@ -176,22 +177,36 @@
 	var params = new URLSearchParams(location.search);
 	// ?fit=1 -- scale the sketch up to fill this frame (see the CSS above).
 	if (params.get('fit')) document.body.classList.add('fit');
-	var encoded = params.get('code');
-	if (!encoded) return;
-	var code;
-	try {
-		var b64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
-		while (b64.length % 4) b64 += '=';
-		code = decodeURIComponent(escape(atob(b64)));
-	} catch (e) {
-		console.error('Failed to decode sketch: ' + (e.message || e));
-		return;
-	}
-	document.getElementById('empty').remove();
-	// Stash source so the error handler can look up the offending line
-	window.__previewSources = { 'sketch.js': code };
 
-	function inject() {
+	function decode(encoded) {
+		if (!encoded) return '';
+		try {
+			var b64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
+			while (b64.length % 4) b64 += '=';
+			return decodeURIComponent(escape(atob(b64)));
+		} catch (e) {
+			console.error('Failed to decode sketch: ' + (e.message || e));
+			return '';
+		}
+	}
+
+	// The sketch normally arrives from the parent over postMessage, in the reply
+	// to the storage request below. It used to travel as ?code=<base64url>, but a
+	// full sketch base64s to ~17KB and Varnish -- what actually serves GitHub
+	// Pages -- answers "414 Error: URI Too Long" past a ~6.1KB request line, so
+	// four of the six demo games loaded that error page instead of a game. ?code=
+	// still works, and is the only path for a host that has not adopted the
+	// message bridge yet (shCode).
+	var urlCode = decode(params.get('code'));
+
+	function run(code) {
+		// Nothing to run: leave the "Click Run" hint up, in case a host is
+		// about to send something.
+		if (!code) return;
+		document.getElementById('empty').remove();
+		// Stash source so the error handler can look up the offending line
+		window.__previewSources = { 'sketch.js': code };
+
 		var s = document.createElement('script');
 		// The //# sourceURL pragma makes V8 attribute thrown errors to "sketch.js"
 		// with line numbers relative to the student's source instead of this host doc.
@@ -206,18 +221,19 @@
 	// READ window.localStorage -- it throws SecurityError -- so the host page
 	// keeps the store and hands us a copy. Wait for it BEFORE running the
 	// sketch: moSHion's getItem() is synchronous, and a save that arrived after
-	// setup() had already read it would be worse than no save at all.
+	// setup() had already read it would be worse than no save at all. The same
+	// reply carries the sketch, so one handshake does both jobs.
 	var started = false;
-	function start(store) {
+	function start(store, code) {
 		if (started) return;
 		started = true;
 		clearInterval(ask);
 		window.removeEventListener('message', onInit);
 		window.__moshionStorage = (store && typeof store === 'object') ? store : {};
-		inject();
+		run(code || urlCode);
 	}
 	function onInit(e) {
-		if (e.data && e.data.source === 'preview-storage-init') start(e.data.data);
+		if (e.data && e.data.source === 'preview-storage-init') start(e.data.data, e.data.code);
 	}
 	function request() {
 		try { window.parent.postMessage({ source: 'preview-storage-request' }, '*'); }
@@ -227,10 +243,10 @@
 	// Retried, because the host's listener is attached in a React effect and
 	// may not exist yet when this frame finishes loading. A host that never
 	// answers -- one that has not implemented the bridge -- gets an empty
-	// store after the timeout rather than a sketch that never starts.
+	// store, and whatever ?code= carried, rather than a sketch that never starts.
 	var ask = setInterval(request, 40);
 	request();
-	setTimeout(function () { start({}); }, 400);
+	setTimeout(function () { start({}, null); }, 400);
 })();
 </script>
 </body>

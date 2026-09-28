@@ -105,7 +105,7 @@ try {
     await page.close();
   }
 
-  // ---- I2: each NEW tab loads its runner frame, zero errors, pinned global, iframe src has code= ----
+  // ---- I2: each NEW tab loads its runner frame, zero errors, pinned global, runner URL stays short ----
   {
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     const pageErrors = captureErrors(page);
@@ -125,7 +125,7 @@ try {
         check(`I2 (${id}): runner.html frame present after click`, false, 'skipped — tab not clickable');
         check(`I2 (${id}): zero errors 3s after click`, false, 'skipped — tab not clickable');
         check(`I2 (${id}): pinned global window.${PINNED_GLOBAL[id]} exists`, false, 'skipped — tab not clickable');
-        check(`I2 (${id}): iframe src contains "code="`, false, 'skipped — tab not clickable');
+        check(`I2 (${id}): runner URL carries no sketch source`, false, 'skipped — tab not clickable');
         continue;
       }
 
@@ -152,8 +152,13 @@ try {
       }
       check(`I2 (${id}): pinned global window.${PINNED_GLOBAL[id]} exists`, globalOk, globalDetail);
 
+      // The sketch rides the postMessage bridge, so the URL must stay small:
+      // Varnish 414s "Error: URI Too Long" past ~6.1KB, which is how four of
+      // the six games shipped dead. The pinned-global check above is what proves
+      // the code actually arrived; this one keeps it out of the query string.
       const iframeSrc = await page.locator('#preview').getAttribute('src').catch(() => null);
-      check(`I2 (${id}): iframe src contains "code="`, !!iframeSrc && iframeSrc.includes('code='), trunc(String(iframeSrc)));
+      const srcShort = !!iframeSrc && !iframeSrc.includes('code=') && iframeSrc.length < 200;
+      check(`I2 (${id}): runner URL carries no sketch source`, srcShort, trunc(String(iframeSrc)));
     }
 
     await page.close();
