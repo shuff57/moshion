@@ -33,9 +33,9 @@ function setup() {
   ship.friction = 0;
   ship.bounciness = 0;
   bullets = new Group();
-  bullets.color = "#f8f8f2";
+  bullets.color = "#ffd166";
   bullets.collider = "none";
-  bullets.diameter = 4;
+  bullets.diameter = 6;
   asteroids = new Group();
   asteroids.color = "#333844";
   asteroids.friction = 0;
@@ -49,6 +49,7 @@ function setup() {
   alive = true;
   invuln = 0;
   lastShot = 0;
+  thrusting = false;
   TOUCH = navigator.maxTouchPoints > 0;
   for (var i = 0; i < 5; i++) spawnAsteroid();
 }
@@ -61,8 +62,16 @@ function spawnAsteroid() {
   else if (edge === 2) { x = Math.random() * 460; y = 320; }
   else { x = -20; y = Math.random() * 300; }
   var a = new asteroids.Sprite(x, y, 20 + Math.random() * 16);
+  a.autoDraw = false; // drawn by hand in draw() for spin + craters
+  a.spin = (Math.random() < 0.5 ? -1 : 1) * (0.5 + Math.random() * 1.5);
+  a.craters = [];
+  var n = 2 + Math.floor(Math.random() * 3); // 2-4 craters, seeded once
+  for (var c = 0; c < n; c++) {
+    var ca = Math.random() * Math.PI * 2, cd = Math.random() * a.diameter * 0.3;
+    a.craters.push([Math.cos(ca) * cd, Math.sin(ca) * cd, 2 + Math.random() * (a.diameter * 0.12)]);
+  }
   var ang = Math.random() * Math.PI * 2;
-  var spd = 0.5 + Math.random() * 1;
+  var spd = 0.6 + Math.random() * 1.0;
   a.vel.x = Math.cos(ang) * spd;
   a.vel.y = Math.sin(ang) * spd;
 }
@@ -90,7 +99,8 @@ function update() {
   }
   if (kb.pressing("left") || btnHeld("rotL")) ship.rotation -= 4;
   if (kb.pressing("right") || btnHeld("rotR")) ship.rotation += 4;
-  if (kb.pressing("up") || btnHeld("thrust")) {
+  thrusting = kb.pressing("up") || btnHeld("thrust");
+  if (thrusting) {
     var rad = ship.rotation * Math.PI / 180;
     ship.vel.x += Math.cos(rad) * 0.2;
     ship.vel.y += Math.sin(rad) * 0.2;
@@ -103,7 +113,7 @@ function update() {
   if ((kb.presses("space") || btnTapped("fire")) && frameCount - lastShot > 14) {
     lastShot = frameCount;
     var rad = ship.rotation * Math.PI / 180;
-    var b = new bullets.Sprite(ship.x + Math.cos(rad) * 16, ship.y + Math.sin(rad) * 16, 4);
+    var b = new bullets.Sprite(ship.x + Math.cos(rad) * 16, ship.y + Math.sin(rad) * 16, 6);
     b.vel.x = Math.cos(rad) * 5 + ship.vel.x;
     b.vel.y = Math.sin(rad) * 5 + ship.vel.y;
     b.born = frameCount;
@@ -116,6 +126,9 @@ function update() {
       asteroid.delete();
       score++;
       spawnAsteroid();
+      // ponytail: boot stays at 5 (starter-games spec pins the count); the
+      // field grows +1 rock per 3 kills up to 9, so play holds more than 5.
+      if (score % 3 === 0 && asteroids.length < 9) spawnAsteroid();
     });
   });
 
@@ -137,9 +150,41 @@ function update() {
 
 function draw() {
   background("#1e1f29");
-  // Hidden once dead; blinks through the post-hit invulnerability window.
-  if (alive && (invuln === 0 || Math.floor(invuln / 6) % 2 === 0)) {
-    stroke("#5baafd");
+
+  // Rocks: hand-drawn so each one spins at its own rate and shows craters.
+  // autoDraw is off per-rock (spawnAsteroid), so nothing double-draws.
+  noFill();
+  asteroids.forEach(function (a) {
+    // A rock can enter the group without spawnAsteroid() (tests, future code):
+    // heal the per-rock fields once instead of crashing on them.
+    a.spin = a.spin || 0;
+    a.craters = a.craters || [];
+    a.rotation += a.spin;
+    stroke("#6272a4");
+    strokeWeight(2);
+    circle(a.x, a.y, a.diameter);
+    stroke("#4a5568");
+    strokeWeight(1);
+    for (var i = 0; i < a.craters.length; i++) {
+      var c = a.craters[i];
+      var cr = Math.cos(a.rotation * Math.PI / 180), sr = Math.sin(a.rotation * Math.PI / 180);
+      circle(a.x + c[0] * cr - c[1] * sr, a.y + c[1] * cr + c[0] * sr, c[2] * 2);
+    }
+  });
+
+  // Bullets: the engine draws the 6px dot; add a short trail behind it.
+  bullets.forEach(function (b) {
+    stroke("rgba(255, 209, 102, 0.45)");
+    strokeWeight(3);
+    line(b.x - b.vel.x * 2, b.y - b.vel.y * 2, b.x, b.y);
+  });
+
+  // Ship: hidden once dead; fades to a faint ghost through the post-hit
+  // invulnerability window (reuses the invuln counter — no new timer), so a
+  // rock passing through reads as grace time, not a bug.
+  if (alive) {
+    var ghost = invuln > 0 && Math.floor(invuln / 6) % 2 === 1;
+    stroke(ghost ? "rgba(91, 170, 253, 0.25)" : "#5baafd");
     strokeWeight(2);
     var rad = ship.rotation * Math.PI / 180;
     var cos = Math.cos(rad), sin = Math.sin(rad);
@@ -152,6 +197,14 @@ function draw() {
     line(sx[0], sy[0], sx[1], sy[1]);
     line(sx[1], sy[1], sx[2], sy[2]);
     line(sx[2], sy[2], sx[0], sy[0]);
+    // Thrust flame: flickers between two lengths while up/thrust is held.
+    if (thrusting) {
+      var flick = Math.floor(frameCount / 3) % 2 === 0 ? 10 : 16;
+      var fx = ship.x + (-14 - flick) * cos, fy = ship.y + (-14 - flick) * sin;
+      stroke("#ff9f43");
+      strokeWeight(3);
+      line(ship.x - 10 * cos, ship.y - 10 * sin, fx, fy);
+    }
   }
 }
 

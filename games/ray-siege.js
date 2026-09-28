@@ -95,6 +95,14 @@ function setup() {
   destroyed = 0;
   hp = 3;
   score = 0;
+  // Fades the red wash after a drone connects, so losing HP is a beat you see
+  // rather than a number that quietly changed.
+  hurtT = 0;
+  // The inner keep sits ~90px up, past the cannon's 55px blast, so 100% of
+  // BRICKS0 is not a reachable goal. CLEAR_AT is the outer shell -- everything a
+  // player can actually take down from the ground.
+  CLEAR_AT = 30;
+  cleared = false;
 
   fireCooldown = 0;
   beamCooldown = 0;
@@ -322,14 +330,38 @@ function update() {
   drones.slice().forEach(function (dr) {
     var dx = player.x - dr.x, dy = player.y - dr.y;
     var len = Math.hypot(dx, dy) || 1;
-    // Hover out of ramming range: a drone parked next to the player would sit
-    // in front of every aim ray the player casts.
-    var approach = len > 130 ? 1.4 : 0;
+    // A drone parked next to the player would sit in front of every aim ray the
+    // player casts, so it holds a 130px standoff while circling. A permanent
+    // standoff is also why it used to be harmless: damage needs <20px, the drone
+    // stopped at 130, and it hovers ~140px above a player on the ground -- so a
+    // grounded player could never touch it and HP never moved. It now breathes:
+    // hover at range, wind up, then LUNGE. The wind-up is what makes it fair --
+    // visible for half a second before it commits, which is the player's window to
+    // shoot it down or sidestep.
+    if (dr.cool == null) dr.cool = 110;
+    if (dr.tell == null) dr.tell = 0;
+    if (dr.lunge == null) dr.lunge = 0;
+    var approach = 0;
+    if (dr.lunge > 0) {
+      dr.lunge--;
+      approach = 7;
+    } else if (dr.tell > 0) {
+      dr.tell--;
+      approach = len > 130 ? 0.8 : 0; // ease back out, do not close
+      if (dr.tell === 0) dr.lunge = 26;
+    } else if (len > 130) {
+      approach = 1.4;
+      if (--dr.cool <= 0) {
+        dr.cool = 110 + Math.floor(Math.random() * 70);
+        dr.tell = 30;
+      }
+    }
     dr.vel.x = (dx / len) * approach;
     dr.vel.y = (dy / len) * approach;
     if (Math.hypot(dr.x - player.x, dr.y - player.y) < 20 && invuln === 0) {
       hp--;
       invuln = 60;
+      hurtT = 12;
       player.vel.x = -4;
       player.vel.y = -3;
       if (hp <= 0) {
@@ -354,6 +386,8 @@ function update() {
     if (d.y > 340) d.delete();
   });
 
+  if (hurtT > 0) hurtT--;
+  if (!cleared && destroyed >= CLEAR_AT) cleared = true;
   player._pvx = player.vel.x;
   player._pvy = player.vel.y;
 }
@@ -381,9 +415,50 @@ function draw() {
 // The engine calls drawTop() after the world is on the canvas, in screen
 // space — so a HUD lands on top of the scenery instead of behind it.
 function drawTop() {
-  var pct = BRICKS0 ? Math.round((destroyed / BRICKS0) * 100) : 0;
-  text("SCORE " + score + "   DESTROYED " + pct + "%", 14, 22, 12, "#6272a4");
+  // The drone wind-up, drawn where it happens in the world: a ring closing on
+  // the drone for the half second before it lunges. That tell is what turns a
+  // hit into a dodge.
+  drones.slice().forEach(function (dr) {
+    if (dr.tell > 0) {
+      noFill();
+      stroke("#f8f8f2");
+      strokeWeight(2);
+      circle(dr.x, dr.y, 8 + (1 - dr.tell / 30) * 16);
+      noStroke();
+      fill("#f8f8f2");
+      circle(dr.x, dr.y, 4);
+      noFill();
+    }
+  });
+  // A red wash on the hit itself, and a blink through the 60 invulnerable frames,
+  // so losing HP is something you watch happen rather than a number that changed.
+  if (hurtT > 0) {
+    fill("rgba(239, 68, 68, " + (hurtT / 12 * 0.28).toFixed(2) + ")");
+    rect(0, 0, 460, 300);
+    noFill();
+  } else if (invuln > 0 && invuln % 8 < 4) {
+    fill("rgba(239, 68, 68, 0.16)");
+    circle(player.x, player.y, 26);
+    noFill();
+  }
+
+  text("SCORE " + score, 14, 22, 12, "#6272a4");
   text("MODE " + (weapon === 1 ? "RIFLE" : weapon === 2 ? "CANNON" : "BEAM"), 14, 40, 12, "#6272a4");
+  // "OUTER n/CLEAR_AT" rather than "DESTROYED n%". A percentage of all 38 implied
+  // that 100% was the goal, and the core bricks up top are out of reach of a
+  // 55px blast from the ground. This counts toward a target that can be hit.
+  text("OUTER " + Math.min(destroyed, CLEAR_AT) + "/" + CLEAR_AT +
+       (cleared ? "  CLEARED" : "  CORE " + Math.max(0, BRICKS0 - destroyed)), 14, 76, 11,
+       cleared ? "#98c379" : "#8a92a8");
+  if (cleared) {
+    fill("rgba(30, 31, 41, 0.86)");
+    rect(110, 116, 240, 70, 8);
+    noFill();
+    textAlign("center");
+    text("OUTER SHELL DOWN", 230, 146, 18, "#98c379");
+    text("SCORE " + score + "   CORE LEFT " + Math.max(0, BRICKS0 - destroyed), 230, 168, 12, "#a6adc8");
+    textAlign("left");
+  }
   for (var i = 0; i < hp; i++) {
     noStroke();
     fill("#ef4444");

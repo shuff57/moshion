@@ -56,8 +56,15 @@ function setup() {
 
   collectibles = new Group();
   collectibles.color = "#ffb86c";
-  // Deterministic orb slots between towers.
-  orbSlots = [[300, 560], [450, 470], [620, 430], [780, 380], [940, 460], [1100, 410], [1260, 470], [1420, 430]];
+  // Deterministic orb slots between towers. The first two were unreachable in
+  // practice: the opening swing is a ~226px rope on the anchor at (20,460), and
+  // the old first slot at (300,560) is 297px from that anchor -- outside the
+  // swing circle, so it could only be had after chaining to a tower past x=380,
+  // which is itself only reachable once you have already swung. Eleven seconds
+  // off on the first cast rather than the third. Both sit inside the band the
+  // rope actually holds the player in on that first swing (measured y 653 at
+  // x=138, y 683 at x=60); the old slot at y 560 was 90px above the player's head.
+  orbSlots = [[138, 660], [60, 678], [450, 470], [620, 430], [780, 380], [940, 460], [1100, 410], [1260, 470], [1420, 430]];
   orbIndex = 0;
   spawnOrb();
 
@@ -205,15 +212,17 @@ function update() {
 function draw() {
   background("#1e1f29");
 
-  // Web line with a slight sag.
+  // Web line with a slight sag. Thicker than it was, and lit while reeling in,
+  // so the line reads as the thing you are controlling rather than scenery.
   if (web && anchor) {
     var mx = (player.x + anchor.x) / 2, my = (player.y + anchor.y) / 2;
     var ddx = anchor.x - player.x, ddy = anchor.y - player.y;
     var dl = Math.hypot(ddx, ddy) || 1;
     var rest = web.length;
     var sag = Math.max(0, rest - dl) * 0.9 + 4;
-    stroke("#f8f8f2");
-    strokeWeight(2);
+    var reeling = kb.pressing("up");
+    stroke(reeling ? "#89b4fa" : "#f8f8f2");
+    strokeWeight(reeling ? 4 : 3);
     var steps = 8;
     var px = player.x, py = player.y;
     for (var i = 1; i <= steps; i++) {
@@ -249,5 +258,8 @@ function draw() {
 function drawTop() {
   var spd = Math.hypot(player.vel.x, player.vel.y);
   text("SCORE " + score, 14, 22, 12, "#6272a4");
-  text("SPEED " + Math.round(spd * 10) / 10, 14, 40, 12, "#6272a4");
+  // One decimal, always -- it used to print an integer except on the frames where
+  // it happened to land on a tenth. And only once there is speed to report, so the
+  // panel is not dominated by a constant SPEED 0.
+  if (spd >= 0.5) text("SPEED " + spd.toFixed(1), 14, 40, 12, "#8a92a8");
 }

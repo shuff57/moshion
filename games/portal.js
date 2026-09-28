@@ -4,8 +4,10 @@
 // rotated from the entry normal to the exit normal. Reach the goal zone.
 //
 // Globals (QA contract): player, portals = {orange, blue}, teleports, respawns,
-// cooldown, won, timer. The whole chamber fits one 460x300 screen; the camera
-// stays at its default so screen coordinates match world coordinates.
+// cooldown, won, timer, placeColor, TOUCH, TOGGLE_BTN. Presentation state:
+// hintFade (control hint), respawnFlash (death beat), wonTime (frozen final
+// time). The whole chamber fits one 460x300 screen; the camera stays at its
+// default so screen coordinates match world coordinates.
 
 // On-screen controls: touch has no right-click equivalent, so without this
 // the blue portal is unreachable on a phone. TOGGLE_BTN is a small pill in
@@ -54,6 +56,9 @@ function setup() {
   cooldown = 0;
   won = false;
   timer = 0;
+  hintFade = 1;
+  respawnFlash = 0;
+  wonTime = 0;
 
   spawnX = 60;
   spawnY = 250;
@@ -157,29 +162,38 @@ function grounded() {
 function update() {
   timer++;
   if (cooldown > 0) cooldown--;
+  if (respawnFlash > 0) respawnFlash--;
 
-  if (kb.pressing("left")) player.vel.x = -2.6;
-  else if (kb.pressing("right")) player.vel.x = 2.6;
+  // Once the chamber is complete the run is over: movement and placement
+  // stop, so the summary is a settled screen instead of a live one.
+  if (!won) {
+    if (kb.pressing("left")) player.vel.x = -2.6;
+    else if (kb.pressing("right")) player.vel.x = 2.6;
 
-  if ((kb.presses("up") || kb.presses("space")) && grounded()) {
-    player.vel.y = -4.2; // rise ~106px — the goal ledge (152px up) needs a portal fling
-  }
-
-  // Placement with a latch so a quick tap only fires once (the engine's
-  // per-button counters read 1 both on press and on a quick release).
-  if (mouse.presses()) {
-    if (TOUCH && !latchL && inRect(mouse.canvasPos, TOGGLE_BTN)) {
-      // Touch has no right button -- this is the only way to reach blue.
-      latchL = true;
-      placeColor = placeColor === "orange" ? "blue" : "orange";
-    } else if (mouse.left > 0 && !latchL) {
-      latchL = true;
-      placePortal(placeColor, mouse.x, mouse.y);
+    if ((kb.presses("up") || kb.presses("space")) && grounded()) {
+      player.vel.y = -4.2; // rise ~106px — the goal ledge (152px up) needs a portal fling
     }
-    if (mouse.right > 0 && !latchR) { latchR = true; placePortal("blue", mouse.x, mouse.y); }
+
+    // Placement with a latch so a quick tap only fires once (the engine's
+    // per-button counters read 1 both on press and on a quick release).
+    if (mouse.presses()) {
+      if (TOUCH && !latchL && inRect(mouse.canvasPos, TOGGLE_BTN)) {
+        // Touch has no right button -- this is the only way to reach blue.
+        latchL = true;
+        placeColor = placeColor === "orange" ? "blue" : "orange";
+      } else if (mouse.left > 0 && !latchL) {
+        latchL = true;
+        placePortal(placeColor, mouse.x, mouse.y);
+      }
+      if (mouse.right > 0 && !latchR) { latchR = true; placePortal("blue", mouse.x, mouse.y); }
+    }
   }
   if (mouse.left === 0) latchL = false;
   if (mouse.right === 0) latchR = false;
+
+  // The control hint has done its job the moment a portal exists.
+  if (hintFade > 0 && (portals.orange || portals.blue)) hintFade -= 0.05;
+  if (hintFade < 0) hintFade = 0;
 
   tryTeleport(player);
   tryTeleport(crate);
@@ -190,6 +204,7 @@ function update() {
     player.vel.x = 0;
     player.vel.y = 0;
     respawns++;
+    respawnFlash = 30;
     cooldown = 0;
   }
   if (crate.y > 360) {
@@ -201,6 +216,9 @@ function update() {
 
   if (!won && player.x > 388 && player.x < 452 && player.y < 118) {
     won = true;
+    wonTime = timer;
+    player.vel.x = 0;
+    player.vel.y = 0;
   }
 
   // Snapshot the velocity the body carries INTO the next physics step — the
@@ -272,22 +290,100 @@ function draw() {
     drawGhostRing(mouse.x, mouse.y);
   }
 
-  // Goal marker on the ledge.
+  // Goal marker on the ledge. A pulsing beacon, not a thin line: the zone is
+  // easy to walk past, so it has to read as a destination from across the room.
+  drawGoal();
+}
+
+// The goal zone is x 388..452, y < 118 (the win test in update()). Drawn in
+// world space like the rest of the scenery; the camera never moves, so screen
+// and world coordinates agree.
+function drawGoal() {
+  var pulse = 0.5 + 0.5 * Math.sin(timer * 0.12);
+  if (won) {
+    // Settled state: a calm pad instead of a beckoning pulse.
+    fill("rgba(255,184,108,0.22)");
+    noStroke();
+    rect(388, 86, 64, 32, 4);
+    return;
+  }
+  fill("rgba(255,184,108," + (0.10 + 0.14 * pulse) + ")");
+  noStroke();
+  rect(388, 86, 64, 32, 4);
+  noFill();
   stroke("#ffb86c");
   strokeWeight(2);
-  line(392, 116, 452, 116);
+  circle(420, 102, 18 + 10 * pulse);
+  // Chevrons drifting down into the zone, so the marker moves at a glance.
+  var drift = (timer * 1.2) % 14;
+  stroke("#ffd7a0");
+  strokeWeight(2);
+  for (var i = 0; i < 2; i++) {
+    var cy = 84 + drift + i * 14;
+    line(412, cy, 420, cy + 6);
+    line(428, cy, 420, cy + 6);
+  }
+  textAlign("center");
+  text("GOAL", 420, 80, 11, "#ffb86c");
+  textAlign("left");
 }
 
 // The engine calls drawTop() after the world is on the canvas, in screen
 // space — so a HUD lands on top of the scenery instead of behind it.
 function drawTop() {
-  var secs = Math.floor(timer / 60);
+  // The HUD clock freezes at the winning frame so the summary reads as final.
+  var secs = Math.floor((won ? wonTime : timer) / 60);
   text("TIME " + secs + "s", 14, 22, 12, "#6272a4");
-  if (won) {
+
+  // Control hint: the only in-world instruction a first-time player gets.
+  // Drawn here (screen space, on top) and never hit-tested, so it cannot
+  // swallow the click that places a portal. Fades out on the first placement.
+  if (!won && hintFade > 0) {
+    var ha = hintFade;
+    fill("rgba(30, 31, 41, " + (0.82 * ha) + ")");
+    noStroke();
+    rect(110, 4, 240, 50, 6);
+    stroke("rgba(68, 71, 90, " + ha + ")");
+    strokeWeight(1);
+    noFill();
+    rect(110, 4, 240, 50, 6);
+    noStroke();
     textAlign("center");
-    text("CHAMBER COMPLETE", 230, 120, 18, "#ffb86c");
+    if (TOUCH) {
+      text("TAP to place a portal", 230, 20, 10, "rgba(248, 248, 242, " + ha + ")");
+      text("TAP the pill for the other colour", 230, 34, 10, "rgba(139, 149, 168, " + ha + ")");
+    } else {
+      text("CLICK to place a portal", 230, 20, 10, "rgba(248, 248, 242, " + ha + ")");
+      text("RIGHT-CLICK for the other colour", 230, 34, 10, "rgba(139, 149, 168, " + ha + ")");
+    }
+    text("LAND ON A PORTAL to teleport", 230, 48, 10, "rgba(255, 184, 108, " + ha + ")");
     textAlign("left");
   }
+
+  // Death beat: a red wash and a word, so a fall reads as a respawn rather
+  // than the player silently reappearing at the start.
+  if (respawnFlash > 0) {
+    var ra = respawnFlash / 30;
+    fill("rgba(255, 85, 85, " + (0.30 * ra) + ")");
+    noStroke();
+    rect(0, 0, 460, 300);
+    textAlign("center");
+    text("RESPAWN", 230, 150, 16, "rgba(255, 255, 255, " + ra + ")");
+    textAlign("left");
+  }
+
+  // Completion summary: the run is over, so show what it cost.
+  if (won) {
+    fill("rgba(30, 31, 41, 0.72)");
+    noStroke();
+    rect(0, 0, 460, 300);
+    textAlign("center");
+    text("CHAMBER COMPLETE", 230, 112, 20, "#ffb86c");
+    text("TIME " + secs + "s", 230, 142, 13, "#f8f8f2");
+    text("TELEPORTS " + teleports + "   RESPAWNS " + respawns, 230, 162, 12, "#8b95a8");
+    textAlign("left");
+  }
+
   if (TOUCH) {
     fill("rgba(30, 31, 41, 0.82)");
     stroke("#44475a");
