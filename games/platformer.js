@@ -26,16 +26,28 @@ function drawBtn(b, label) {
 // finish line a minute away as well as a height to chase past it.
 var GOAL_STEP = 12;
 
+// Standing still shows the still texture; moving on the ground swaps in its
+// "...Walk" sprite sheet (a built-in animated texture). Only assigned when it
+// changes, so the walk cycle isn't restarted every frame.
+function pose(base) {
+  var moving = Math.abs(player.vel.x) > 0.3;
+  var want = moving && Math.abs(player.vel.y) < 0.5 ? base + "Walk" : base;
+  if (player.texture !== want) player.texture = want;
+  if (moving) player.scale.x = player.vel.x < 0 ? -1 : 1;
+}
+
 function setup() {
   new Canvas(460, 300);
   world.gravity.y = 10;
   player = new Sprite(230, 260, 18, 18);
   player.color = "#5baafd";
+  player.texture = "player";
   player.bounciness = 0;
   player.friction = 0;
   player.rotationLock = true;
   platforms = new Group();
   platforms.color = "#333844";
+  platforms.pattern = "assets/grass_tile.png"; // repeats per platform, lit top edge
 
   // The ground is two segments with a gap between them, not one full-width bar.
   // It used to span all 460px, which made the death test below almost
@@ -95,6 +107,7 @@ function respawn() {
 }
 
 function update() {
+  pose("player");
   if (!reached) {
     if (kb.pressing("left") || btnHeld("moveL")) { player.vel.x = -2.2; face = -1; }
     else if (kb.pressing("right") || btnHeld("moveR")) { player.vel.x = 2.2; face = 1; }
@@ -164,14 +177,6 @@ function draw() {
 // The engine calls drawTop() after the world is on the canvas, in screen
 // space — so a HUD lands on top of the scenery instead of behind it.
 function drawTop() {
-  var sx = player.x, sy = player.y - camera.y + 150;
-  // Only a facing pip is drawn here. The engine already renders the player
-  // sprite in render(), so drawing a second body on top would double its edge;
-  // and Sprite has no squash property, so the landing tell is the pip riding up.
-  fill("#1e1f29");
-  rect(sx + face * 3.5 - 1.5, sy - 3 + (squash > 0 ? -2 : 0), 3, 3, 1);
-  noFill();
-
   text(reached ? "SUMMIT REACHED" : "HEIGHT " + best, 20, 20, 12, "#6272a4");
   if (bestFlash > 0) text("NEW BEST", 20, 36, 11, "#98c379");
   textAlign("right");

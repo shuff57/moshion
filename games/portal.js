@@ -20,6 +20,16 @@ function inRect(p, r) {
   return p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h;
 }
 
+// Standing still shows the still texture; moving on the ground swaps in its
+// "...Walk" sprite sheet (a built-in animated texture). Only assigned when it
+// changes, so the walk cycle isn't restarted every frame.
+function pose(base) {
+  var moving = Math.abs(player.vel.x) > 0.3;
+  var want = moving && Math.abs(player.vel.y) < 0.5 ? base + "Walk" : base;
+  if (player.texture !== want) player.texture = want;
+  if (moving) player.scale.x = player.vel.x < 0 ? -1 : 1;
+}
+
 function setup() {
   new Canvas(460, 300);
   world.gravity.y = 10;
@@ -42,12 +52,14 @@ function setup() {
 
   player = new Sprite(60, 250, 18, 26);
   player.color = "#5baafd";
+  player.texture = "player";
   player.friction = 0;
   player.bounciness = 0;
   player.rotationLock = true;
 
   crate = new Sprite(330, 219, 22, 22);
   crate.color = "#ffb86c";
+  crate.texture = "crate";
   crate.friction = 0.4;
 
   portals = { orange: null, blue: null };
@@ -160,6 +172,7 @@ function grounded() {
 }
 
 function update() {
+  pose("player");
   timer++;
   if (cooldown > 0) cooldown--;
   if (respawnFlash > 0) respawnFlash--;

@@ -36,6 +36,7 @@ function setup() {
 
   player = new Sprite(120, 663, 14);
   player.color = "#5baafd";
+  player.texture = "beeFly";
   player.friction = 0;
   player.bounciness = 0;
   player.rotationLock = true;
@@ -56,6 +57,7 @@ function setup() {
 
   collectibles = new Group();
   collectibles.color = "#ffb86c";
+  collectibles.image = "🪙";
   // Deterministic orb slots between towers. The first two were unreachable in
   // practice: the opening swing is a ~226px rope on the anchor at (20,460), and
   // the old first slot at (300,560) is 297px from that anchor -- outside the

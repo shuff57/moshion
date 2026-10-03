@@ -38,6 +38,7 @@ function setup() {
   bullets.diameter = 6;
   asteroids = new Group();
   asteroids.color = "#333844";
+  asteroids.image = "🪨";
   asteroids.friction = 0;
   asteroids.bounciness = 1;
   ship.autoDraw = false;

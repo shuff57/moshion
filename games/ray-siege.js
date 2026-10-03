@@ -47,6 +47,16 @@ function drawBtn(b, label) {
   textAlign("left");
   noFill();
 }
+// Standing still shows the still texture; moving on the ground swaps in its
+// "...Walk" sprite sheet (a built-in animated texture). Only assigned when it
+// changes, so the walk cycle isn't restarted every frame.
+function pose(base) {
+  var moving = Math.abs(player.vel.x) > 0.3;
+  var want = moving && Math.abs(player.vel.y) < 0.5 ? base + "Walk" : base;
+  if (player.texture !== want) player.texture = want;
+  if (moving) player.scale.x = player.vel.x < 0 ? -1 : 1;
+}
+
 function setup() {
   new Canvas(460, 300);
   world.gravity.y = 10;
@@ -82,12 +92,14 @@ function setup() {
 
   player = new Sprite(70, 250, 16, 22);
   player.color = "#5baafd";
+  player.texture = "playerBlue";
   player.friction = 0;
   player.bounciness = 0;
   player.rotationLock = true;
 
   drones = new Group();
   drones.color = "#ef4444";
+  drones.texture = "batFly";
   debris = new Group();
   debris.color = "#8a8f98";
 
@@ -299,6 +311,7 @@ function grounded() {
 }
 
 function update() {
+  pose("playerBlue");
   if (fireCooldown > 0) fireCooldown--;
   if (beamCooldown > 0) beamCooldown--;
   if (invuln > 0) invuln--;

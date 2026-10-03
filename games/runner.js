@@ -15,14 +15,20 @@ function setup() {
   world.gravity.y = 10;
   player = new Sprite(60, GROUND_Y - 12, 24, 24);
   player.color = "#5baafd";
+  // Characters use named sprite sheets: "runner" is a 6-frame run cycle and
+  // "runnerJump" one frame, both in the textures/ catalog (drawn by
+  // scripts/make-runner-sheet.py). Assigning a texture name plays its sheet.
+  player.texture = "runner";
   player.bounciness = 0;
   ground = new Sprite(230, GROUND_Y + 10, 460, 20, "static");
   ground.color = "#333844";
+  ground.pattern = "assets/ground_tile.png"; // repeats; an image would stretch
   groundSensor = new Sprite(60, GROUND_Y - 16, 18, 6, "kinematic");
   groundSensor.collider = "none";
   groundSensor.color = "transparent";
   obstacles = new Group();
   obstacles.color = "#ffb86c";
+  obstacles.image = "🌵";
   obstacles.friction = 0;
   score = 0;
   alive = true;
@@ -33,6 +39,7 @@ function setup() {
 function restart() {
   obstacles.slice().forEach(function (o) { o.delete(); });
   player.x = 60; player.y = GROUND_Y - 12; player.vel.x = 0; player.vel.y = 0;
+  player.texture = "runner";
   score = 0; alive = true; speed = 3; nextSpawn = 60;
 }
 
@@ -46,6 +53,8 @@ function update() {
   }
 
   var grounded = groundSensor.overlaps(ground);
+  var pose = grounded ? "runner" : "runnerJump";
+  if (player.texture !== pose) player.texture = pose;
   if ((kb.presses("up") || kb.presses("space") || mouse.presses()) && grounded) player.vel.y = -3.5;
 
   nextSpawn--;
@@ -62,6 +71,7 @@ function update() {
 
   if (player.colliding(obstacles)) {
     alive = false;
+    player.texture = "runnerJump"; // one frame, so the game-over pose holds still
     if (score > best) best = score;
     player.vel.x = 0; player.vel.y = 0;
     // Kinematic obstacles keep their velocity once update() stops running, and
@@ -108,18 +118,6 @@ function draw() {
 // space — so a HUD lands on top of the scenery instead of behind it.
 function drawTop() {
   text("SCORE " + score + "   BEST " + best, 14, 20, 12, "#6272a4");
-  // Player drawn here with a facing indicator (eye/nose tick) and a run bob:
-  // the bob is a small vertical offset keyed to frameCount, paused when
-  // airborne so the jump arc stays readable.
-  var bob = (groundSensor.overlaps(ground) && alive) ? Math.sin(frameCount * 0.3) * 2 : 0;
-  noStroke();
-  fill("#5baafd");
-  rect(player.x - 12, player.y - 12 + bob, 24, 24, 4);
-  // Facing indicator: eye + nose tick on the right edge (direction of travel).
-  fill("#1e1f29");
-  rect(player.x + 4, player.y - 6 + bob, 4, 4, 2);
-  fill("#ffb86c");
-  rect(player.x + 10, player.y + bob, 4, 3, 1);
   if (!alive) {
     textAlign("center");
     // Game-over text sits near the ground, not floating in the top void.
