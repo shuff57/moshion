@@ -88,3 +88,50 @@ count: `asterisk_explode.avif` 11 frames, `ghost_idle.avif` 7,
 lesson, doc or example referenced either one.
 
 Re-run the script to regenerate the sheets; it is deterministic.
+
+## 5. `textures/` — CC0 (Kenney)
+
+`textures/` is the catalog behind `sprite.texture = 'coin'`. It is **not**
+original work for this course, and section 1 does not cover it.
+
+| | |
+| --- | --- |
+| Pack | Kenney, *Platformer Art: Pixel Redux*, created 2020-04-22 |
+| Author | Kenney (kenney.nl) |
+| License | **CC0 1.0 Universal** — public domain dedication |
+| Source | `github.com/ETdoFresh/kenney.nl`, `platformerart_pixelredux_2` |
+| Sheet | `Tilemap/tilemap_packed.png`, sha256 `883071fc…99bdc78`, 630×630 |
+
+The pack's own `License.txt` reads: *"This content is free to use in
+personal, educational and commercial projects."* CC0 requires no attribution;
+crediting Kenney is optional and encouraged. That license file is vendored
+twice on purpose — beside the source sheet in
+`scripts/assets/kenney-pixel-redux/`, and beside the sliced output in
+`textures/LICENSE.txt` — so the provenance travels with the bytes in either
+direction.
+
+Each of the 40 PNGs is an **exact 21×21 crop** of that sheet. Nothing is
+redrawn, recoloured or modified. `scripts/make-textures.py` holds the
+name → tile-index table and is deterministic: re-running it reproduces every
+file. Adding a texture means adding a row to that table and re-running, never
+dropping a PNG into the directory by hand — `scripts/check-textures.mjs`
+fails on a file the manifest does not name. If a future texture comes from
+somewhere else, it needs its own row and its own section, not a quiet
+addition to this one.
+
+### Student-saved textures
+
+`saveTexture(name, dataUrl)` stores art a student drew, in that student's own
+browser storage. It never touches this directory, is never committed, and
+carries no license claim by this project.
+
+## 6. Original art in `assets/` and `textures/`
+
+`textures/runner.png`, `textures/runnerJump.png`, `assets/ground_tile.png` and
+`assets/grass_tile.png` are original work, drawn pixel by pixel from
+`scripts/make-runner-sheet.py` and `scripts/make-ground-tiles.py` (both
+deterministic, neither reads a source image), and are MIT like section 1.
+They sit in the `textures/` catalog beside the Kenney crops but are not
+covered by section 5; `make-textures.py` lists them separately as `ORIGINAL`.
+The `*Walk`, `*Fly`, `*Swim` and `*Crawl` strips are Kenney tiles placed
+side by side, still exact crops with nothing redrawn.

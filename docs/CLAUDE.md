@@ -22,6 +22,15 @@ tooling is the Playwright spec suite under `tests/`.
   live editor. Both embed `runner.html` in a sandboxed iframe.
 - `games/*.js` — the six demo sketches the homepage loads by `fetch`.
 - `tests/*.spec.mjs` — browser specs driving the real surface (see Commands).
+- `textures/` — the `sprite.texture = 'name'` catalog: 40 PNGs plus a
+  generated `textures.json` / `textures.js`. **Generated, not hand-edited.**
+  Regenerate with `python scripts/make-textures.py`; adding a texture means
+  adding a name -> tile index there, never dropping a PNG in by hand.
+  Third-party CC0 art (Kenney) -- see LICENSE.md section 5, not section 1.
+  `scripts/check-textures.mjs` gates the pipeline, including that `runner.html`
+  loads `textures.js` **before** `moshion.js` (the catalog must exist before a
+  sketch runs -- `.texture` is a synchronous setter). `sprite.pattern` is a
+  different thing: a repeating fill for big surfaces, taking a URL.
 - `assets/` — sprite-sheet art for lesson examples, plus `coin.wav` / `music.wav` for the Sound one.
 
 ## Commands

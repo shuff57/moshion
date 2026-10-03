@@ -14,6 +14,8 @@ declare class Ani {
   name: string;
   frameCount: number;
   frameDelay: number;
+  /** Optional per-frame holds (game frames), one per frame; null = uniform frameDelay. */
+  frameDelays: number[] | null;
   frame: number;
   spriteSheet: HTMLImageElement;
 }
@@ -75,7 +77,27 @@ declare class Sprite {
   // debug: draws the collider outline (not the art) in lime.
   debug: boolean;
   ani: Ani | null;
-  image: string | HTMLImageElement | null;
+  /** Still art: an emoji / short text ('🧍'), an image URL, or a ready <img> / <canvas>.
+   *  null or '' goes back to the colored shape. Art that fails to load falls
+   *  back to the colored shape rather than vanishing. */
+  image: string | HTMLImageElement | HTMLCanvasElement | ImageBitmap | null;
+
+  /**
+   * Named art from the texture catalog, e.g. `sprite.texture = 'coin'`.
+   *
+   * Reads back as the NAME that was set, not the image. Setting it clears
+   * `.image` and `.ani`, and setting either of those clears this. An
+   * unknown name warns and leaves the sprite as it was. Drawn with image
+   * smoothing off, so pixel art stays crisp when scaled.
+   *
+   * Names come from `textureNames()`: the built-in catalog plus anything
+   * `saveTexture()` has stored. A saved name wins over a built-in one.
+   */
+  texture: string | null;
+  /** A picture that repeats at its natural size inside the sprite's shape
+   *  (anchored top-left) instead of stretching. For ground, walls and
+   *  platforms. Any `image` / `texture` / `ani` draws instead. null clears it. */
+  pattern: string | HTMLImageElement | HTMLCanvasElement | ImageBitmap | null;
 
   addAni(name: string, sheetUrl: string, frameCount: number): Ani;
   changeAni(name: string): void;
@@ -226,6 +248,12 @@ declare class Sprite {
 
 declare class Group extends Array<Sprite> {
   Sprite: typeof Sprite;
+  /** Catalog texture name for every member, current and future. */
+  texture: string | null;
+  /** Repeating picture for every member, current and future. */
+  pattern: string | HTMLImageElement | HTMLCanvasElement | ImageBitmap | null;
+  /** Art for every member, current and future (`new group.Sprite()`). */
+  image: string | HTMLImageElement | HTMLCanvasElement | ImageBitmap | null;
 
   newSprite(x: number, y: number, w?: number, h?: number): Sprite;
   push(...sprites: Sprite[]): number;
@@ -569,6 +597,28 @@ declare const CENTER: 'center';
 declare const LEFT: 'left';
 declare const RIGHT: 'right';
 
+/** Every texture name usable right now — built-ins plus saved art, sorted. */
+declare function textureNames(): string[];
+/** True if `sprite.texture = name` would resolve. */
+declare function hasTexture(name: string): boolean;
+/**
+ * Save art under a name so `sprite.texture = name` finds it.
+ *
+ * `dataUrl` must be a `data:` URL; small pixel art only (the store caps a
+ * value at 64 KB and the whole store at 512 KB).
+ *
+ * Pass `{ frames: n }` and `dataUrl` is read as a horizontal strip of n
+ * equal frames — `sprite.texture = name` then animates it, no addAni needed.
+ * `frameDelay` is game frames per animation frame (default 4); `delays` holds
+ * each frame for its own number of game frames.
+ */
+declare function saveTexture(
+  name: string,
+  dataUrl: string,
+  anim?: { frames: number; frameDelay?: number; delays?: number[] }
+): void;
+/** Forget a saved texture. Built-ins cannot be deleted. */
+declare function deleteTexture(name: string): void;
 declare function storeItem(name: string, val: any): void;
 declare function getItem(name: string): any;
 declare function removeItem(name: string): void;
