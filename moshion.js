@@ -1401,6 +1401,38 @@
     // lesson code (e.g. 2.6.11, 2.6.13) — same full-destroy behavior.
     remove() { this.delete(); }
 
+    // addSensor(offsetX, offsetY, w, h): a box riding on this sprite that
+    // only DETECTS. It is an extra planck fixture marked as a sensor with no
+    // density, so it pushes nothing, weighs nothing and does not change how
+    // the sprite moves; `colliding()` never counts it. Ask it directly:
+    //
+    //   feet = player.addSensor(0, 21, 26, 4); // a strip under a 30x40 player
+    //   if (kb.presses('space') && feet.overlaps(ground)) player.vel.y = -9;
+    //
+    // which is true on the floor and false against a wall or a ceiling, where
+    // `player.colliding(ground)` is true in all three. Offsets are from the
+    // sprite's centre and turn with it. Defaults: no offset, the sprite's size.
+    // Box2D only reports contacts that involve a moving (dynamic) body, so a
+    // sensor on a static or kinematic sprite sees only dynamic ones. Like
+    // colliding(), the answer is from this frame's physics step. world.rayCast
+    // reports a sensor's box as part of its sprite.
+    addSensor(offsetX = 0, offsetY = 0, w = this.w, h = this.h) {
+      for (const [k, v] of [['offsetX', offsetX], ['offsetY', offsetY], ['w', w], ['h', h]]) {
+        if (typeof v !== 'number' || !Number.isFinite(v)) {
+          throw new TypeError(`sprite.addSensor(offsetX, offsetY, w, h): ${k} must be a number`);
+        }
+      }
+      const fixture = this._body.createFixture({
+        shape: pl.Box(Math.abs(w) / 2 / PXM, Math.abs(h) / 2 / PXM, pl.Vec2(offsetX / PXM, offsetY / PXM), 0),
+        density: 0,
+        isSensor: true,
+      });
+      const sensor = new Sensor(this, fixture);
+      fixture.setUserData(sensor);
+      SENSORS_.push(sensor);
+      return sensor;
+    }
+
     _draw() {
       if (!this.visible) return;
       CTX_.save();
@@ -1500,6 +1532,44 @@
         CTX_.fillText(String(this.text), 0, 0);
         CTX_.restore();
       }
+    }
+  }
+
+  // What sprite.addSensor() returns. Its overlap ledger is its own (keyed by
+  // the other sprite), filled once per frame by _updateContacts() from
+  // planck's contact list, using the same signed counter as colliding().
+  const SENSORS_ = [];
+  class Sensor {
+    constructor(sprite, fixture) {
+      this.sprite = sprite;
+      this._fixture = fixture;
+      this._hits = new Map();
+      this._removed = false;
+    }
+    // Frames this sensor has been touching `other` (a Sprite, or for a Group
+    // the longest-touching member); 0 when it is not.
+    overlapping(other) {
+      if (other instanceof Group) {
+        let n = 0;
+        for (const s of other) n = Math.max(n, this._count(s));
+        return n;
+      }
+      return this._count(other);
+    }
+    // True while this sensor touches `other` (a Sprite, or any member of a Group).
+    overlaps(other) { return this.overlapping(other) > 0; }
+    _count(other) {
+      const v = this._hits.get(other) || 0;
+      return v > 0 ? v : 0;
+    }
+    // Takes the sensor off its sprite. Deleting the sprite does this too.
+    remove() {
+      if (this._removed) return;
+      this._removed = true;
+      if (!this.sprite._dead) this.sprite._body.destroyFixture(this._fixture);
+      this._hits.clear();
+      const i = SENSORS_.indexOf(this);
+      if (i >= 0) SENSORS_.splice(i, 1);
     }
   }
 
@@ -1763,6 +1833,101 @@
   // Real usage: `player.colliding(allSprites)` (2.4.10 platformer) to test
   // against "anything", not one specific ground sprite/group.
   const allSprites = new Group();
+
+  // ---- tile maps and walls ------------------------------------------------
+
+  // new Tiles(map, x, y, w, h, legend): builds a level out of rows of text.
+  //
+  //   walls = new Group(); walls.collider = 'static'; walls.color = 'gray';
+  //   coins = new Group(); coins.collider = 'none';  coins.diameter = 14;
+  //   level = new Tiles([
+  //     '##########',
+  //     '#  c   c #',
+  //     '##########',
+  //   ], 20, 20, 40, 40, { '#': walls, 'c': coins });
+  //
+  // Each character that the legend names becomes one `new group.Sprite()`
+  // from that group, so the group's defaults (collider, color, diameter,
+  // texture, custom fields) apply exactly as they would by hand. Any other
+  // character (a space, '.') is an empty cell. Column c of row r is centred
+  // at (x + c * w, y + r * h), so x, y is the CENTRE of the top-left tile,
+  // the same way a sprite's x, y is its centre; a group default size (e.g.
+  // coins.diameter) wins over the tile size. `h` defaults to `w`.
+  //
+  // The Tiles object is itself a Group holding every sprite it made, in
+  // reading order, so `level.delete()` clears the level. Legend keys may be
+  // any single character, emoji included.
+  //
+  // p5play builds tiles from groups that carry a `.tile` letter instead of
+  // a legend; this takes the legend, so the map and what it means sit side
+  // by side in the sketch. (p5play's form is recalled, not verified.)
+  class Tiles extends Group {
+    // tiles.filter(...) and friends hand back a plain Group, not a new map.
+    static get [Symbol.species]() { return Group; }
+    constructor(map, x, y, w, h, legend) {
+      super();
+      const sig = 'new Tiles(map, x, y, w, h, legend)';
+      if (!Array.isArray(map) || map.some((row) => typeof row !== 'string')) {
+        throw new TypeError(`${sig}: map must be an array of strings, one string per row`);
+      }
+      if (typeof x !== 'number' || typeof y !== 'number') {
+        throw new TypeError(`${sig}: x and y must be numbers (the centre of the top-left tile)`);
+      }
+      if (typeof w !== 'number' || !(w > 0)) {
+        throw new TypeError(`${sig}: w must be a number above 0 (the width of one tile)`);
+      }
+      if (h === undefined || h === null) h = w;
+      if (typeof h !== 'number' || !(h > 0)) {
+        throw new TypeError(`${sig}: h must be a number above 0 (the height of one tile)`);
+      }
+      if (!legend || typeof legend !== 'object') {
+        throw new TypeError(`${sig}: legend must be an object naming the Group each character builds, like { '#': walls }`);
+      }
+      for (const key of Object.keys(legend)) {
+        if (!(legend[key] instanceof Group)) {
+          throw new TypeError(`${sig}: legend['${key}'] must be a Group (made with new Group())`);
+        }
+      }
+      for (let r = 0; r < map.length; r++) {
+        const cells = Array.from(map[r]); // by character, so an emoji is one cell
+        for (let c = 0; c < cells.length; c++) {
+          const ch = cells[c];
+          if (!Object.prototype.hasOwnProperty.call(legend, ch)) continue;
+          this.push(new legend[ch].Sprite(x + c * w, y + r * h, w, h));
+        }
+      }
+    }
+  }
+
+  // new Walls(thickness = 50): four static walls just OUTSIDE the edges of
+  // what the canvas shows, so sprites bounce off the edges of the screen
+  // and the whole canvas stays playable. Off screen, so not seen. Call it
+  // after new Canvas(). It is a Group of the four walls, which are also
+  // walls.top / .bottom / .left / .right, so `player.colliding(walls)` asks
+  // "touching any edge" and `player.colliding(walls.bottom)` asks "on the floor".
+  // The walls are placed where the camera is looking when it is called and
+  // stay there; they do not follow the camera.
+  class Walls extends Group {
+    static get [Symbol.species]() { return Group; }
+    constructor(thickness = 50) {
+      super();
+      if (!CANVAS_) throw new Error('new Walls() must come after new Canvas(w, h)');
+      if (typeof thickness !== 'number' || !(thickness > 0)) {
+        throw new TypeError('new Walls(thickness): thickness must be a number above 0');
+      }
+      const t = thickness, l = _camLeft(), top = _camTop(), w = W_, h = H_;
+      const make = (name, cx, cy, ww, hh) => {
+        const s = new Sprite(cx, cy, ww, hh, 'static');
+        s.color = 'gray';
+        this.push(s);
+        Object.defineProperty(this, name, { value: s, enumerable: false });
+      };
+      make('top', l + w / 2, top - t / 2, w + 2 * t, t);
+      make('bottom', l + w / 2, top + h + t / 2, w + 2 * t, t);
+      make('left', l - t / 2, top + h / 2, t, h);
+      make('right', l + w + t / 2, top + h / 2, t, h);
+    }
+  }
 
   // spatial hit-test (2.7.6): top-most (highest layer) live sprite at a point,
   // or undefined. `x`/`y` are world coords, same space as mouse.x/y and sprite.x/y.
@@ -2119,13 +2284,18 @@
   // frame and keep a running signed frame count on each sprite.
   function _updateContacts() {
     const now = new Map(); // sprite -> Set(other sprites touching this frame)
+    const sensed = SENSORS_.length ? new Map() : null; // Sensor -> Set(sprites), addSensor() only
     for (let c = _world().getContactList(); c; c = c.getNext()) {
       if (!c.isTouching()) continue;
       // Sensor fixtures (collider = 'none') still show up as "touching" in
       // planck's contact list (only the solver skips their impulse) — but
       // colliding() is documented as solid-body contact only (2.3.17), so
       // a sensor pair must never count here even though overlaps() sees it.
-      if (c.getFixtureA().isSensor() || c.getFixtureB().isSensor()) continue;
+      if (c.getFixtureA().isSensor() || c.getFixtureB().isSensor()) {
+        // ...but a sensor made by addSensor() is listening for exactly this.
+        if (sensed) _noteSensed(sensed, c.getFixtureA(), c.getFixtureB());
+        continue;
+      }
       const a = c.getFixtureA().getBody().getUserData();
       const b = c.getFixtureB().getBody().getUserData();
       if (!(a instanceof Sprite) || !(b instanceof Sprite)) continue;
@@ -2146,11 +2316,42 @@
     for (const s of ALL_) {
       const cur = now.get(s);
       s._touch ??= new Map();
+      // Same short cut as in _updateOverlaps(): no keys to visit at all.
+      if (!cur && s._touch.size === 0) continue;
       const keys = new Set(s._touch.keys());
       if (cur) for (const o of cur) keys.add(o);
       for (const other of keys) {
         const next = _advanceContact(s._touch.get(other) || 0, !!(cur && cur.has(other)));
         if (next === 0) s._touch.delete(other); else s._touch.set(other, next);
+      }
+    }
+    if (sensed) _advanceSensors(sensed);
+  }
+
+  // addSensor() bookkeeping for _updateContacts(). A fixture whose user data
+  // is a Sensor belongs to addSensor(); every other fixture (the sprite's own,
+  // including a collider = 'none' one) has none, so nothing here touches a
+  // sketch that never called addSensor().
+  function _noteSensed(sensed, fa, fb) {
+    for (const [mine, theirs] of [[fa, fb], [fb, fa]]) {
+      const sensor = mine.getUserData();
+      if (!(sensor instanceof Sensor)) continue;
+      const other = theirs.getBody().getUserData();
+      if (!(other instanceof Sprite) || other === sensor.sprite) continue;
+      if (!sensed.has(sensor)) sensed.set(sensor, new Set());
+      sensed.get(sensor).add(other);
+    }
+  }
+  function _advanceSensors(sensed) {
+    for (const sensor of SENSORS_.slice()) {
+      if (sensor.sprite._dead) { sensor.remove(); continue; }
+      const cur = sensed.get(sensor);
+      if (!cur && sensor._hits.size === 0) continue;
+      const keys = new Set(sensor._hits.keys());
+      if (cur) for (const o of cur) keys.add(o);
+      for (const other of keys) {
+        const next = _advanceContact(sensor._hits.get(other) || 0, !!(cur && cur.has(other)));
+        if (next === 0) sensor._hits.delete(other); else sensor._hits.set(other, next);
       }
     }
   }
@@ -2161,23 +2362,46 @@
   // planck at all — it's the same manual bounding-box/circle test
   // _overlapsOne() uses, just run for every live pair once per frame so a
   // signed counter can be kept.
+  //
+  // Every pair used to be tested every frame: 600 sprites is ~180,000
+  // _overlapsOne() calls, each reading both positions back out of planck, and
+  // a 40x30 tile map (1,200 sprites) ran at about 6 fps. _overlapCandidates()
+  // below is a sort-and-sweep broadphase that only hands on pairs whose boxes
+  // could touch. It is EXACT, not an approximation: the same _overlapsOne()
+  // still decides every pair it hands on, the pairs it drops are ones that
+  // test could never pass, and they are visited in the same (i, j) order the
+  // old double loop used. No sketch can tell the difference except by speed.
   function _updateOverlaps() {
     const alive = ALL_.filter((s) => !s._dead);
     const now = new Map();
-    for (let i = 0; i < alive.length; i++) {
-      const a = alive[i];
-      for (let j = i + 1; j < alive.length; j++) {
-        const b = alive[j];
-        if (!a._overlapsOne(b)) continue;
-        if (!now.has(a)) now.set(a, new Set());
-        if (!now.has(b)) now.set(b, new Set());
-        now.get(a).add(b);
-        now.get(b).add(a);
+    const mark = (a, b) => {
+      if (!now.has(a)) now.set(a, new Set());
+      if (!now.has(b)) now.set(b, new Set());
+      now.get(a).add(b);
+      now.get(b).add(a);
+    };
+    const n = alive.length;
+    const pairs = _overlapCandidates(alive);
+    if (pairs === null) {
+      for (let i = 0; i < n; i++) {
+        const a = alive[i];
+        for (let j = i + 1; j < n; j++) {
+          const b = alive[j];
+          if (a._overlapsOne(b)) mark(a, b);
+        }
+      }
+    } else {
+      for (let k = 0; k < pairs.length; k++) {
+        const i = Math.floor(pairs[k] / n), j = pairs[k] - i * n;
+        if (alive[i]._overlapsOne(alive[j])) mark(alive[i], alive[j]);
       }
     }
     for (const s of alive) {
       s._overlap ??= new Map();
       const cur = now.get(s);
+      // Nothing touching now and nothing remembered: the loop below would
+      // visit no keys at all, so skip building an empty Set per sprite.
+      if (!cur && s._overlap.size === 0) continue;
       const keys = new Set(s._overlap.keys());
       if (cur) for (const o of cur) keys.add(o);
       for (const other of keys) {
@@ -2185,6 +2409,54 @@
         if (next === 0) s._overlap.delete(other); else s._overlap.set(other, next);
       }
     }
+  }
+
+  // Broadphase for _updateOverlaps(). Returns the pairs that COULD overlap as
+  // sorted numbers i * n + j (i < j, indices into `list`), or null to mean
+  // "test every pair the old way". It answers null whenever it cannot be sure
+  // of being exact:
+  //   - a small world, where the double loop is already cheap;
+  //   - a sprite whose _overlapsOne/_bounds is not the stock one (a subclass
+  //     or an instance overriding it could define overlap however it likes);
+  //   - a NaN or infinite edge anywhere (it cannot be sorted safely);
+  //   - so many candidates that the sweep saves nothing.
+  // A box here is _bounds() made inclusive and padded a hair, so it is a
+  // superset of both narrow tests: the strict rect test (a.l < b.r) and the
+  // circle test, which counts exactly-touching circles (<=). A circle's
+  // _bounds() is x/y +- w/2 on both axes, the same radius its test uses, and
+  // min/max straightens out a negative width.
+  const OVERLAP_SWEEP_MIN_ = 32;
+  function _overlapCandidates(list) {
+    const n = list.length;
+    if (n < OVERLAP_SWEEP_MIN_) return null;
+    const x0 = new Float64Array(n), x1 = new Float64Array(n);
+    const y0 = new Float64Array(n), y1 = new Float64Array(n);
+    for (let i = 0; i < n; i++) {
+      const s = list[i];
+      if (s._overlapsOne !== Sprite.prototype._overlapsOne || s._bounds !== Sprite.prototype._bounds) return null;
+      const b = s._bounds();
+      const l = Math.min(b.l, b.r), r = Math.max(b.l, b.r);
+      const t = Math.min(b.t, b.b), bt = Math.max(b.t, b.b);
+      // NaN never sorts; an infinite edge makes the sort's subtraction NaN.
+      if (!Number.isFinite(l) || !Number.isFinite(r) || !Number.isFinite(t) || !Number.isFinite(bt)) return null;
+      const px = 1e-6 + 1e-9 * (Math.abs(l) + Math.abs(r));
+      const py = 1e-6 + 1e-9 * (Math.abs(t) + Math.abs(bt));
+      x0[i] = l - px; x1[i] = r + px; y0[i] = t - py; y1[i] = bt + py;
+    }
+    const order = Array.from({ length: n }, (_, i) => i).sort((a, b) => x0[a] - x0[b]);
+    const cap = (n * (n - 1)) / 4; // past half of all pairs, just test them all
+    const out = [];
+    for (let k = 0; k < n; k++) {
+      const i = order[k];
+      for (let m = k + 1; m < n; m++) {
+        const j = order[m];
+        if (x0[j] > x1[i]) break; // sorted by left edge: nothing further reaches i
+        if (y0[j] > y1[i] || y0[i] > y1[j]) continue;
+        out.push(i < j ? i * n + j : j * n + i);
+      }
+      if (out.length > cap) return null;
+    }
+    return Float64Array.from(out).sort();
   }
 
   // ---- render -----------------------------------------------------------
@@ -2202,22 +2474,62 @@
     // .layer still orders them among themselves.
     const drawPass = (list, useCamera) => {
       if (!list.length) return;
+      const view = _cullView(useCamera);
       CTX_.save();
       if (useCamera) _applyCamera();
       for (const s of list) {
         if (!s.autoDraw) continue; // Sprite, SPEC-surface #3: false skips this sprite entirely
-        if (s.ani) s.ani._advance();
+        if (s.ani) s.ani._advance(); // advances on or off screen, so culling never freezes it
         // A sketch-assigned sprite.draw REPLACES the default rendering for
         // that sprite (Sprite, SPEC-surface #3) — everything else (layer
         // order, ani advance, autoDraw gating above) still applies around it.
+        // It is never culled: it may do more than draw.
         if (typeof s.draw === 'function') s.draw();
-        else s._draw();
+        else if (!view || !_offView(s, view)) s._draw();
       }
       CTX_.restore();
     };
 
     drawPass(ordered.filter((s) => !s.screenSpace), true);
     drawPass(ordered.filter((s) => s.screenSpace), false);
+  }
+
+  // Off-screen culling for render(). A sprite whose whole picture lies outside
+  // the visible canvas skips its default _draw(), which is pure painting: no
+  // state changes, so skipping an invisible one changes nothing on screen.
+  // Measured 2026-10-31, headless Chromium: drawing 1,200 tile sprites costs
+  // about 1.7 ms a frame, so a long scrolling level pays for every tile it
+  // is not showing. The guards are what keep this safe:
+  //   - only the stock _draw() is ever skipped; a sketch's own sprite.draw
+  //     (which may count, move or spawn) always runs, and ani still advances;
+  //   - the context must be untransformed when render() starts (a sketch
+  //     that grabbed the canvas and transformed it itself is never culled),
+  //     and a context with no getTransform() is never culled at all;
+  //   - the reach is generous: the larger of w/h times the larger scale
+  //     (at least 1), which covers the art rotated any way, plus the stroke,
+  //     and for a text label (drawn unscaled) its character count + 2 times
+  //     textSize. A NaN anywhere compares false and the sprite draws.
+  // Returns {l, t, r, b} in the space the pass draws in, or null for "draw all".
+  function _cullView(useCamera) {
+    if (!CTX_ || typeof CTX_.getTransform !== 'function') return null;
+    const m = CTX_.getTransform();
+    if (!m || m.a !== 1 || m.b !== 0 || m.c !== 0 || m.d !== 1 || m.e !== 0 || m.f !== 0) return null;
+    const w = CANVAS_ ? CANVAS_.width : W_, h = CANVAS_ ? CANVAS_.height : H_;
+    const cam = useCamera && camera._active;
+    const l = cam ? _camLeft() : 0, t = cam ? _camTop() : 0;
+    return { l, t, r: l + w, b: t + h };
+  }
+  function _offView(s, v) {
+    if (s._draw !== Sprite.prototype._draw) return false;
+    const k = Math.max(Math.abs(s._scale.x), Math.abs(s._scale.y), 1);
+    let reach = Math.max(Math.abs(s.w), Math.abs(s.h)) * k + 2;
+    if (s.stroke) reach += Math.abs(s.strokeWeight) || 0;
+    if (s.text) {
+      const tw = (String(s.text).length + 2) * (Math.abs(s.textSize) || 16) + (Math.abs(s._textStrokeWeight) || 0);
+      if (tw > reach) reach = tw;
+    }
+    const x = s.x, y = s.y;
+    return x + reach < v.l || x - reach > v.r || y + reach < v.t || y - reach > v.b;
   }
 
   // text styling state (fill/textSize/textAlign) — q5.js-style globals that
@@ -2241,11 +2553,14 @@
 
   // ---- q5.js drawing primitives (used by real lesson code) ---------------
 
-  function square(x, y, s) {
-    CTX_.save();
-    _applyCamera();
-    CTX_.fillRect(x, y, s, s);
-    CTX_.restore();
+  // square(x, y, s) is rect(x, y, s, s), as in p5: it uses fill(), stroke(),
+  // noFill() and noStroke() like every other shape. It used to call fillRect
+  // without ever setting a colour, so every square came out black whatever
+  // fill() said -- shCode's labs 5.6.9-5.6.11 promise "a blue square" and drew
+  // a black one.
+  // `function` declarations hoist, so rect() below is in scope here.
+  function square(x, y, s, r) {
+    rect(x, y, s, s, r);
   }
 
   // stroke() / noStroke() / strokeWeight() / noFill() — general draw state,
@@ -2409,6 +2724,41 @@
   // scope (flagged to team-lead, not built). The read path real lesson code
   // actually uses — "frameRate() returns the actual fps" (5.1.23) — is real.
   function frameRate() { return FPS_; }
+
+  // ---- frame timers -------------------------------------------------------
+  // every(frames, fn) calls fn every `frames` frames; after(frames, fn) calls
+  // it once, `frames` frames from now. Both count FRAMES, not seconds, so they
+  // pause with noLoop() and stay in step with frameCount: every(60, fn) made
+  // in setup() fires on the same frames as `if (frameCount % 60 === 0)`.
+  // They run each frame after update() and before the physics step, so a
+  // sprite a timer spawns is in that frame's physics. Each returns a handle
+  // whose stop() cancels it. A timer never fires in the frame that made it.
+  let TIMERS_ = [];
+  function _timer(name, frames, fn, repeat) {
+    if (typeof frames !== 'number' || !(frames >= 1)) {
+      throw new TypeError(`${name}(frames, fn): frames must be a number, 1 or more (got ${String(frames)})`);
+    }
+    if (typeof fn !== 'function') throw new TypeError(`${name}(frames, fn): fn must be a function`);
+    const n = Math.floor(frames);
+    const t = {
+      _due: FRAME_ + n, _every: repeat ? n : 0, _fn: fn, _on: true,
+      get active() { return t._on; },
+      stop() { t._on = false; },
+    };
+    TIMERS_.push(t);
+    return t;
+  }
+  function every(frames, fn) { return _timer('every', frames, fn, true); }
+  function after(frames, fn) { return _timer('after', frames, fn, false); }
+  function _runTimers() {
+    if (!TIMERS_.length) return;
+    for (const t of TIMERS_.slice()) { // a timer may start another
+      if (!t._on || FRAME_ < t._due) continue;
+      if (t._every) t._due += t._every; else t._on = false;
+      t._fn();
+    }
+    TIMERS_ = TIMERS_.filter((t) => t._on);
+  }
 
   // p5's nf(num, left, right) — zero-pad the integer part to `left` digits,
   // fix the decimal part to `right` digits. Not in the brief's table; found
@@ -3028,6 +3378,7 @@
         if (s._dead || !s.autoUpdate) continue;
         if (typeof s.update === 'function') s.update();
       }
+      _runTimers(); // every()/after(): after update, before physics
       // world.autoStep (World, SPEC-surface #5): false means the sketch
       // calls world.physicsUpdate() itself instead of this automatic step.
       if (AUTO_STEP_) {
@@ -3109,6 +3460,10 @@
   global.Canvas = Canvas;
   global.Sprite = Sprite;
   global.Group = Group;
+  global.Tiles = Tiles;
+  global.Walls = Walls;
+  global.every = every;
+  global.after = after;
   global.HingeJoint = HingeJoint;
   global.DistanceJoint = DistanceJoint;
   global.SliderJoint = SliderJoint;

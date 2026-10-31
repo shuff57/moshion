@@ -55,6 +55,10 @@ hand-authored reference):
   engine calls. `drawTop()` runs after sprites are drawn, in screen space, so
   a HUD lands on top of the world instead of behind it
 - `Canvas`, `Sprite`, `Group`, `allSprites` — drawing + physics
+- `Tiles` (a level built from rows of text and a legend of groups), `Walls`
+  (static walls round the canvas edges), `sprite.addSensor()` (a detect-only
+  box, e.g. a ground sensor)
+- `every(frames, fn)` / `after(frames, fn)` — frame timers
 - `world`, `camera` — gravity, hit-testing, viewport
 - `kb`, `mouse` — input with edge-triggered events (`kb.presses('w')`). A
   single touch drives the same `mouse` properties, so a pointer sketch works

@@ -50,6 +50,8 @@ bun tests/starter-games.spec.mjs  # games/{asteroids,platformer,runner}.js
 bun tests/integration.spec.mjs    # index.html demo panel
 bun tests/viewport.spec.mjs       # the demo viewport shows the whole sketch
 bun tests/docs.spec.mjs           # every example on the docs site actually runs
+bun tests/gaps.spec.mjs           # broadphase exactness, culling, square, Tiles, Walls, timers, addSensor
+bun tests/tiles-perf.bench.mjs    # NOT a spec: frame cost with 300..2400 tile sprites
 ```
 
 `tests/harness.mjs`'s `serve()` caps the request line at 6KB — what production
@@ -118,7 +120,22 @@ Key classes and where they live in `moshion.js`:
 - **`overlaps()` and `colliding()` are NOT aliases.** `overlaps()` is a manual
   bounding-box query (works for `collider = 'none'` sensors); `colliding()`
   reads planck's real contact list and excludes sensor fixtures. See
-  `_updateContacts()` (~1823).
+  `_updateContacts()` (~1823). `overlaps()` is a QUERY, not p5play's
+  pass-through rule: calling it once in setup() changes nothing. A fixture
+  made by `addSensor()` carries its `Sensor` as fixture user data (no other
+  fixture has any), and `_updateContacts()` routes sensor contacts to it only
+  while `SENSORS_` is non-empty.
+- **The overlap broadphase must stay EXACT.** `_updateOverlaps()` hands only
+  the pairs `_overlapCandidates()` lets through to `_overlapsOne()`; a pair it
+  drops must be one `_overlapsOne()` could never pass (its boxes are inclusive
+  and padded, because the circle test counts exact touching), and it returns
+  null (test every pair) for a non-stock `_overlapsOne`/`_bounds`, a non-finite
+  edge, or a small world. `tests/gaps.spec.mjs` P1 compares `overlapping()`
+  with `overlaps()` for every pair, every frame; a strict broadphase fails it.
+- **Culling skips only the stock `_draw()`.** A sketch's `sprite.draw` always
+  runs, `ani` always advances, and nothing is culled unless the context is
+  untransformed at render time and has `getTransform()` (the shCode node
+  harness's stub has none, so it never culls there).
 - **`group.remove(sprite)` only unparents** — the sprite keeps existing,
   drawing, and running physics. `sprite.delete()` (alias `remove()`) is full
   destruction: destroys the body and unparents from every group.

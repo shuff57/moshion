@@ -26,6 +26,14 @@ declare class Anis {
 
 // ---- sprite --------------------------------------------------------------
 
+// Names a Sprite already uses. A field you add to a sprite (or to a class
+// that extends Sprite, or as a group default) with one of these names does
+// not make a new field: it drives the built-in one. `this.speed = 5` sets the
+// sprite's velocity (and reads back 0 on a static body), `this.life = 3`
+// deletes the sprite three frames later, `this.direction` turns its
+// velocity, `this.text` draws a label on it. Pick another name: `moveSpeed`,
+// `hp`, `heading`, `label`. The full list is every property declared below
+// (also color, scale, mass, x, y, w, h, d, r, width, height, visible, removed).
 declare class Sprite {
   constructor(x: number, y: number);
   constructor(x: number, y: number, d: number);
@@ -104,6 +112,10 @@ declare class Sprite {
   applyForce(fx: number, fy: number): void;
   // Live geometry query (continuous truthy while touching), not edge-
   // triggered — cb fires once per overlapping pair/sprite each call.
+  // A QUESTION, not a setting: it answers "are these touching right now?"
+  // and changes nothing. Calling a.overlaps(b) once in setup() does not
+  // let a and b pass through each other (it does in p5play); to make a
+  // pickup or a bullet pass through, set its collider to 'none'.
   overlaps(other: Sprite | Group): boolean;
   overlaps(other: Sprite | Group, cb: (self: Sprite, other: Sprite) => void): boolean;
   // colliding/collides/collided and overlapping/overlapped are the p5play
@@ -156,6 +168,16 @@ declare class Sprite {
   rotateTowards(target: { x: number; y: number }, tracking?: number): void;
   delete(): void;
   remove(): void;
+  /** A box riding on this sprite that only detects: it pushes nothing,
+   *  weighs nothing, and colliding() never counts it. Offsets are from the
+   *  sprite's centre and turn with it; defaults are no offset and the
+   *  sprite's own size. The usual one is a ground sensor, a thin strip under
+   *  a player: `feet.overlaps(ground)` is true on the floor and false against
+   *  a wall or a ceiling, where `player.colliding(ground)` is true in all
+   *  three. Box2D only reports contacts that involve a dynamic body, so a
+   *  sensor on a static or kinematic sprite sees only dynamic sprites.
+   *  world.rayCast reports a sensor's box as part of its sprite. */
+  addSensor(offsetX?: number, offsetY?: number, w?: number, h?: number): Sensor;
 
   // ---- physics -------------------------------------------------------------
   /** Linear damping — air resistance. 0 = none. */
@@ -244,6 +266,19 @@ declare class Sprite {
   velocity: Vec2;
 }
 
+/** What sprite.addSensor() returns. Answers from this frame's physics step,
+ *  like colliding(). */
+declare class Sensor {
+  /** The sprite it rides on. */
+  readonly sprite: Sprite;
+  /** True while this sensor touches `other` (any member, for a Group). */
+  overlaps(other: Sprite | Group): boolean;
+  /** Frames it has been touching `other` (the longest member, for a Group); 0 when not. */
+  overlapping(other: Sprite | Group): number;
+  /** Takes the sensor off its sprite. Deleting the sprite does this too. */
+  remove(): void;
+}
+
 // ---- group ---------------------------------------------------------------
 
 declare class Group extends Array<Sprite> {
@@ -291,6 +326,46 @@ declare class Group extends Array<Sprite> {
   applyForceScaled(fx: number, fy: number): void;
   autoDraw: boolean;
   autoUpdate: boolean;
+}
+
+// ---- tile maps and walls ---------------------------------------------------
+
+/**
+ * Builds a level out of rows of text. Each character the legend names becomes
+ * one `new group.Sprite()` from that group, so the group's defaults
+ * (collider, color, diameter, texture, custom fields) apply; any other
+ * character (a space, '.') is an empty cell. Column c of row r is centred at
+ * (x + c * w, y + r * h): x, y is the CENTRE of the top-left tile. A group
+ * default size (e.g. `coins.diameter`) wins over the tile size. `h` defaults
+ * to `w`. Legend keys are single characters, emoji included.
+ *
+ *     walls = new Group(); walls.collider = 'static';
+ *     coins = new Group(); coins.collider = 'none'; coins.diameter = 14;
+ *     level = new Tiles(['#####', '# c #', '#####'], 20, 20, 40, 40, { '#': walls, 'c': coins });
+ *
+ * The result is a Group of every sprite made, in reading order, so
+ * `level.delete()` clears the level. Array methods on it (filter, map, slice)
+ * return a plain Group. p5play's form, where each group carries a `.tile`
+ * letter and there is no legend, is not supported.
+ */
+declare class Tiles extends Group {
+  constructor(map: string[], x: number, y: number, w: number, h: number | undefined, legend: Record<string, Group>);
+}
+
+/**
+ * Four static walls just OUTSIDE the edges of what the canvas shows, so
+ * sprites bounce off the edges of the screen and the whole canvas stays
+ * playable (the walls are off screen, so not seen). Call after new Canvas().
+ * Placed where the camera is looking when called; they do not follow it.
+ * `player.colliding(walls)` asks "touching any edge";
+ * `player.colliding(walls.bottom)` asks "on the floor".
+ */
+declare class Walls extends Group {
+  constructor(thickness?: number); // default 50
+  readonly top: Sprite;
+  readonly bottom: Sprite;
+  readonly left: Sprite;
+  readonly right: Sprite;
 }
 
 // ---- joints --------------------------------------------------------------
@@ -588,7 +663,9 @@ declare function text(str: string, x: number, y: number, size?: number, color?: 
 declare function fill(c: string | number): void;
 declare function textSize(px: number): void;
 declare function textAlign(mode: 'left' | 'center' | 'right'): void;
-declare function square(x: number, y: number, s: number): void;
+/** rect(x, y, s, s, r): uses fill(), stroke(), noFill() and noStroke() like
+ *  every other shape (before 2026-10-31 it ignored fill() and drew black). */
+declare function square(x: number, y: number, s: number, r?: number): void;
 declare function cos(angle: number): number;
 declare function sin(angle: number): number;
 declare function noLoop(): void;
@@ -681,6 +758,23 @@ declare function millis(): number;
 // cadence when `hz` is given — moSHion's fixed rAF loop doesn't support that,
 // only the getter form ("frameRate() returns the actual fps") is real.
 declare function frameRate(): number;
+
+// ---- frame timers ------------------------------------------------------------
+
+/** What every() and after() return. */
+interface FrameTimer {
+  /** False once stopped, or once an after() timer has fired. */
+  readonly active: boolean;
+  /** Cancels the timer. */
+  stop(): void;
+}
+/** Calls fn every `frames` frames, starting `frames` frames from now. Counts
+ *  frames, not seconds, so it pauses with noLoop() and stays in step with
+ *  frameCount: every(60, fn) made in setup() fires on the same frames as
+ *  `if (frameCount % 60 === 0)`. Timers run after update(), before physics. */
+declare function every(frames: number, fn: () => void): FrameTimer;
+/** Calls fn once, `frames` frames from now. Never in the frame that made it. */
+declare function after(frames: number, fn: () => void): FrameTimer;
 
 // ---- vector ----------------------------------------------------------------
 
