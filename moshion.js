@@ -238,7 +238,9 @@
   }
 
   // world.gravity — raw Box2D m/s², exactly like the reference API's world.gravity.
-  // `world.gravity.y = 10` is ~1g; `= 0` is zero-G. The px/frame² facade
+  // `world.gravity.y = 10` is ~1g; `= 0` is zero-G. The world STARTS at 0, as
+  // the reference API's does: a plain `new Sprite()` stays where it was put
+  // until a sketch turns gravity on (see _world()). The px/frame² facade
   // unit was 60x too strong (10 px/frame² = 1200 m/s² = 122g), which crushed
   // wheel-joint suspensions and sent pong balls flying. Live proxy vector so
   // `world.gravity.y = 0` sticks (a plain getter returning a fresh object
@@ -322,8 +324,12 @@
     CTX_.restore();
   }
 
+  // Default gravity is 0, matching p5play: a sketch that never mentions
+  // world.gravity gets sprites that stay put. It was 9.8 until 2026-11-01,
+  // which made a plain `new Sprite()` fall off the canvas in sketches that
+  // never asked for gravity. Turn it on with `world.gravity.y = 10`.
   function _world() {
-    if (!WORLD_) WORLD_ = pl.World({ gravity: pl.Vec2(0, 9.8) });
+    if (!WORLD_) WORLD_ = pl.World({ gravity: pl.Vec2(0, 0) });
     return WORLD_;
   }
 

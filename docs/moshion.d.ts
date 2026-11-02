@@ -461,6 +461,8 @@ declare function loadSound(url: string, opts?: { clips?: SoundClips }): Sound;
 declare function masterVolume(v?: number): number;
 
 interface World {
+  /** Raw Box2D m/s²; y = 10 is about 1g. Starts at (0, 0), as in p5play:
+   *  nothing falls until you set world.gravity.y. */
   gravity: Vec2;
   getSpriteAt(x: number, y: number): Sprite | undefined;
   /** Every live sprite at a point, topmost first. Optional radius (measured

@@ -13,7 +13,7 @@ The whole API is a handful of globals — `Sprite`, `Group`, `world`, `camera`,
 // A ball that bounces
 function setup() {
   new Canvas(400, 300);
-  world.gravity.y = 10; // ≈ 1g
+  world.gravity.y = 10; // ≈ 1g (gravity starts at 0, so nothing falls without this)
   ball = new Sprite(200, 50, 30);
   ball.bounciness = 0.9;
 }
