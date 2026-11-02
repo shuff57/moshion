@@ -34,6 +34,9 @@
  *   new HingeJoint(a,b,opt)   new DistanceJoint(a,b,opt)   joint.delete()
  *   new SliderJoint(a,b,opt)  new WheelJoint(a,b,opt)  new GrabberJoint(a,b,opt)
  *   new GlueJoint(a,b)        joint.length (DistanceJoint, settable post-construction)
+ *   world.origin = 'math'     opt-in coordinate mode: origin at the canvas CENTRE, y UP,
+ *                             angles counter-clockwise (default 'screen': top-left, y down)
+ *   showGrid(step) showMouse() draw-time helpers that label the active coordinates
  *
  * Physics: REAL Box2D (via planck.js), not arcade.
  *   - Stacking, sleeping, actual circle colliders, joints (W17) all work.
@@ -164,7 +167,7 @@
     // same cursor in SCREEN pixels, which is what a fixed HUD needs: without
     // it, a HUD button hit-tested against mouse.x starts answering wrong the
     // moment the camera moves, and nothing errors.
-    get canvasPos() { return { x: MOUSE.x - _camLeft(), y: MOUSE.y - _camTop() }; },
+    get canvasPos() { const o = _frameOrigin(); return { x: MOUSE.x - o.x, y: MOUSE.y - o.y }; },
     // Boolean, matching mouse.pressing() as taught in 6.7.3/6.7.8 (used as
     // `if (!mouse.pressing())` in the drag-and-drop lesson).
     pressing: () => { const v = MOUSE._c; return v === -3 || v > 0; },
@@ -238,7 +241,9 @@
   }
 
   // world.gravity — raw Box2D m/s², exactly like the reference API's world.gravity.
-  // `world.gravity.y = 10` is ~1g; `= 0` is zero-G. The world STARTS at 0, as
+  // `world.gravity.y = 10` is ~1g; `= 0` is zero-G. In 'math' mode (y up) the
+  // same raw number points the other way on screen: a falling world there is
+  // `world.gravity.y = -10`, exactly as a physics class writes it. The world STARTS at 0, as
   // the reference API's does: a plain `new Sprite()` stays where it was put
   // until a sketch turns gravity on (see _world()). The px/frame² facade
   // unit was 60x too strong (10 px/frame² = 1200 m/s² = 122g), which crushed
@@ -246,6 +251,65 @@
   // `world.gravity.y = 0` sticks (a plain getter returning a fresh object
   // made gravity writes silent no-ops).
   const world = {};
+
+  // ---- coordinate mode: world.origin = 'screen' | 'math' ------------------
+  //
+  // 'screen' (the default, and what every existing sketch runs on): (0, 0) is
+  // the canvas's top-left corner, x grows right, y grows DOWN, and a positive
+  // rotation turns clockwise -- the browser canvas's own convention, p5play's
+  // too. 'math' is the opt-in mode for a module that wants the grid students
+  // know from math class: (0, 0) is the CENTRE of the canvas, y grows UP, and
+  // a positive rotation turns counter-clockwise from the +x axis.
+  //
+  // How it works, and why this way: the physics world is left entirely alone.
+  // Box2D's own frame IS the math one (y up, angles counter-clockwise), and in
+  // 'screen' mode this engine has always drawn that frame onto a y-down canvas
+  // without ever flipping anything, which is why `vel.y = 5` moves a sprite
+  // down the screen and gravity is `+10`. So 'math' mode changes ONE thing:
+  // the canvas transform every draw goes through (`_applyFrame()`) becomes
+  // "centre the origin, flip y", and text and pictures are flipped back so
+  // they read upright. Every number a sketch reads or writes -- sprite.x/y,
+  // vel, rotation, direction, gravity, forces, joint anchors, ray casts,
+  // the mouse -- is then a Box2D number shown the Box2D way round. Nothing is
+  // converted at the API boundary, so there is no sign to get wrong twice.
+  // The places that DO have an opinion about which way is up are each
+  // branched on `ORIGIN_` and listed here so the audit is one grep:
+  //   _applyFrame (the transform), background, text, Sprite._draw (pictures,
+  //   emoji, patterns and labels flipped back), _cullView, _frameOrigin
+  //   (canvasPos / screen-space hit-tests), _pointerTo (the mouse), Canvas
+  //   and the origin setter (camera start), Tiles (row direction),
+  //   Walls, Group.cull (which edge is "top"), _drawGrid / _drawMouse.
+  //
+  // The rule for when it may be set: at the top of setup(), before any sprite
+  // exists, before gravity is set and before the first frame. Nothing already
+  // in the world is converted (a sprite made at y = 50 in screen mode would
+  // jump to a different place on the canvas), so the setter refuses with a
+  // plain message rather than move things. It also parks the camera on the
+  // mode's own origin, the same place `new Canvas()` would have put it.
+  let ORIGIN_ = 'screen';
+  const ORIGIN_CHOICES_ = "'screen' (top-left corner, y grows down -- the default) or 'math' (canvas centre, y grows up)";
+  Object.defineProperty(world, 'origin', {
+    enumerable: true,
+    get() { return ORIGIN_; },
+    set(v) {
+      if (v !== 'screen' && v !== 'math') {
+        throw new TypeError(`world.origin must be ${ORIGIN_CHOICES_}, not ${JSON.stringify(v)}`);
+      }
+      if (v === ORIGIN_) return;
+      if (ALL_.length || FRAME_ > 0) {
+        throw new Error(`world.origin = '${v}' must come before any sprite is made and before the first frame -- put it at the top of setup()`);
+      }
+      if (WORLD_) {
+        const g = WORLD_.getGravity();
+        if (g.x !== 0 || g.y !== 0) {
+          throw new Error(`world.origin = '${v}' must come before world.gravity is set -- in 'math' mode a falling world is world.gravity.y = -10`);
+        }
+      }
+      ORIGIN_ = v;
+      if (CANVAS_) _parkCamera();
+    },
+  });
+
   Object.defineProperty(world, 'gravity', {
     get() {
       const g = _world().getGravity();
@@ -289,8 +353,43 @@
   function _camLeft() { return camera.x - (W_ || 0) / 2; }
   function _camTop() { return camera.y - (H_ || 0) / 2; }
 
-  function _applyCamera() {
-    if (camera._active) CTX_.translate(-_camLeft(), -_camTop());
+  // The transform for one drawing pass. `withCamera` false is the fixed frame
+  // a HUD draws in (drawTop(), camera.off(), screenSpace sprites). In 'screen'
+  // mode that frame is the raw canvas, so nothing happens; in 'math' mode it
+  // is still centred and y-up -- "the camera is off" means "the camera is
+  // back at (0, 0)", not "fall back to top-left pixels".
+  function _applyFrame(withCamera) {
+    if (ORIGIN_ === 'math') {
+      CTX_.translate(W_ / 2, H_ / 2);
+      CTX_.scale(1, -1);
+      if (withCamera) CTX_.translate(-camera.x, -camera.y);
+      return;
+    }
+    if (withCamera) CTX_.translate(-_camLeft(), -_camTop());
+  }
+  function _applyCamera() { _applyFrame(camera._active); }
+
+  // The world point that sits at the fixed frame's origin: subtracting it
+  // from a world coordinate gives canvasPos. 'screen': the viewport's top-left
+  // corner; 'math': the point the camera is centred on.
+  function _frameOrigin() {
+    if (ORIGIN_ === 'math') return { x: camera.x, y: camera.y };
+    return { x: _camLeft(), y: _camTop() };
+  }
+
+  // World -> canvas pixel (top-left origin, y down), camera included. Used by
+  // the overlays that paint in pixel space so their text stays upright.
+  function _toPixel(wx, wy) {
+    if (ORIGIN_ === 'math') return { x: wx - camera.x + W_ / 2, y: H_ / 2 - (wy - camera.y) };
+    return { x: wx - _camLeft(), y: wy - _camTop() };
+  }
+
+  // Where an untouched camera rests: the canvas centre, in the mode's own
+  // numbers. 'screen' calls the centre (w/2, h/2); 'math' calls it (0, 0).
+  function _parkCamera() {
+    if (ORIGIN_ === 'math') { camera.x = 0; camera.y = 0; return; }
+    camera.x = W_ / 2;
+    camera.y = H_ / 2;
   }
 
   // Named collider-type constants, matching the reference API's globals. Their VALUES
@@ -309,15 +408,24 @@
       CANVAS_.width = w; CANVAS_.height = h;
       CTX_ = CANVAS_.getContext('2d');
       // An untouched camera must be a no-op, so it starts centred on the
-      // canvas rather than at the world origin.
-      camera.x = w / 2;
-      camera.y = h / 2;
+      // canvas rather than at the world origin (in 'math' mode the centre IS
+      // the origin, so it starts at (0, 0) -- see _parkCamera).
+      _parkCamera();
       document.body.appendChild(CANVAS_);
     }
   }
 
   function background(color) {
     CTX_.save();
+    if (ORIGIN_ === 'math') {
+      // The whole canvas, whatever the camera is doing: the same answer the
+      // branch below gives, without a flipped rect to reason about.
+      CTX_.resetTransform();
+      CTX_.fillStyle = color;
+      CTX_.fillRect(0, 0, W_, H_);
+      CTX_.restore();
+      return;
+    }
     _applyCamera();
     CTX_.fillStyle = color;
     CTX_.fillRect(_camLeft(), _camTop(), W_, H_);
@@ -791,9 +899,12 @@
     // pixel it appears at is its own x/y. Subtracting the camera from it
     // reported a HUD button at x=-440 while it was plainly visible at x=60.
     // canvasPos means "where is this on screen"; for these it is identity.
+    // "On screen" is the fixed frame drawTop() draws in: raw pixels in
+    // 'screen' mode, the centred y-up frame with the camera removed in 'math'.
     get canvasPos() {
       if (this.screenSpace) return { x: this.x, y: this.y };
-      return { x: this.x - _camLeft(), y: this.y - _camTop() };
+      const o = _frameOrigin();
+      return { x: this.x - o.x, y: this.y - o.y };
     }
 
     // prevPos/previousPosition, prevRotation/previousRotation: the position
@@ -1417,7 +1528,10 @@
     //
     // which is true on the floor and false against a wall or a ceiling, where
     // `player.colliding(ground)` is true in all three. Offsets are from the
-    // sprite's centre and turn with it. Defaults: no offset, the sprite's size.
+    // sprite's centre and turn with it, in the active coordinates: +offsetY is
+    // below the sprite in 'screen' mode and ABOVE it in 'math' mode, where the
+    // same foot sensor is addSensor(0, -21, 26, 4). Defaults: no offset, the
+    // sprite's size.
     // Box2D only reports contacts that involve a moving (dynamic) body, so a
     // sensor on a static or kinematic sprite sees only dynamic ones. Like
     // colliding(), the answer is from this frame's physics step. world.rayCast
@@ -1446,6 +1560,11 @@
       CTX_.translate(this.x, this.y);
       CTX_.rotate((this.rotation * Math.PI) / 180);
       CTX_.scale(this.scale.x, this.scale.y);
+      // 'math' mode draws through a y-flipped canvas (see _applyFrame). The
+      // coloured rect and circle are symmetric about the centre, so flipping
+      // back here changes nothing for them, and it is what turns a picture, an
+      // emoji or a tiling pattern the right way up again.
+      if (ORIGIN_ === 'math') CTX_.scale(1, -1);
       // Art that is still loading draws nothing (no flash of the colored block
       // before the picture pops in); art that FAILED to load falls back to the
       // colored shape, so a typo in a URL shows a block, not an invisible sprite.
@@ -1524,6 +1643,7 @@
         CTX_.save();
         CTX_.globalAlpha = this.opacity;
         CTX_.translate(this.x, this.y);
+        if (ORIGIN_ === 'math') CTX_.scale(1, -1); // read upright through the flipped frame
         CTX_.font = `${this.textSize}px monospace`;
         CTX_.textAlign = 'center';
         CTX_.textBaseline = 'middle';
@@ -1818,9 +1938,16 @@
         throw new TypeError('the callback to group.cull() must be a function');
       }
       // Bounds are in world space, so a scrolled camera culls against what is
-      // actually on screen rather than against the origin.
-      const minX = _camLeft() - left, minY = _camTop() - top;
-      const maxX = _camLeft() + W_ + right, maxY = _camTop() + H_ + bottom;
+      // actually on screen rather than against the origin. `top` is always the
+      // margin past the top EDGE of the screen: the larger y in 'math' mode.
+      let minX, minY, maxX, maxY;
+      if (ORIGIN_ === 'math') {
+        minX = camera.x - W_ / 2 - left; maxX = camera.x + W_ / 2 + right;
+        minY = camera.y - H_ / 2 - bottom; maxY = camera.y + H_ / 2 + top;
+      } else {
+        minX = _camLeft() - left; minY = _camTop() - top;
+        maxX = _camLeft() + W_ + right; maxY = _camTop() + H_ + bottom;
+      }
       let culled = 0;
       // Snapshot first: deleting a member mutates the array underneath us.
       for (const s of [...this]) {
@@ -1858,7 +1985,9 @@
   // character (a space, '.') is an empty cell. Column c of row r is centred
   // at (x + c * w, y + r * h), so x, y is the CENTRE of the top-left tile,
   // the same way a sprite's x, y is its centre; a group default size (e.g.
-  // coins.diameter) wins over the tile size. `h` defaults to `w`.
+  // coins.diameter) wins over the tile size. `h` defaults to `w`. Rows go
+  // DOWN the screen in both coordinate modes -- the first string is the top
+  // row -- so in 'math' mode (y up) row r is centred at y - r * h.
   //
   // The Tiles object is itself a Group holding every sprite it made, in
   // reading order, so `level.delete()` clears the level. Legend keys may be
@@ -1894,12 +2023,13 @@
           throw new TypeError(`${sig}: legend['${key}'] must be a Group (made with new Group())`);
         }
       }
+      const rowStep = ORIGIN_ === 'math' ? -h : h; // the next row is further down the screen
       for (let r = 0; r < map.length; r++) {
         const cells = Array.from(map[r]); // by character, so an emoji is one cell
         for (let c = 0; c < cells.length; c++) {
           const ch = cells[c];
           if (!Object.prototype.hasOwnProperty.call(legend, ch)) continue;
-          this.push(new legend[ch].Sprite(x + c * w, y + r * h, w, h));
+          this.push(new legend[ch].Sprite(x + c * w, y + r * rowStep, w, h));
         }
       }
     }
@@ -1921,13 +2051,24 @@
       if (typeof thickness !== 'number' || !(thickness > 0)) {
         throw new TypeError('new Walls(thickness): thickness must be a number above 0');
       }
-      const t = thickness, l = _camLeft(), top = _camTop(), w = W_, h = H_;
+      const t = thickness, w = W_, h = H_;
       const make = (name, cx, cy, ww, hh) => {
         const s = new Sprite(cx, cy, ww, hh, 'static');
         s.color = 'gray';
         this.push(s);
         Object.defineProperty(this, name, { value: s, enumerable: false });
       };
+      if (ORIGIN_ === 'math') {
+        // Same four walls, with "top" the larger y. walls.top is still the
+        // one above the screen and walls.bottom the floor.
+        const cx = camera.x, cy = camera.y;
+        make('top', cx, cy + h / 2 + t / 2, w + 2 * t, t);
+        make('bottom', cx, cy - h / 2 - t / 2, w + 2 * t, t);
+        make('left', cx - w / 2 - t / 2, cy, t, h);
+        make('right', cx + w / 2 + t / 2, cy, t, h);
+        return;
+      }
+      const l = _camLeft(), top = _camTop();
       make('top', l + w / 2, top - t / 2, w + 2 * t, t);
       make('bottom', l + w / 2, top + h + t / 2, w + 2 * t, t);
       make('left', l - t / 2, top + h / 2, t, h);
@@ -1982,7 +2123,8 @@
       // sprite that is not in world space. Doing it here means the natural
       // call keeps working for both kinds at once.
       if (s.screenSpace) {
-        const sx = x - _camLeft(), sy = y - _camTop();
+        const o = _frameOrigin();
+        const sx = x - o.x, sy = y - o.y;
         if (radius > 0) {
           if (s.shape === 'circle') return Math.hypot(sx - s.x, sy - s.y) <= s.w / 2 + radius;
           const sb = s._bounds();
@@ -2482,7 +2624,7 @@
       if (!list.length) return;
       const view = _cullView(useCamera);
       CTX_.save();
-      if (useCamera) _applyCamera();
+      _applyFrame(useCamera && camera._active);
       for (const s of list) {
         if (!s.autoDraw) continue; // Sprite, SPEC-surface #3: false skips this sprite entirely
         if (s.ani) s.ani._advance(); // advances on or off screen, so culling never freezes it
@@ -2522,6 +2664,12 @@
     if (!m || m.a !== 1 || m.b !== 0 || m.c !== 0 || m.d !== 1 || m.e !== 0 || m.f !== 0) return null;
     const w = CANVAS_ ? CANVAS_.width : W_, h = CANVAS_ ? CANVAS_.height : H_;
     const cam = useCamera && camera._active;
+    if (ORIGIN_ === 'math') {
+      // Centred frame: t/b are just the smaller and larger y, which is all
+      // _offView() needs.
+      const cx = cam ? camera.x : 0, cy = cam ? camera.y : 0;
+      return { l: cx - w / 2, t: cy - h / 2, r: cx + w / 2, b: cy + h / 2 };
+    }
     const l = cam ? _camLeft() : 0, t = cam ? _camTop() : 0;
     return { l, t, r: l + w, b: t + h };
   }
@@ -2553,7 +2701,104 @@
     CTX_.fillStyle = color || TEXT_COLOR;
     CTX_.font = (size || TEXT_SIZE) + 'px monospace';
     CTX_.textAlign = TEXT_ALIGN;
-    CTX_.fillText(str, x, y);
+    if (ORIGIN_ === 'math') {
+      // Flip back at the anchor so the text reads upright. The baseline still
+      // sits on y; the letters rise above it, which in this mode is +y.
+      CTX_.translate(x, y);
+      CTX_.scale(1, -1);
+      CTX_.fillText(str, 0, 0);
+    } else {
+      CTX_.fillText(str, x, y);
+    }
+    CTX_.restore();
+  }
+
+  // ---- coordinate overlays: showGrid(step), showMouse() --------------------
+  //
+  // Both are called from draw() and remembered for the frame; loop() paints
+  // them right after the sprites and before drawTop(), so they sit over the
+  // world and under a HUD. They paint in canvas pixels (text stays upright in
+  // either mode) and touch nothing but the canvas: no sprite, no physics.
+  let GRID_STEP_ = null, SHOW_MOUSE_ = false;
+
+  // A light grid every `step` world units with the axes drawn heavier and
+  // labelled in the ACTIVE coordinates: 'math' puts the origin at the centre
+  // with y labels growing upward; 'screen' puts 0,0 at the top-left with y
+  // labels growing downward. The grid is in world space, so it scrolls with
+  // the camera and its labels keep telling the truth about sprite.x/y.
+  function showGrid(step) {
+    if (step === undefined) step = 50;
+    if (typeof step !== 'number' || !(step > 0)) {
+      throw new TypeError(`showGrid(step): step must be a number above 0 -- the distance between grid lines (default 50), got ${String(step)}`);
+    }
+    GRID_STEP_ = step;
+  }
+  function showMouse() { SHOW_MOUSE_ = true; }
+
+  function _drawOverlays() {
+    if (GRID_STEP_ !== null) { _drawGrid(GRID_STEP_); GRID_STEP_ = null; }
+    if (SHOW_MOUSE_) { _drawMouse(); SHOW_MOUSE_ = false; }
+  }
+
+  function _drawGrid(step) {
+    // World coordinates of the visible edges, as the smaller/larger value on
+    // each axis so the loops below do not care which way is up.
+    const math = ORIGIN_ === 'math';
+    const l = math ? camera.x - W_ / 2 : _camLeft();
+    const yLo = math ? camera.y - H_ / 2 : _camTop();
+    const r = l + W_, yHi = yLo + H_;
+    // Many hundreds of lines a frame would stall the sketch; coarsen quietly.
+    while (Math.max(W_, H_) / step > 200) step *= 2;
+    CTX_.save();
+    CTX_.resetTransform();
+    CTX_.lineWidth = 1;
+    CTX_.font = '11px monospace';
+    CTX_.textAlign = 'left';
+    CTX_.textBaseline = 'alphabetic';
+    const axis = _toPixel(0, 0);
+    // Labels hug the axes while they are on screen and the nearest edge once
+    // they have scrolled off, so a label is always readable.
+    const ax = Math.min(Math.max(axis.x, 0), W_ - 36);
+    const ay = Math.min(Math.max(axis.y, 14), H_ - 4);
+    const line = (x1, y1, x2, y2) => { CTX_.beginPath(); CTX_.moveTo(x1, y1); CTX_.lineTo(x2, y2); CTX_.stroke(); };
+    const px = (v) => Math.round(v) + 0.5;
+    CTX_.strokeStyle = 'rgba(136, 136, 136, 0.4)';
+    for (let x = Math.ceil(l / step) * step; x <= r; x += step) {
+      if (x !== 0) line(px(_toPixel(x, 0).x), 0, px(_toPixel(x, 0).x), H_);
+    }
+    for (let y = Math.ceil(yLo / step) * step; y <= yHi; y += step) {
+      if (y !== 0) line(0, px(_toPixel(0, y).y), W_, px(_toPixel(0, y).y));
+    }
+    CTX_.strokeStyle = 'rgba(136, 136, 136, 0.95)';
+    CTX_.lineWidth = 1.5;
+    if (axis.x >= 0 && axis.x <= W_) line(px(axis.x), 0, px(axis.x), H_);
+    if (axis.y >= 0 && axis.y <= H_) line(0, px(axis.y), W_, px(axis.y));
+    CTX_.fillStyle = '#9aa0ad';
+    for (let x = Math.ceil(l / step) * step; x <= r; x += step) {
+      if (x !== 0) CTX_.fillText(String(x), _toPixel(x, 0).x + 3, ay);
+    }
+    for (let y = Math.ceil(yLo / step) * step; y <= yHi; y += step) {
+      if (y !== 0) CTX_.fillText(String(y), ax + 4, _toPixel(0, y).y - 3);
+    }
+    if (axis.x >= 0 && axis.x <= W_ && axis.y >= 0 && axis.y <= H_) CTX_.fillText('0', axis.x + 4, axis.y + 12);
+    CTX_.restore();
+  }
+
+  // The pointer's position in the active coordinates, printed beside it.
+  function _drawMouse() {
+    if (!MOUSE._seen) return;
+    const p = _toPixel(MOUSE.x, MOUSE.y);
+    const label = `(${Math.round(MOUSE.x)}, ${Math.round(MOUSE.y)})`;
+    CTX_.save();
+    CTX_.resetTransform();
+    CTX_.font = '12px monospace';
+    CTX_.textAlign = 'left';
+    CTX_.textBaseline = 'alphabetic';
+    CTX_.lineWidth = 3;
+    CTX_.strokeStyle = 'rgba(0, 0, 0, 0.8)';
+    CTX_.strokeText(label, p.x + 12, p.y - 8);
+    CTX_.fillStyle = 'white';
+    CTX_.fillText(label, p.x + 12, p.y - 8);
     CTX_.restore();
   }
 
@@ -3258,8 +3503,14 @@
       const r = CANVAS_.getBoundingClientRect();
       const sx = r.width ? CANVAS_.width / r.width : 1;
       const sy = r.height ? CANVAS_.height / r.height : 1;
-      MOUSE.x = (clientX - r.left) * sx + _camLeft();
-      MOUSE.y = (clientY - r.top) * sy + _camTop();
+      if (ORIGIN_ === 'math') {
+        // Pixel -> centred, y-up world point (the inverse of _toPixel).
+        MOUSE.x = (clientX - r.left) * sx - W_ / 2 + camera.x;
+        MOUSE.y = H_ / 2 - (clientY - r.top) * sy + camera.y;
+      } else {
+        MOUSE.x = (clientX - r.left) * sx + _camLeft();
+        MOUSE.y = (clientY - r.top) * sy + _camTop();
+      }
       MOUSE._seen = true;
     };
     CANVAS_.addEventListener('mousemove', (e) => {
@@ -3394,6 +3645,7 @@
       }
       drawFn();
       render();
+      _drawOverlays(); // showGrid()/showMouse(): over the world, under the HUD
       // drawTop(): the HUD hook. render() paints sprites AFTER the sketch's
       // draw(), so anything draw() puts on the canvas with primitives ends up
       // UNDERNEATH every sprite — a score at the top-left vanishes behind
@@ -3520,6 +3772,8 @@
   global.rect = rect;
   global.line = line;
   global.clear = clear;
+  global.showGrid = showGrid;
+  global.showMouse = showMouse;
   global.stroke = stroke;
   global.noStroke = noStroke;
   global.strokeWeight = strokeWeight;
