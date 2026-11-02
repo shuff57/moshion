@@ -51,6 +51,7 @@ bun tests/integration.spec.mjs    # index.html demo panel
 bun tests/viewport.spec.mjs       # the demo viewport shows the whole sketch
 bun tests/docs.spec.mjs           # every example on the docs site actually runs
 bun tests/gaps.spec.mjs           # broadphase exactness, culling, square, Tiles, Walls, timers, addSensor
+bun tests/math-origin.spec.mjs    # world.origin = 'math' (centre, y up) + showGrid/showMouse; default unchanged
 bun tests/tiles-perf.bench.mjs    # NOT a spec: frame cost with 300..2400 tile sprites
 ```
 
@@ -106,6 +107,8 @@ Key classes and where they live in `moshion.js`:
   `world.gravity.y = ...` line.
 - `camera` (~259) — `camera.off()`/`on()` gate the transform that every
   drawing primitive applies for itself.
+- `world.origin` (~255) — `'screen'` (default: top-left, y down) or `'math'`
+  (centre, y up, counter-clockwise angles). See "Coordinates" below.
 - Joints (~1683–1820) — thin facades over planck joints: `HingeJoint`,
   `DistanceJoint`, `SliderJoint`, `WheelJoint`, `GrabberJoint`, `GlueJoint`.
   All share `Joint.delete()`; there is no `joint.remove()`.
@@ -113,6 +116,44 @@ Key classes and where they live in `moshion.js`:
   `mouse.pressing`/`presses`/`released`. Edge flags reset AFTER the frame's
   update/draw ran (see the comment in `loop()` — reordering this breaks
   `presses()`).
+
+### Coordinates (`world.origin`)
+
+Default = **screen**: (0, 0) top-left, y down, like the browser canvas and
+p5play. Opt-in = **math**: (0, 0) at the canvas centre, y up, angles
+counter-clockwise. It is a mode, not a new default; no sketch that never sets
+`world.origin` may change by a pixel (the 504-sketch shCode corpus was run on
+both engines for 180 frames and compared op-for-op when the mode landed).
+
+How it is built, and the rule for extending it: **the physics world is never
+converted.** Box2D's own frame is already the math one (y up, CCW), and screen
+mode has always drawn that frame onto a y-down canvas without flipping, which
+is why `vel.y = 5` moves down there. Math mode changes only the canvas
+transform (`_applyFrame()`: centre, `scale(1, -1)`) and flips text, emoji,
+pictures and patterns back so they read upright. Every number the sketch sees
+-- x/y, vel, rotation, direction, gravity, forces, joint anchors, ray casts,
+mouse -- is a Box2D number shown the Box2D way round, so there is no sign to
+get wrong twice. The places that have an opinion about which way is up are
+each branched on `ORIGIN_` and listed at its declaration: `_applyFrame`,
+`background`, `text`, `Sprite._draw`, `_cullView`, `_frameOrigin`
+(canvasPos / screen-space hit-tests), `_pointerTo`, `Canvas`/`_parkCamera`,
+`Tiles` (row direction), `Walls`, `Group.cull`, `_drawGrid`/`_drawMouse`. A
+new feature that asks "which way is up" belongs on that list; one that only
+moves or measures things does not need to know.
+
+Consequences a lesson author relies on: a falling world is `gravity.y = -10`;
+`direction = 90` and `vel.y > 0` go up; `Tiles` row 0 is still the top row
+(y decreases per row); `Walls.top` is still above the screen (larger y);
+`addSensor(0, -21, ...)` is the foot sensor; `rect(x, y, w, h)` covers
+`y..y+h` (upward); `camera.off()`/`drawTop()`/`screenSpace` draw in the same
+centred y-up frame with the camera at (0, 0), so `canvasPos` is "world minus
+camera", not raw pixels. A sketch's own `sprite.draw` that writes to the
+canvas context directly sees the flipped transform and must counter-flip its
+own text and images (the primitives do it for them). `showGrid(step)` and
+`showMouse()` paint in pixel space after `render()` and before `drawTop()`.
+
+The setter refuses, with a plain message, any value but the two strings, and
+any change once a sprite exists, gravity is non-zero or a frame has run.
 
 ### Key invariants when editing
 

@@ -1,5 +1,12 @@
 // moSHion type declarations — hand-authored from public/moshion/moshion.js.
 // Covers the full public API surface exported by the engine IIFE.
+//
+// Coordinates: by default (0, 0) is the canvas's top-left corner, x grows to
+// the right and y grows DOWN, like the browser canvas and p5play. That is
+// `world.origin = 'screen'`. A sketch can ask for the grid from math class
+// instead: `world.origin = 'math'` puts (0, 0) at the CENTRE of the canvas
+// with y growing UP and angles turning counter-clockwise. Every x, y, angle
+// and velocity in this file is then read in that frame. See World.origin.
 
 // ---- vector types --------------------------------------------------------
 
@@ -46,7 +53,10 @@ declare class Sprite {
   x: number;
   y: number;
   color: string;
+  /** Degrees. Positive turns clockwise in the default mode and
+   *  counter-clockwise in math mode (world.origin = 'math'). */
   rotation: number;
+  /** Degrees per frame, same turning direction as .rotation. */
   angularVelocity: number;
   layer: number;
   visible: boolean;
@@ -70,8 +80,9 @@ declare class Sprite {
   // mass and ignores a mass assignment).
   mass: number;
   // speed (px/frame, magnitude of .vel) and direction (degrees, 0 = right,
-  // same convention as .rotation) are a polar view onto .vel — setting one
-  // preserves the other. A negative speed reverses.
+  // same convention as .rotation: 90 is down by default and UP in math mode)
+  // are a polar view onto .vel — setting one preserves the other. A negative
+  // speed reverses.
   speed: number;
   direction: number;
   // text: a HUD-style label drawn centered over the sprite (axis-aligned,
@@ -136,7 +147,8 @@ declare class Sprite {
   // Steps this fraction (default 0.1) of the remaining distance to (x, y)
   // every call — call once per update() frame for a smooth approach.
   // Distance and bearing to another point or sprite. angleTo uses the same
-  // degree convention as .rotation and .direction (0 is right, 90 is down).
+  // degree convention as .rotation and .direction (0 is right; 90 is down by
+  // default and up in math mode).
   distanceTo(x: number, y: number): number;
   distanceTo(target: { x: number; y: number }): number;
   angleTo(x: number, y: number): number;
@@ -170,9 +182,12 @@ declare class Sprite {
   remove(): void;
   /** A box riding on this sprite that only detects: it pushes nothing,
    *  weighs nothing, and colliding() never counts it. Offsets are from the
-   *  sprite's centre and turn with it; defaults are no offset and the
-   *  sprite's own size. The usual one is a ground sensor, a thin strip under
-   *  a player: `feet.overlaps(ground)` is true on the floor and false against
+   *  sprite's centre and turn with it, in the active coordinates (+offsetY is
+   *  below the sprite by default and ABOVE it in math mode); defaults are no
+   *  offset and the sprite's own size. The usual one is a ground sensor, a
+   *  thin strip under a player (`addSensor(0, 21, 26, 4)` on a 30x40 player,
+   *  or `addSensor(0, -21, 26, 4)` in math mode):
+   *  `feet.overlaps(ground)` is true on the floor and false against
    *  a wall or a ceiling, where `player.colliding(ground)` is true in all
    *  three. Box2D only reports contacts that involve a dynamic body, so a
    *  sensor on a static or kinematic sprite sees only dynamic sprites.
@@ -335,9 +350,11 @@ declare class Group extends Array<Sprite> {
  * one `new group.Sprite()` from that group, so the group's defaults
  * (collider, color, diameter, texture, custom fields) apply; any other
  * character (a space, '.') is an empty cell. Column c of row r is centred at
- * (x + c * w, y + r * h): x, y is the CENTRE of the top-left tile. A group
- * default size (e.g. `coins.diameter`) wins over the tile size. `h` defaults
- * to `w`. Legend keys are single characters, emoji included.
+ * (x + c * w, y + r * h): x, y is the CENTRE of the top-left tile. The first
+ * string is always the TOP row on the screen, so in math mode (y up) row r is
+ * centred at y - r * h instead. A group default size (e.g. `coins.diameter`)
+ * wins over the tile size. `h` defaults to `w`. Legend keys are single
+ * characters, emoji included.
  *
  *     walls = new Group(); walls.collider = 'static';
  *     coins = new Group(); coins.collider = 'none'; coins.diameter = 14;
@@ -358,7 +375,8 @@ declare class Tiles extends Group {
  * playable (the walls are off screen, so not seen). Call after new Canvas().
  * Placed where the camera is looking when called; they do not follow it.
  * `player.colliding(walls)` asks "touching any edge";
- * `player.colliding(walls.bottom)` asks "on the floor".
+ * `player.colliding(walls.bottom)` asks "on the floor". `top` is the wall
+ * above the screen in both coordinate modes (the larger y in math mode).
  */
 declare class Walls extends Group {
   constructor(thickness?: number); // default 50
@@ -461,8 +479,29 @@ declare function loadSound(url: string, opts?: { clips?: SoundClips }): Sound;
 declare function masterVolume(v?: number): number;
 
 interface World {
+  /**
+   * Which way the coordinates go. Read it any time; set it once, at the top
+   * of setup(), before any sprite is made and before gravity is set.
+   *
+   *   'screen' (the default): (0, 0) is the top-left corner of the canvas,
+   *            x grows to the right, y grows DOWN. Like the browser canvas
+   *            and p5play. Every sketch that never sets this runs exactly as
+   *            it always has.
+   *   'math':  (0, 0) is the CENTRE of the canvas, x grows to the right,
+   *            y grows UP, and a positive rotation turns counter-clockwise
+   *            from the +x axis, like a graph in math class.
+   *
+   * In math mode every number keeps its meaning but points the math way:
+   * `vel.y = 5` moves a sprite up, a falling world is `world.gravity.y = -10`,
+   * `direction = 90` points up, and the camera starts at (0, 0). Text and
+   * pictures still read upright. Any other value throws a TypeError naming
+   * the two choices; changing it after a sprite exists, after gravity is set
+   * or after the first frame throws an Error that says so.
+   */
+  origin: 'screen' | 'math';
   /** Raw Box2D m/s²; y = 10 is about 1g. Starts at (0, 0), as in p5play:
-   *  nothing falls until you set world.gravity.y. */
+   *  nothing falls until you set world.gravity.y. In math mode (y up) a
+   *  falling world is y = -10. */
   gravity: Vec2;
   getSpriteAt(x: number, y: number): Sprite | undefined;
   /** Every live sprite at a point, topmost first. Optional radius (measured
@@ -570,8 +609,10 @@ interface Mouse {
   x: number;
   y: number;
   // x/y/pos are WORLD coordinates (camera included, so they line up with
-  // sprite.x/y). canvasPos is the same cursor in screen pixels — what a
-  // fixed HUD needs to hit-test against once the camera scrolls.
+  // sprite.x/y, in whichever coordinate mode world.origin picks). canvasPos
+  // is the same cursor with the camera taken out — the frame drawTop() draws
+  // in — which is what a fixed HUD needs to hit-test against once the camera
+  // scrolls.
   readonly pos: Vec2;
   readonly position: Vec2;
   readonly canvasPos: Vec2;
@@ -613,10 +654,16 @@ declare class Canvas {
 // ---- globals -------------------------------------------------------------
 
 declare const world: World;
+/** camera.x/y is the world point the canvas is CENTRED on. new Canvas() parks
+ *  it on the canvas centre, so an untouched camera changes nothing: that is
+ *  (w/2, h/2) by default and (0, 0) in math mode. */
 interface Camera extends Vec2 {
   /** False while drawing is pinned to the screen. */
   readonly isActive: boolean;
-  /** Draw in screen space from here on — for HUDs and overlays. */
+  /** Draw in screen space from here on — for HUDs and overlays. In math mode
+   *  "screen space" is still centred and y-up; the camera is just back at
+   *  (0, 0), so text(score, -190, 130) sits near the top-left of a 400x300
+   *  canvas. */
   off(): void;
   /** Back to world space. */
   on(): void;
@@ -661,7 +708,23 @@ declare function draw(): void;
 declare function drawTop(): void;
 
 declare function background(color: string): void;
+/** Text with its baseline on y. The letters rise above the baseline in both
+ *  coordinate modes, so in math mode they rise toward +y; never mirrored. */
 declare function text(str: string, x: number, y: number, size?: number, color?: string): void;
+/**
+ * Draws a light grid with labelled axes over the canvas, in the ACTIVE
+ * coordinates, so students can see where (0, 0) is and which way y goes:
+ * in math mode the axes cross at the centre and the y labels grow upward;
+ * by default 0,0 is the top-left corner and the y labels grow downward.
+ * `step` is the distance between lines (default 50). Call it from draw()
+ * every frame you want it shown. It is painted after the sprites and before
+ * drawTop(), so it shows over the world and under your HUD. It only draws:
+ * no sprite, physics or collision changes.
+ */
+declare function showGrid(step?: number): void;
+/** Prints the pointer's (x, y) in the active coordinates beside it. Call it
+ *  from draw(); painted with showGrid(), over the sprites. */
+declare function showMouse(): void;
 declare function fill(c: string | number): void;
 declare function textSize(px: number): void;
 declare function textAlign(mode: 'left' | 'center' | 'right'): void;
@@ -709,7 +772,9 @@ declare function circle(x: number, y: number, d: number): void;
 declare function ellipse(x: number, y: number, w: number, h?: number): void;
 // Optional 5th arg `r` is a uniform corner radius (real q5's rect() takes
 // four independent corner radii; moSHion's rect() only exposes one shared
-// value — the only form real lesson code uses).
+// value — the only form real lesson code uses). The rectangle covers x..x+w
+// and y..y+h in the active coordinates: from its corner (x, y) it extends
+// down the screen by default and UP in math mode.
 declare function rect(x: number, y: number, w: number, h: number, r?: number): void;
 declare function line(x1: number, y1: number, x2: number, y2: number): void;
 declare function clear(): void;

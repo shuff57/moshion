@@ -59,7 +59,9 @@ hand-authored reference):
   (static walls round the canvas edges), `sprite.addSensor()` (a detect-only
   box, e.g. a ground sensor)
 - `every(frames, fn)` / `after(frames, fn)` — frame timers
-- `world`, `camera` — gravity, hit-testing, viewport
+- `world`, `camera` — gravity, hit-testing, viewport; `world.origin = 'math'`
+  for centre-origin, y-up coordinates (see Coordinates below), with
+  `showGrid()` / `showMouse()` to label whichever mode is active
 - `kb`, `mouse` — input with edge-triggered events (`kb.presses('w')`). A
   single touch drives the same `mouse` properties, so a pointer sketch works
   on a phone unchanged (no right-button equivalent: a second finger is ignored)
@@ -67,6 +69,44 @@ hand-authored reference):
   `GrabberJoint`, `GlueJoint`
 - `storeItem`/`getItem` — saves, bridged to the host page via postMessage
   (works even in opaque-origin iframes)
+
+## Coordinates
+
+By default moSHion uses **screen** coordinates: `(0, 0)` is the top-left corner
+of the canvas, x grows to the right and y grows **down**, like the browser canvas
+and p5play. Every sketch that never mentions `world.origin` runs exactly as it
+always has.
+
+A sketch can ask for the grid from math class instead:
+
+```js
+function setup() {
+  new Canvas(400, 300);
+  world.origin = 'math';   // first line after the canvas, before any sprite
+  world.gravity.y = -10;   // y points up now, so a falling world is negative
+  ball = new Sprite(0, 100, 30);   // (0, 0) is the centre; this is 100 above it
+}
+
+function draw() {
+  background('#111');
+  showGrid(50);   // labelled axes, so students can see where (0, 0) is
+  showMouse();    // prints the pointer's (x, y) beside it
+}
+```
+
+In **math** mode `(0, 0)` is the **centre** of the canvas, y grows **up**, and a
+positive rotation turns counter-clockwise from the +x axis. Every number keeps
+its meaning but points the math way: `vel.y = 5` moves up, `direction = 90`
+points up, `camera` starts at `(0, 0)`, `Tiles` still puts its first row at the
+top of the screen, `Walls.top` is still the wall above the screen, and text and
+pictures still read upright. `showGrid(step)` and `showMouse()` work in both
+modes and label whichever one is active, so the same two lines tell the truth
+in a default sketch too (0,0 at the top-left, y labels growing downward).
+
+`world.origin` accepts only `'screen'` and `'math'` (anything else throws a
+TypeError naming both) and must be set before the first sprite, before gravity
+and before the first frame; nothing already in the world is converted, so a late
+change throws instead of moving things.
 
 Console output and runtime errors are piped to the host with `postMessage`
 (`source: 'preview-console'` / `'preview-error'`), so hosts can show them in
