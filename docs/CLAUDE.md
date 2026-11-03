@@ -31,7 +31,7 @@ tooling is the Playwright spec suite under `tests/`.
   loads `textures.js` **before** `moshion.js` (the catalog must exist before a
   sketch runs -- `.texture` is a synchronous setter). `sprite.pattern` is a
   different thing: a repeating fill for big surfaces, taking a URL.
-- `assets/` — sprite-sheet art for lesson examples, plus `coin.wav` / `music.wav` for the Sound one.
+- `assets/` — sprite-sheet art for lesson examples, plus the 8-bit sound palette (`coin.wav`, `music.wav`, and the effect/menu cues).
 
 ## Commands
 
