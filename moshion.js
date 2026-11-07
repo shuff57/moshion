@@ -3571,6 +3571,20 @@
       const dragSlot = b === '_bl' ? '_dl' : b === '_bc' ? '_dc' : b === '_br' ? '_dr' : null;
       if (dragSlot && MOUSE[dragSlot] > 0) MOUSE[dragSlot] = -1;
     });
+    // A key or button still down when the sketch loses focus (a click on the
+    // editor, Alt-Tab) sends its keyup/mouseup to another window, never here,
+    // so it stayed "held" for good: kb.pressing('a') true forever, the player
+    // sliding, and an if/else-if chain stuck on that branch so no other key
+    // seemed to work (shCode issue #78). Losing focus releases everything,
+    // through the same release states a real keyup/mouseup gives.
+    window.addEventListener('blur', () => {
+      for (const k in KEYS_) if (KEYS_[k] > 0) _releaseKey(k);
+      for (const slot of ['_c', '_bl', '_bc', '_br']) {
+        const v = MOUSE[slot];
+        if (v > 0) MOUSE[slot] = v >= mouse.holdThreshold ? -2 : v > 1 ? -1 : -3;
+      }
+      for (const slot of ['_dl', '_dc', '_dr']) if (MOUSE[slot] > 0) MOUSE[slot] = -1;
+    });
 
     // ---- touch ----------------------------------------------------------
     //

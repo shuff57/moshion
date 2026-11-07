@@ -42,6 +42,7 @@ and prints `PASS`/`FAIL` per assertion (exit 0 only if all pass):
 bun tests/raycast.spec.mjs        # engine: world.rayCast
 bun tests/drawtop.spec.mjs        # engine: the drawTop() HUD hook
 bun tests/touch.spec.mjs          # engine: touch drives the mouse counters
+bun tests/focus.spec.mjs          # engine: losing focus releases held keys/buttons
 bun tests/touch-controls.spec.mjs # games' own on-screen touch controls
 bun tests/portal.spec.mjs         # games/portal.js
 bun tests/ray-siege.spec.mjs      # games/ray-siege.js
