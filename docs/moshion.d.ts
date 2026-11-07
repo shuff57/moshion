@@ -120,6 +120,12 @@ declare class Sprite {
 
   addAni(name: string, sheetUrl: string, frameCount: number): Ani;
   changeAni(name: string): void;
+  /** A new sprite that looks and behaves like this one: size, shape, colour,
+   *  outline, art, layer, rotation and physics settings, in the same groups.
+   *  Made in the same spot and still; move it before the next frame (two
+   *  solid sprites on top of each other push apart). Does not copy motion,
+   *  life, joints, or properties the sketch made up (hp, points). */
+  clone(): Sprite;
   applyForce(fx: number, fy: number): void;
   // Live geometry query (continuous truthy while touching), not edge-
   // triggered — cb fires once per overlapping pair/sprite each call.
@@ -534,6 +540,10 @@ interface World {
   physicsUpdate(step?: number): void;
   /** Restitution velocity threshold, px/frame. */
   bounceThreshold: number;
+  /** The speed cap, px/frame: no body moves farther than this in one frame.
+   *  Default 60. Raise it to go faster; the cost is that a very fast sprite
+   *  can skip past a thin one between frames. A number above 0, or it throws. */
+  maxSpeed: number;
   /**
    * Ray-cast the world for all fixtures in the path of the ray.
    * @param x1 - Start X (pixels) or {x, y} object

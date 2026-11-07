@@ -701,16 +701,14 @@
       );
       // planck (Box2D) clamps a body's per-step translation to 2 metres —
       // its anti-tunnelling safety, so a fast body can't skip through a
-      // thin wall between physics steps. At PXM=30 that's a hard ceiling of
-      // 60 px/frame: setting vel.x = 900 silently settles to 60 by the next
-      // step, with no error and no warning. DO NOT raise the clamp to chase
-      // a higher number — planck exposes no per-body override, and a config
-      // that did raise it would let sprites pass through walls. If a lesson
-      // needs faster motion, the fix is a bigger world scale (larger PXM),
-      // not a bigger vel.x.
+      // thin wall between physics steps. At PXM=30 that's a ceiling of
+      // 60 px/frame: setting vel.x = 900 settles to 60 by the next step.
+      // The ceiling is `world.maxSpeed` (one global, default 60, opt-in to
+      // raise -- see its definition for the cost); setting a speed past it
+      // warns once per run, naming that knob, instead of failing silently.
       this.vel = liveVec(
         () => { const v = this._body.getLinearVelocity(); return { x: v.x * PXM / FPS, y: v.y * PXM / FPS }; },
-        (x, y) => this._body.setLinearVelocity(pl.Vec2(x * FPS / PXM, y * FPS / PXM)),
+        (x, y) => { noteSpeed_(x, y); this._body.setLinearVelocity(pl.Vec2(x * FPS / PXM, y * FPS / PXM)); },
       );
 
       ALL_.push(this);
@@ -1259,6 +1257,60 @@
       const ani = this._anis && this._anis[name];
       if (!ani) return; // unregistered name — silent no-op, matches the reference API
       this.ani = ani;
+    }
+
+    // clone(): a new sprite that looks and behaves like this one, in the same
+    // spot, in the same groups (shCode issue #87). It copies the size, shape,
+    // rotation, colour and outline, text, art (image, texture, pattern and
+    // every addAni animation, each with its own frame counter), layer and
+    // visibility, and the physics knobs: collider, bounciness, friction,
+    // density, drag, rotation drag and lock, gravity scale. It does NOT copy
+    // motion (it starts still), life, joints, or properties the sketch made
+    // up itself (hp, points): set those on the copy. Joining the same groups
+    // is what lets `player.colliding(pipes)` see the copy too.
+    clone() {
+      const c = new Sprite(this.x, this.y, this.w, this.h);
+      // physics: the raw knobs, then one fixture rebuild with all of them
+      c._shape = this._shape;
+      c._bodyType = this._bodyType;
+      c._sensor = this._sensor;
+      c._bounciness = this._bounciness;
+      c._friction = this._friction;
+      c._density = this._density;
+      c._buildFixture();
+      c._body.setGravityScale(this._body.getGravityScale());
+      c._gravityBeforeNone = this._gravityBeforeNone;
+      c.drag = this.drag;
+      c.rotationDrag = this.rotationDrag;
+      c.rotationLock = this.rotationLock;
+      c.rotation = this.rotation;
+      // looks
+      for (const k of ['color', 'layer', 'visible', 'stroke', 'strokeWeight', 'opacity', 'text', 'textColor',
+        'textSize', '_textStroke', '_textStrokeWeight', 'screenSpace', 'debug', 'autoDraw', 'autoUpdate']) {
+        c[k] = this[k];
+      }
+      c._scale = { x: this._scale.x, y: this._scale.y };
+      if (this._visualOnly) c.visualOnly = true;
+      // art: pictures are shared (they never change); animations are copied
+      // so the clone keeps its own frame instead of flipping in step
+      c._img = this._img;
+      c._emoji = this._emoji;
+      c._texture = this._texture;
+      c._pattern = this._pattern || null;
+      if (this._anis) {
+        c._anis = new Anis();
+        for (const name of Object.keys(this._anis)) {
+          const a = this._anis[name];
+          c._anis[name] = Object.assign(Object.create(Ani.prototype), a, { frame: a.frame, _tick: a._tick });
+        }
+      }
+      if (this.ani) {
+        const own = this._anis && Object.keys(this._anis).find((n) => this._anis[n] === this.ani);
+        c.ani = own ? c._anis[own] : Object.assign(Object.create(Ani.prototype), this.ani);
+      }
+      // groups (the constructor already put it in allSprites)
+      for (const g of this._groups) if (g !== allSprites) g.push(c);
+      return c;
     }
 
     get x() { return this.pos.x; }
@@ -2208,6 +2260,43 @@
     get() { return pl.Settings.velocityThreshold * PXM / FPS; },
     set(v) { pl.Settings.velocityThreshold = v * FPS / PXM; },
   });
+
+  // world.maxSpeed (px/frame): the fastest any body may move in one step.
+  // planck clamps every body's per-step translation to Settings.maxTranslation
+  // (2 m), which at PXM=30 is 60 px/frame -- its anti-tunnelling guard. Like
+  // velocityThreshold above it is one global, not per-World or per-body.
+  // The default stays 60 so no sketch changes; a sketch that needs more opts
+  // in with `world.maxSpeed = 200`. The cost, said in the docs: between two
+  // frames a body that fast can skip clean past a thin sprite (a bullet past
+  // an enemy) without the two ever touching. A dynamic body still meets a
+  // static wall (planck's time-of-impact pass); a kinematic or 'none' one
+  // does not. (shCode issue #84.)
+  const DEFAULT_MAX_SPEED_ = 2 * PXM;
+  pl.Settings.maxTranslation = DEFAULT_MAX_SPEED_ / PXM;
+  Object.defineProperty(world, 'maxSpeed', {
+    get() { return pl.Settings.maxTranslation * PXM; },
+    set(v) {
+      if (typeof v !== 'number' || !Number.isFinite(v) || v <= 0) {
+        throw new TypeError(`world.maxSpeed must be a number above 0 (pixels per frame; the default is ${DEFAULT_MAX_SPEED_}), not ${JSON.stringify(v)}`);
+      }
+      pl.Settings.maxTranslation = v / PXM;
+    },
+  });
+  // A speed set past the cap silently settles to it by the next step, which
+  // reads as "my number is ignored". Say so once per run, naming the knob.
+  let speedCapWarned_ = false;
+  function noteSpeed_(vx, vy) {
+    if (speedCapWarned_) return;
+    const cap = world.maxSpeed;
+    const sp = Math.hypot(vx, vy);
+    if (!(sp > cap + 1e-9)) return;
+    speedCapWarned_ = true;
+    console.warn(
+      `A speed of ${Math.round(sp)} pixels per frame is over the speed cap of ${Math.round(cap)}, ` +
+      `so the sprite moves at ${Math.round(cap)}. To go faster, raise the cap first: ` +
+      `world.maxSpeed = ${Math.ceil(sp)}; (very fast sprites can skip past thin ones between frames).`
+    );
+  }
 
   // explodeAt: radial impulse to every sprite within radius (default: no
   // limit — the whole world feels it, falling off to 0 at the edge only
