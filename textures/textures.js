@@ -57,14 +57,77 @@ window.MOSHION_TEXTURES = {
       "fish",
       "fishPink",
       "fishSwim",
+      "frog",
       "ghost",
       "ladybug",
       "ladybugWalk",
+      "monster",
       "slime",
       "slimeBlue",
       "snail",
       "snailCrawl",
       "worm"
+    ],
+    "terrain": [
+      "brick",
+      "brickTan",
+      "bush",
+      "grass",
+      "ice",
+      "lava",
+      "lavaDeep",
+      "rock",
+      "sand",
+      "snow",
+      "spikes",
+      "stone",
+      "tree",
+      "water",
+      "waterDeep"
+    ],
+    "things": [
+      "apple",
+      "flag",
+      "flagBlue",
+      "flagGreen",
+      "flagRed",
+      "lever",
+      "lock",
+      "lockGreen",
+      "sign",
+      "signArrow",
+      "spring"
+    ],
+    "battle": [
+      "blaster",
+      "burst",
+      "burstBlue",
+      "burstGreen",
+      "burstOrange",
+      "shield",
+      "shieldGold",
+      "shieldSilver",
+      "sword",
+      "swordGold"
+    ],
+    "numbers": [
+      "num0",
+      "num1",
+      "num2",
+      "num3",
+      "num4",
+      "num5",
+      "num6",
+      "num7",
+      "num8",
+      "num9"
+    ],
+    "candy": [
+      "candyGreen",
+      "candyOrange",
+      "candyYellow",
+      "swirl",
+      "swirlMint"
     ]
   },
   "textures": {
@@ -307,6 +370,324 @@ window.MOSHION_TEXTURES = {
       "w": 21,
       "h": 21,
       "group": "creatures"
+    },
+    "frog": {
+      "file": "frog.png",
+      "w": 21,
+      "h": 21,
+      "group": "creatures"
+    },
+    "monster": {
+      "file": "monster.png",
+      "w": 21,
+      "h": 21,
+      "group": "creatures"
+    },
+    "grass": {
+      "file": "grass.png",
+      "w": 21,
+      "h": 21,
+      "group": "terrain"
+    },
+    "sand": {
+      "file": "sand.png",
+      "w": 21,
+      "h": 21,
+      "group": "terrain"
+    },
+    "snow": {
+      "file": "snow.png",
+      "w": 21,
+      "h": 21,
+      "group": "terrain"
+    },
+    "stone": {
+      "file": "stone.png",
+      "w": 21,
+      "h": 21,
+      "group": "terrain"
+    },
+    "brick": {
+      "file": "brick.png",
+      "w": 21,
+      "h": 21,
+      "group": "terrain"
+    },
+    "brickTan": {
+      "file": "brickTan.png",
+      "w": 21,
+      "h": 21,
+      "group": "terrain"
+    },
+    "water": {
+      "file": "water.png",
+      "w": 21,
+      "h": 21,
+      "group": "terrain"
+    },
+    "waterDeep": {
+      "file": "waterDeep.png",
+      "w": 21,
+      "h": 21,
+      "group": "terrain"
+    },
+    "lava": {
+      "file": "lava.png",
+      "w": 21,
+      "h": 21,
+      "group": "terrain"
+    },
+    "lavaDeep": {
+      "file": "lavaDeep.png",
+      "w": 21,
+      "h": 21,
+      "group": "terrain"
+    },
+    "ice": {
+      "file": "ice.png",
+      "w": 21,
+      "h": 21,
+      "group": "terrain"
+    },
+    "spikes": {
+      "file": "spikes.png",
+      "w": 21,
+      "h": 21,
+      "group": "terrain"
+    },
+    "tree": {
+      "file": "tree.png",
+      "w": 21,
+      "h": 21,
+      "group": "terrain"
+    },
+    "bush": {
+      "file": "bush.png",
+      "w": 21,
+      "h": 21,
+      "group": "terrain"
+    },
+    "rock": {
+      "file": "rock.png",
+      "w": 21,
+      "h": 21,
+      "group": "terrain"
+    },
+    "flag": {
+      "file": "flag.png",
+      "w": 21,
+      "h": 21,
+      "group": "things"
+    },
+    "flagGreen": {
+      "file": "flagGreen.png",
+      "w": 21,
+      "h": 21,
+      "group": "things"
+    },
+    "flagRed": {
+      "file": "flagRed.png",
+      "w": 21,
+      "h": 21,
+      "group": "things"
+    },
+    "flagBlue": {
+      "file": "flagBlue.png",
+      "w": 21,
+      "h": 21,
+      "group": "things"
+    },
+    "sign": {
+      "file": "sign.png",
+      "w": 21,
+      "h": 21,
+      "group": "things"
+    },
+    "signArrow": {
+      "file": "signArrow.png",
+      "w": 21,
+      "h": 21,
+      "group": "things"
+    },
+    "lock": {
+      "file": "lock.png",
+      "w": 21,
+      "h": 21,
+      "group": "things"
+    },
+    "lockGreen": {
+      "file": "lockGreen.png",
+      "w": 21,
+      "h": 21,
+      "group": "things"
+    },
+    "spring": {
+      "file": "spring.png",
+      "w": 21,
+      "h": 21,
+      "group": "things"
+    },
+    "lever": {
+      "file": "lever.png",
+      "w": 21,
+      "h": 21,
+      "group": "things"
+    },
+    "apple": {
+      "file": "apple.png",
+      "w": 21,
+      "h": 21,
+      "group": "things"
+    },
+    "sword": {
+      "file": "sword.png",
+      "w": 21,
+      "h": 21,
+      "group": "battle"
+    },
+    "swordGold": {
+      "file": "swordGold.png",
+      "w": 21,
+      "h": 21,
+      "group": "battle"
+    },
+    "shield": {
+      "file": "shield.png",
+      "w": 21,
+      "h": 21,
+      "group": "battle"
+    },
+    "shieldSilver": {
+      "file": "shieldSilver.png",
+      "w": 21,
+      "h": 21,
+      "group": "battle"
+    },
+    "shieldGold": {
+      "file": "shieldGold.png",
+      "w": 21,
+      "h": 21,
+      "group": "battle"
+    },
+    "blaster": {
+      "file": "blaster.png",
+      "w": 21,
+      "h": 21,
+      "group": "battle"
+    },
+    "burst": {
+      "file": "burst.png",
+      "w": 21,
+      "h": 21,
+      "group": "battle"
+    },
+    "burstGreen": {
+      "file": "burstGreen.png",
+      "w": 21,
+      "h": 21,
+      "group": "battle"
+    },
+    "burstOrange": {
+      "file": "burstOrange.png",
+      "w": 21,
+      "h": 21,
+      "group": "battle"
+    },
+    "burstBlue": {
+      "file": "burstBlue.png",
+      "w": 21,
+      "h": 21,
+      "group": "battle"
+    },
+    "num0": {
+      "file": "num0.png",
+      "w": 21,
+      "h": 21,
+      "group": "numbers"
+    },
+    "num1": {
+      "file": "num1.png",
+      "w": 21,
+      "h": 21,
+      "group": "numbers"
+    },
+    "num2": {
+      "file": "num2.png",
+      "w": 21,
+      "h": 21,
+      "group": "numbers"
+    },
+    "num3": {
+      "file": "num3.png",
+      "w": 21,
+      "h": 21,
+      "group": "numbers"
+    },
+    "num4": {
+      "file": "num4.png",
+      "w": 21,
+      "h": 21,
+      "group": "numbers"
+    },
+    "num5": {
+      "file": "num5.png",
+      "w": 21,
+      "h": 21,
+      "group": "numbers"
+    },
+    "num6": {
+      "file": "num6.png",
+      "w": 21,
+      "h": 21,
+      "group": "numbers"
+    },
+    "num7": {
+      "file": "num7.png",
+      "w": 21,
+      "h": 21,
+      "group": "numbers"
+    },
+    "num8": {
+      "file": "num8.png",
+      "w": 21,
+      "h": 21,
+      "group": "numbers"
+    },
+    "num9": {
+      "file": "num9.png",
+      "w": 21,
+      "h": 21,
+      "group": "numbers"
+    },
+    "candyOrange": {
+      "file": "candyOrange.png",
+      "w": 21,
+      "h": 21,
+      "group": "candy"
+    },
+    "candyGreen": {
+      "file": "candyGreen.png",
+      "w": 21,
+      "h": 21,
+      "group": "candy"
+    },
+    "candyYellow": {
+      "file": "candyYellow.png",
+      "w": 21,
+      "h": 21,
+      "group": "candy"
+    },
+    "swirl": {
+      "file": "swirl.png",
+      "w": 21,
+      "h": 21,
+      "group": "candy"
+    },
+    "swirlMint": {
+      "file": "swirlMint.png",
+      "w": 21,
+      "h": 21,
+      "group": "candy"
     },
     "batFly": {
       "file": "batFly.png",
