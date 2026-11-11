@@ -785,6 +785,11 @@ declare const STA: 'static';
 declare const DYN: 'dynamic';
 declare const KIN: 'kinematic';
 declare const frameCount: number;
+/** Milliseconds since the previous frame, as in p5: about 16.7 at 60 frames a
+ *  second, more when the computer is slow. `deltaTime / 1000` is the same in
+ *  seconds, so `x += 120 * deltaTime / 1000` moves 120 pixels a second whatever
+ *  the frame rate. 0 before the first frame. */
+declare const deltaTime: number;
 declare const width: number;
 declare const height: number;
 declare const mouseX: number;

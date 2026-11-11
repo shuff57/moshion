@@ -71,6 +71,12 @@
   let FRAME_ = 0;
   let START_TIME_ = 0;   // performance.now() right before setup() runs, for millis()
   let FPS_ = 0;           // 1 / last frame's dt, for frameRate()
+  // deltaTime (shCode #104, 2026-11-12): milliseconds since the previous frame,
+  // as in p5 -- about 16.7 at 60 frames a second, more on a slow computer. A
+  // sketch that moves by `speed * deltaTime / 1000` moves `speed` pixels a
+  // second whatever the frame rate, and times things in seconds instead of in
+  // 60ths. 0 until the first frame.
+  let DELTA_MS_ = 0;
   let ALL_ = [];         // all sprites, in creation order
   let WORLD_ = null;     // planck World, lazily created
   let JOINTS_ = [];      // all joints, so they survive sprite GC
@@ -4184,6 +4190,7 @@
       if (behind < FRAME_MS_ - 1) { requestAnimationFrame(loop); return; }
       behind = Math.min(behind - FRAME_MS_, FRAME_MS_); // never bank more than one frame
       const dt = (now - last) / 1000;
+      DELTA_MS_ = now - last;
       last = now;
       const step = Math.min(dt, 0.05);
       if (dt > 0) FPS_ = 1 / dt; // frameRate() reads this — matches real q5's 1000/deltaTime
@@ -4309,6 +4316,7 @@
   global.STA = STA;
   global.KIN = KIN;
   Object.defineProperty(global, 'frameCount', { get: () => FRAME_ });
+  Object.defineProperty(global, 'deltaTime', { get: () => DELTA_MS_ });
   Object.defineProperty(global, 'width', { get: () => W_ });
   Object.defineProperty(global, 'height', { get: () => H_ });
   Object.defineProperty(global, 'mouseX', { get: () => MOUSE.x });
