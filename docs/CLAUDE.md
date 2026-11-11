@@ -41,6 +41,7 @@ and prints `PASS`/`FAIL` per assertion (exit 0 only if all pass):
 ```sh
 bun tests/raycast.spec.mjs        # engine: world.rayCast
 bun tests/drawtop.spec.mjs        # engine: the drawTop() HUD hook
+bun tests/textlayer.spec.mjs      # engine: textLayer(n), text() among the sprites by layer
 bun tests/touch.spec.mjs          # engine: touch drives the mouse counters
 bun tests/focus.spec.mjs          # engine: losing focus releases held keys/buttons
 bun tests/clone-maxspeed.spec.mjs # engine: sprite.clone() and world.maxSpeed

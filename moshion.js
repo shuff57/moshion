@@ -2712,7 +2712,22 @@
 
   // ---- render -----------------------------------------------------------
 
-  function render() {
+  // `texts` is what text() queued during draw() under textLayer(n) (see
+  // textLayer). Each one is slotted into the world pass after every sprite
+  // whose layer is its layer or lower, so ties go to the text.
+  function _withTexts(sprites, texts) {
+    const ts = texts.slice().sort((a, b) => a.layer - b.layer); // stable: written order on a tie
+    const out = [];
+    let j = 0;
+    for (const s of sprites) {
+      while (j < ts.length && ts[j].layer < s.layer) out.push(ts[j++]);
+      out.push(s);
+    }
+    while (j < ts.length) out.push(ts[j++]);
+    return out;
+  }
+
+  function render(texts) {
     const ordered = ALL_.filter((s) => !s._dead).sort((a, b) => a.layer - b.layer);
 
     // Two passes: the world, then anything pinned to the screen.
@@ -2729,6 +2744,15 @@
       CTX_.save();
       _applyFrame(useCamera && camera._active);
       for (const s of list) {
+        if (s._queuedText) {
+          // _paintText applies its own frame from an untransformed context,
+          // with the camera as it was when text() was called.
+          CTX_.restore();
+          _paintText(s.str, s.x, s.y, s.size, s.color, s.align, s.cam);
+          CTX_.save();
+          _applyFrame(useCamera && camera._active);
+          continue;
+        }
         if (!s.autoDraw) continue; // Sprite, SPEC-surface #3: false skips this sprite entirely
         if (s.ani) s.ani._advance(); // advances on or off screen, so culling never freezes it
         // A sketch-assigned sprite.draw REPLACES the default rendering for
@@ -2741,7 +2765,8 @@
       CTX_.restore();
     };
 
-    drawPass(ordered.filter((s) => !s.screenSpace), true);
+    const world = ordered.filter((s) => !s.screenSpace);
+    drawPass(texts && texts.length ? _withTexts(world, texts) : world, true);
     drawPass(ordered.filter((s) => s.screenSpace), false);
   }
 
@@ -2798,12 +2823,50 @@
   function textSize(px) { TEXT_SIZE = px; }
   function textAlign(mode) { TEXT_ALIGN = mode; }
 
+  // textLayer(n): put text() among the sprites (shCode #101, 2026-11-11).
+  // Text drawn in draw() is painted BEFORE render(), so it sits under every
+  // sprite, and drawTop() puts it over all of them; nothing went in between.
+  // After textLayer(n), each text() called from draw() is remembered with
+  // everything it needs (words, place, size, colour, alignment, camera on or
+  // off) and painted by render() among the world's sprites: over every sprite
+  // whose .layer is n or lower, under every sprite whose .layer is higher.
+  // Texts on the same layer keep the order they were written in.
+  // screenSpace sprites and drawTop() still go over it. textLayer() with
+  // nothing (or null) goes back to the old way, painted at once. Like
+  // textSize(), the setting lasts until it is changed.
+  //
+  // It only queues while draw() runs. Called from drawTop(), a sprite's own
+  // .draw or setup(), text() still paints at once (render() is not coming, or
+  // is running now). A sketch that never calls textLayer() draws exactly what
+  // it drew before: same canvas calls, same order.
+  let TEXT_LAYER_ = null;
+  let TEXT_QUEUE_ = null; // an array only while draw() runs
+  function textLayer(n) {
+    if (n === undefined || n === null) { TEXT_LAYER_ = null; return; }
+    if (typeof n !== 'number' || !Number.isFinite(n)) {
+      throw new TypeError(`textLayer(n): n must be a number, the layer the text goes on (like sprite.layer), or nothing to put text back under every sprite -- got ${String(n)}`);
+    }
+    TEXT_LAYER_ = n;
+  }
+
   function text(str, x, y, size, color) {
+    if (TEXT_LAYER_ !== null && TEXT_QUEUE_) {
+      TEXT_QUEUE_.push({
+        _queuedText: true, layer: TEXT_LAYER_, str, x, y,
+        size: size || TEXT_SIZE, color: color || TEXT_COLOR, align: TEXT_ALIGN, cam: camera._active,
+      });
+      return;
+    }
+    _paintText(str, x, y, size || TEXT_SIZE, color || TEXT_COLOR, TEXT_ALIGN, camera._active);
+  }
+
+  // Assumes an untransformed context, like text() always has.
+  function _paintText(str, x, y, size, color, align, withCamera) {
     CTX_.save();
-    _applyCamera();
-    CTX_.fillStyle = color || TEXT_COLOR;
-    CTX_.font = (size || TEXT_SIZE) + 'px monospace';
-    CTX_.textAlign = TEXT_ALIGN;
+    _applyFrame(withCamera);
+    CTX_.fillStyle = color;
+    CTX_.font = size + 'px monospace';
+    CTX_.textAlign = align;
     if (ORIGIN_ === 'math') {
       // Flip back at the anchor so the text reads upright. The baseline still
       // sits on y; the letters rise above it, which in this mode is +y.
@@ -3762,8 +3825,10 @@
         _updateContacts();
         _updateOverlaps();
       }
-      drawFn();
-      render();
+      TEXT_QUEUE_ = []; // text() under textLayer(n) waits for render()
+      let queuedTexts;
+      try { drawFn(); } finally { queuedTexts = TEXT_QUEUE_; TEXT_QUEUE_ = null; }
+      render(queuedTexts);
       _drawOverlays(); // showGrid()/showMouse(): over the world, under the HUD
       // drawTop(): the HUD hook. render() paints sprites AFTER the sketch's
       // draw(), so anything draw() puts on the canvas with primitives ends up
@@ -3872,6 +3937,7 @@
   global.fill = fill;
   global.textSize = textSize;
   global.textAlign = textAlign;
+  global.textLayer = textLayer;
   global.square = square;
   global.CENTER = CENTER;
   global.LEFT = LEFT;

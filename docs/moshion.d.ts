@@ -714,7 +714,8 @@ declare function setup(): void;
 declare function update(step: number): void;
 /** Runs each frame after physics, BEFORE sprites are rendered. Anything drawn
   * here is painted underneath every sprite — draw backgrounds and world
-  * decoration here, and put a HUD in drawTop(). */
+  * decoration here, and put a HUD in drawTop(). The one exception is text()
+  * after textLayer(n), which is painted among the sprites by layer. */
 declare function draw(): void;
 /** Runs each frame AFTER sprites are rendered, in screen space (the camera is
   * off for its duration and restored afterwards). This is where a HUD goes:
@@ -743,6 +744,17 @@ declare function showMouse(): void;
 declare function fill(c: string | number): void;
 declare function textSize(px: number): void;
 declare function textAlign(mode: 'left' | 'center' | 'right'): void;
+/** Puts the text() calls that follow, in draw(), on layer `n` among the
+ *  sprites: over every sprite whose `.layer` is `n` or lower, under every
+ *  sprite whose `.layer` is higher (a tie goes to the text). Texts on one
+ *  layer keep the order they were written in. Like textSize(), it lasts until
+ *  you change it; `textLayer()` with nothing (or null) goes back to the
+ *  default, painted at once, under every sprite. The fill, size, alignment and
+ *  camera (on or off) are the ones in force when text() is called.
+ *  screenSpace sprites and drawTop() still go over it, and text() in drawTop()
+ *  is painted at once whatever this says. Throws a TypeError for anything
+ *  that is not a number. */
+declare function textLayer(n?: number | null): void;
 /** rect(x, y, s, s, r): uses fill(), stroke(), noFill() and noStroke() like
  *  every other shape (before 2026-10-31 it ignored fill() and drew black). */
 declare function square(x: number, y: number, s: number, r?: number): void;

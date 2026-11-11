@@ -54,6 +54,10 @@ hand-authored reference):
 - `setup()` / `update()` / `draw()` / `drawTop()` — the lifecycle hooks the
   engine calls. `drawTop()` runs after sprites are drawn, in screen space, so
   a HUD lands on top of the world instead of behind it
+- `text()` with `fill()` / `textSize()` / `textAlign()` / `textLayer()` —
+  text drawn in `draw()` sits under every sprite; after `textLayer(n)` it is
+  painted among them instead, over sprites whose `.layer` is `n` or lower and
+  under higher ones (`textLayer()` with nothing goes back)
 - `Canvas`, `Sprite`, `Group`, `allSprites` — drawing + physics
 - `Tiles` (a level built from rows of text and a legend of groups), `Walls`
   (static walls round the canvas edges), `sprite.addSensor()` (a detect-only
