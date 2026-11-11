@@ -834,6 +834,12 @@ declare function showMouse(): void;
 declare function fill(c: string | number): void;
 declare function textSize(px: number): void;
 declare function textAlign(mode: 'left' | 'center' | 'right'): void;
+/** Bold or italic text: textStyle(BOLD), textStyle(ITALIC), textStyle(BOLDITALIC)
+ *  for both, textStyle(NORMAL) to go back. Each call replaces the last one, and
+ *  it lasts until you change it, like textSize(). With nothing, it returns the
+ *  style in force. Throws a TypeError for any other value. */
+declare function textStyle(style: 'normal' | 'bold' | 'italic' | 'bold italic'): void;
+declare function textStyle(): 'normal' | 'bold' | 'italic' | 'bold italic';
 /** Puts the text() calls that follow, in draw(), on layer `n` among the
  *  sprites: over every sprite whose `.layer` is `n` or lower, under every
  *  sprite whose `.layer` is higher (a tie goes to the text). Texts on one
@@ -865,6 +871,10 @@ declare function noLoop(): void;
 declare const CENTER: 'center';
 declare const LEFT: 'left';
 declare const RIGHT: 'right';
+declare const NORMAL: 'normal';
+declare const BOLD: 'bold';
+declare const ITALIC: 'italic';
+declare const BOLDITALIC: 'bold italic';
 
 /** Every texture name usable right now — built-ins plus saved art, sorted. */
 declare function textureNames(): string[];

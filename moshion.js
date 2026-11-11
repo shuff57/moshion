@@ -2783,7 +2783,7 @@
           // _paintText applies its own frame from an untransformed context,
           // with the camera as it was when text() was called.
           CTX_.restore();
-          _paintText(s.str, s.x, s.y, s.size, s.color, s.align, s.cam);
+          _paintText(s.str, s.x, s.y, s.size, s.color, s.align, s.cam, s.style);
           CTX_.save();
           _applyFrame(useCamera && camera._active);
           continue;
@@ -2854,9 +2854,23 @@
   // screens, game-over messages — 27 real script.js/solution.js files).
   let TEXT_COLOR = 'white', TEXT_SIZE = 14, TEXT_ALIGN = 'left';
   const CENTER = 'center', LEFT = 'left', RIGHT = 'right';
+  // textStyle(NORMAL | BOLD | ITALIC | BOLDITALIC), as in p5 (shCode #103,
+  // 2026-11-12). Each call replaces the last one, so bold and italic together
+  // is BOLDITALIC. Lasts until it is changed, like textSize(). Anything else
+  // throws: an unknown style would be a CSS font the canvas silently refuses.
+  const NORMAL = 'normal', BOLD = 'bold', ITALIC = 'italic', BOLDITALIC = 'bold italic';
+  const TEXT_STYLES_ = [NORMAL, BOLD, ITALIC, BOLDITALIC];
+  let TEXT_STYLE = NORMAL;
   function fill(c) { TEXT_COLOR = typeof c === 'number' ? `rgb(${c},${c},${c})` : c; HAS_FILL = true; }
   function textSize(px) { TEXT_SIZE = px; }
   function textAlign(mode) { TEXT_ALIGN = mode; }
+  function textStyle(style) {
+    if (style === undefined) return TEXT_STYLE;
+    if (!TEXT_STYLES_.includes(style)) {
+      throw new TypeError(`textStyle(style): style must be NORMAL, BOLD, ITALIC or BOLDITALIC -- got ${String(style)}`);
+    }
+    TEXT_STYLE = style;
+  }
 
   // textLayer(n): put text() among the sprites (shCode #101, 2026-11-11).
   // Text drawn in draw() is painted BEFORE render(), so it sits under every
@@ -2888,19 +2902,19 @@
     if (TEXT_LAYER_ !== null && TEXT_QUEUE_) {
       TEXT_QUEUE_.push({
         _queuedText: true, layer: TEXT_LAYER_, str, x, y,
-        size: size || TEXT_SIZE, color: color || TEXT_COLOR, align: TEXT_ALIGN, cam: camera._active,
+        size: size || TEXT_SIZE, color: color || TEXT_COLOR, align: TEXT_ALIGN, cam: camera._active, style: TEXT_STYLE,
       });
       return;
     }
-    _paintText(str, x, y, size || TEXT_SIZE, color || TEXT_COLOR, TEXT_ALIGN, camera._active);
+    _paintText(str, x, y, size || TEXT_SIZE, color || TEXT_COLOR, TEXT_ALIGN, camera._active, TEXT_STYLE);
   }
 
   // Assumes an untransformed context, like text() always has.
-  function _paintText(str, x, y, size, color, align, withCamera) {
+  function _paintText(str, x, y, size, color, align, withCamera, style) {
     CTX_.save();
     _applyFrame(withCamera);
     CTX_.fillStyle = color;
-    CTX_.font = size + 'px monospace';
+    CTX_.font = (style && style !== NORMAL ? style + ' ' : '') + size + 'px monospace';
     CTX_.textAlign = align;
     if (ORIGIN_ === 'math') {
       // Flip back at the anchor so the text reads upright. The baseline still
@@ -4020,11 +4034,16 @@
   global.fill = fill;
   global.textSize = textSize;
   global.textAlign = textAlign;
+  global.textStyle = textStyle;
   global.textLayer = textLayer;
   global.square = square;
   global.CENTER = CENTER;
   global.LEFT = LEFT;
   global.RIGHT = RIGHT;
+  global.NORMAL = NORMAL;
+  global.BOLD = BOLD;
+  global.ITALIC = ITALIC;
+  global.BOLDITALIC = BOLDITALIC;
   global.storeItem = storeItem;
   global.getItem = getItem;
   global.removeItem = removeItem;
