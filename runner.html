@@ -153,6 +153,7 @@
 </script>
 <script src="./planck.min.js"></script>
 <script src="./textures/textures.js"></script>
+<script src="./fonts/fonts.js"></script>
 <script src="./moshion.js"></script>
 <script>
 	/* A fresh random() sequence every run. The engine's own default seed is
@@ -239,7 +240,18 @@
 		clearInterval(ask);
 		window.removeEventListener('message', onInit);
 		window.__moshionStorage = (store && typeof store === 'object') ? store : {};
-		run(code || urlCode);
+		// Fonts load in the background, so a sketch's first frames would show
+		// monospace. Wait (at most 2 s) for the fonts it names in
+		// textFont('...') -- after the store is here, so a saved font counts.
+		var src = code || urlCode || '';
+		var fonts = [], fm, fre = /textFont\(\s*(['"`])([A-Za-z][A-Za-z0-9_]*)\1/g;
+		while ((fm = fre.exec(src))) fonts.push(fm[2]);
+		var go = function () { run(code || urlCode); };
+		if (fonts.length && typeof window._moshionPreloadFonts === 'function') {
+			window._moshionPreloadFonts(fonts, 2000).then(go, go);
+		} else {
+			go();
+		}
 	}
 	function onInit(e) {
 		if (e.data && e.data.source === 'preview-storage-init') start(e.data.data, e.data.code);

@@ -2783,7 +2783,7 @@
           // _paintText applies its own frame from an untransformed context,
           // with the camera as it was when text() was called.
           CTX_.restore();
-          _paintText(s.str, s.x, s.y, s.size, s.color, s.align, s.cam, s.style);
+          _paintText(s.str, s.x, s.y, s.size, s.color, s.align, s.cam, s.st);
           CTX_.save();
           _applyFrame(useCamera && camera._active);
           continue;
@@ -2854,22 +2854,235 @@
   // screens, game-over messages — 27 real script.js/solution.js files).
   let TEXT_COLOR = 'white', TEXT_SIZE = 14, TEXT_ALIGN = 'left';
   const CENTER = 'center', LEFT = 'left', RIGHT = 'right';
-  // textStyle(NORMAL | BOLD | ITALIC | BOLDITALIC), as in p5 (shCode #103,
-  // 2026-11-12). Each call replaces the last one, so bold and italic together
-  // is BOLDITALIC. Lasts until it is changed, like textSize(). Anything else
-  // throws: an unknown style would be a CSS font the canvas silently refuses.
-  const NORMAL = 'normal', BOLD = 'bold', ITALIC = 'italic', BOLDITALIC = 'bold italic';
-  const TEXT_STYLES_ = [NORMAL, BOLD, ITALIC, BOLDITALIC];
-  let TEXT_STYLE = NORMAL;
   function fill(c) { TEXT_COLOR = typeof c === 'number' ? `rgb(${c},${c},${c})` : c; HAS_FILL = true; }
   function textSize(px) { TEXT_SIZE = px; }
   function textAlign(mode) { TEXT_ALIGN = mode; }
+
+  // ---- typeface, weight, style, decoration, outline, spacing, lines --------
+  //
+  // shCode #103 (textStyle) and the fonts work, 2026-11-12. Every setting
+  // lasts until it is changed, like textSize(), and text() takes a snapshot
+  // of all of them, so a text queued by textLayer() paints with the settings
+  // it was written with.
+  //
+  // A sketch that touches none of these draws exactly what it drew before:
+  // the same font string ('14px monospace'), the same canvas calls in the same
+  // order. Only multi-line text, decoration, an outline, letter spacing or
+  // wrapping take the line-by-line path in _paintLines().
+  const NORMAL = 'normal', BOLD = 'bold', ITALIC = 'italic', BOLDITALIC = 'bold italic';
+  const TEXT_STYLES_ = [NORMAL, BOLD, ITALIC, BOLDITALIC];
+  const UNDERLINE = 'underline', STRIKETHROUGH = 'line-through', NONE = 'none';
+  const WORD = 'word', CHAR = 'char';
+  const DEFAULT_FONT_ = 'monospace';
+  const FONT_PREFIX_ = 'font:';
+  let TEXT_FONT_ = DEFAULT_FONT_;   // the name the sketch used
+  let TEXT_FAMILY_ = 'monospace';   // the CSS family list that name resolves to
+  let TEXT_WEIGHT_ = 400;
+  let TEXT_ITALIC_ = false;
+  let TEXT_DECO_ = NONE;            // 'none' | 'underline' | 'line-through' | 'underline line-through'
+  let TEXT_OUTLINE_ = null;         // { color, weight } or null
+  let TEXT_SPACING_ = 0;            // extra pixels between letters
+  let TEXT_LEADING_ = null;         // pixels between lines; null = 1.25 x the size
+  let TEXT_WRAP_ = null;            // { width, mode } or null
+
+  // textStyle(NORMAL | BOLD | ITALIC | BOLDITALIC), as in p5. Each call
+  // replaces the last one: BOLD is weight 700, NORMAL is 400 and upright, so
+  // bold and italic together is BOLDITALIC. textWeight() afterwards changes
+  // only the weight. With nothing, it says which style is in force.
   function textStyle(style) {
-    if (style === undefined) return TEXT_STYLE;
+    if (style === undefined) {
+      const bold = TEXT_WEIGHT_ >= 600;
+      return TEXT_ITALIC_ ? (bold ? BOLDITALIC : ITALIC) : (bold ? BOLD : NORMAL);
+    }
     if (!TEXT_STYLES_.includes(style)) {
       throw new TypeError(`textStyle(style): style must be NORMAL, BOLD, ITALIC or BOLDITALIC -- got ${String(style)}`);
     }
-    TEXT_STYLE = style;
+    TEXT_WEIGHT_ = style === BOLD || style === BOLDITALIC ? 700 : 400;
+    TEXT_ITALIC_ = style === ITALIC || style === BOLDITALIC;
+  }
+
+  // textWeight(100..900): how thick the letters are. 400 is normal, 700 bold.
+  // A font without that weight uses its nearest one (the browser's rule).
+  function textWeight(weight) {
+    if (weight === undefined) return TEXT_WEIGHT_;
+    if (typeof weight !== 'number' || !Number.isInteger(weight) || weight < 1 || weight > 1000) {
+      throw new TypeError(`textWeight(weight): weight must be a whole number from 100 (thin) to 900 (heavy); 400 is normal and 700 is bold -- got ${String(weight)}`);
+    }
+    TEXT_WEIGHT_ = weight;
+  }
+
+  // textFont('name'): a built-in font (fonts/fonts.js, loaded by runner.html
+  // before this file) or one the student saved under 'font:<name>' (a data:
+  // URI in the store, like a saved texture). A saved font beats a built-in
+  // one of the same name, as saved art does. textFont('monospace') goes back
+  // to the default. An unknown name warns once and leaves the font as it was.
+  // Fonts load in the background; until one has, the text falls back to
+  // monospace, and runner.html waits (up to 2 s) for the fonts a sketch names
+  // in textFont('...') before it starts, so the first frame is right.
+  function _fontCatalog() {
+    const cat = global.MOSHION_FONTS;
+    if (cat && cat.fonts) return cat;
+    return { base: '/moshion/fonts/', fonts: {} };
+  }
+  function _savedFontSrc(name) {
+    const raw = getItem(FONT_PREFIX_ + name);
+    return (typeof raw === 'string' && raw.slice(0, 5) === 'data:') ? raw : null;
+  }
+  function fontNames() {
+    const names = [DEFAULT_FONT_].concat(Object.keys(_fontCatalog().fonts));
+    const keys = _storeKeys();
+    for (let i = 0; i < keys.length; i++) {
+      if (keys[i].slice(0, FONT_PREFIX_.length) === FONT_PREFIX_) {
+        const n = keys[i].slice(FONT_PREFIX_.length);
+        if (names.indexOf(n) === -1) names.push(n);
+      }
+    }
+    return names.sort();
+  }
+  function _dataUriBytes(uri) {
+    const comma = uri.indexOf(',');
+    const bin = atob(uri.slice(comma + 1));
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out.buffer;
+  }
+  const FONT_LOADS_ = {};           // name -> { family, promise }
+  const FONT_WARNED_ = {};
+  function _loadFont(name) {
+    if (FONT_LOADS_[name]) return FONT_LOADS_[name].family;
+    const saved = _savedFontSrc(name);
+    const cat = _fontCatalog();
+    const entry = saved ? null : cat.fonts[name];
+    if (!saved && !entry) return null;
+    const css = 'moshion-' + (saved ? 'saved-' : '') + name;
+    let promise = Promise.resolve(true);
+    if (typeof FontFace === 'function' && typeof document !== 'undefined' && document.fonts) {
+      let faces;
+      try {
+        faces = saved
+          ? [new FontFace(css, _dataUriBytes(saved))]
+          : entry.faces.map(function (f) { return new FontFace(css, 'url(' + cat.base + f.file + ')', { weight: f.weight, style: f.style }); });
+      } catch (e) {
+        faces = [];
+      }
+      promise = Promise.all(faces.map(function (face) {
+        return face.load().then(function (f) { document.fonts.add(f); return true; });
+      })).then(function () { return true; }, function () {
+        console.warn('The font "' + name + '" could not be loaded, so text uses monospace instead.' +
+          (saved ? ' The saved file may not be a working font.' : ''));
+        return false;
+      });
+    }
+    FONT_LOADS_[name] = { family: '"' + css + '", monospace', promise: promise };
+    return FONT_LOADS_[name].family;
+  }
+  function textFont(name) {
+    if (name === undefined) return TEXT_FONT_;
+    if (typeof name !== 'string' || !name) {
+      throw new TypeError(`textFont(name): name must be a font's name in quotes, like textFont('rounded') -- got ${String(name)}`);
+    }
+    if (name === DEFAULT_FONT_) { TEXT_FONT_ = name; TEXT_FAMILY_ = 'monospace'; return; }
+    const family = _loadFont(name);
+    if (!family) {
+      if (!FONT_WARNED_[name]) {
+        FONT_WARNED_[name] = true;
+        const all = fontNames();
+        const near = all.filter(function (n) { return n.toLowerCase().indexOf(name.toLowerCase()) !== -1; }).slice(0, 5);
+        console.warn('No font named "' + name + '". ' +
+          (near.length ? 'Did you mean: ' + near.join(', ') + '?'
+                       : 'There are ' + all.length + ' fonts -- call fontNames() to list them.'));
+      }
+      return;
+    }
+    TEXT_FONT_ = name;
+    TEXT_FAMILY_ = family;
+  }
+  // runner.html: load these fonts (the names a sketch puts in textFont('...'))
+  // before the sketch starts. Resolves when they have loaded or after `ms`.
+  function _preloadFonts(names, ms) {
+    const waits = [];
+    for (let i = 0; i < names.length; i++) {
+      if (names[i] === DEFAULT_FONT_ || !_loadFont(names[i])) continue;
+      waits.push(FONT_LOADS_[names[i]].promise);
+    }
+    if (!waits.length) return Promise.resolve();
+    return Promise.race([Promise.all(waits), new Promise(function (r) { setTimeout(r, ms || 2000); })]);
+  }
+
+  // textDecoration(UNDERLINE), (STRIKETHROUGH), both, or (NONE). The line is
+  // the text's colour and grows with its size. With nothing, says which.
+  function textDecoration() {
+    if (arguments.length === 0) return TEXT_DECO_;
+    let under = false, strike = false;
+    for (let i = 0; i < arguments.length; i++) {
+      const l = arguments[i];
+      if (l === UNDERLINE) under = true;
+      else if (l === STRIKETHROUGH) strike = true;
+      else if (l !== NONE && l !== null) {
+        throw new TypeError(`textDecoration(line): line must be UNDERLINE, STRIKETHROUGH or NONE -- got ${String(l)}`);
+      }
+    }
+    TEXT_DECO_ = under && strike ? UNDERLINE + ' ' + STRIKETHROUGH : under ? UNDERLINE : strike ? STRIKETHROUGH : NONE;
+  }
+
+  // textOutline(color, thickness = 2): an outline around every letter, drawn
+  // behind it so the letter keeps its shape. textOutline() turns it off.
+  function textOutline(color, thickness) {
+    if (color === undefined || color === null || color === NONE) { TEXT_OUTLINE_ = null; return; }
+    if (typeof color === 'number') color = `rgb(${color},${color},${color})`;
+    if (typeof color !== 'string') {
+      throw new TypeError(`textOutline(color, thickness): color must be a colour like 'black' -- got ${String(color)}`);
+    }
+    if (thickness === undefined) thickness = 2;
+    if (typeof thickness !== 'number' || !Number.isFinite(thickness) || !(thickness > 0)) {
+      throw new TypeError(`textOutline(color, thickness): thickness must be a number above 0, in pixels -- got ${String(thickness)}`);
+    }
+    TEXT_OUTLINE_ = { color: color, weight: thickness };
+  }
+
+  // textSpacing(px): extra pixels between letters (negative squeezes them).
+  function textSpacing(px) {
+    if (px === undefined) return TEXT_SPACING_;
+    if (typeof px !== 'number' || !Number.isFinite(px)) {
+      throw new TypeError(`textSpacing(px): px must be a number of pixels between letters, 0 for none -- got ${String(px)}`);
+    }
+    TEXT_SPACING_ = px;
+  }
+
+  // textLeading(px): the distance from one line's baseline to the next.
+  // textLeading(null) goes back to 1.25 x the text size.
+  function textLeading(px) {
+    if (px === undefined) return TEXT_LEADING_;
+    if (px === null) { TEXT_LEADING_ = null; return; }
+    if (typeof px !== 'number' || !Number.isFinite(px) || !(px > 0)) {
+      throw new TypeError(`textLeading(px): px must be a number above 0, the pixels from one line to the next -- got ${String(px)}`);
+    }
+    TEXT_LEADING_ = px;
+  }
+
+  // textWrap(width, mode = WORD): text() breaks onto new lines to stay inside
+  // `width` pixels, between words (WORD) or anywhere (CHAR). A word longer
+  // than the width runs past it in WORD mode. textWrap() turns it off.
+  function textWrap(width, mode) {
+    if (width === undefined || width === null) { TEXT_WRAP_ = null; return; }
+    if (typeof width !== 'number' || !Number.isFinite(width) || !(width > 0)) {
+      throw new TypeError(`textWrap(width): width must be a number above 0, the pixels a line may be -- got ${String(width)}`);
+    }
+    if (mode === undefined) mode = WORD;
+    if (mode !== WORD && mode !== CHAR) {
+      throw new TypeError(`textWrap(width, mode): mode must be WORD or CHAR -- got ${String(mode)}`);
+    }
+    TEXT_WRAP_ = { width: width, mode: mode };
+  }
+
+  function _textState() {
+    return {
+      family: TEXT_FAMILY_, weight: TEXT_WEIGHT_, italic: TEXT_ITALIC_, deco: TEXT_DECO_,
+      outline: TEXT_OUTLINE_, spacing: TEXT_SPACING_, leading: TEXT_LEADING_, wrap: TEXT_WRAP_,
+    };
+  }
+  function _fontString(st, size) {
+    return (st.italic ? 'italic ' : '') + (st.weight !== 400 ? st.weight + ' ' : '') + size + 'px ' + st.family;
   }
 
   // textLayer(n): put text() among the sprites (shCode #101, 2026-11-11).
@@ -2899,33 +3112,111 @@
   }
 
   function text(str, x, y, size, color) {
+    const st = _textState();
     if (TEXT_LAYER_ !== null && TEXT_QUEUE_) {
       TEXT_QUEUE_.push({
         _queuedText: true, layer: TEXT_LAYER_, str, x, y,
-        size: size || TEXT_SIZE, color: color || TEXT_COLOR, align: TEXT_ALIGN, cam: camera._active, style: TEXT_STYLE,
+        size: size || TEXT_SIZE, color: color || TEXT_COLOR, align: TEXT_ALIGN, cam: camera._active, st: st,
       });
       return;
     }
-    _paintText(str, x, y, size || TEXT_SIZE, color || TEXT_COLOR, TEXT_ALIGN, camera._active, TEXT_STYLE);
+    _paintText(str, x, y, size || TEXT_SIZE, color || TEXT_COLOR, TEXT_ALIGN, camera._active, st);
   }
 
   // Assumes an untransformed context, like text() always has.
-  function _paintText(str, x, y, size, color, align, withCamera, style) {
+  function _paintText(str, x, y, size, color, align, withCamera, st) {
     CTX_.save();
     _applyFrame(withCamera);
     CTX_.fillStyle = color;
-    CTX_.font = (style && style !== NORMAL ? style + ' ' : '') + size + 'px monospace';
+    CTX_.font = _fontString(st, size);
     CTX_.textAlign = align;
+    const lines = typeof str === 'string' && str.indexOf('\n') !== -1;
+    const plain = !lines && st.deco === NONE && !st.outline && st.spacing === 0 && !st.wrap;
+    let ox = x, oy = y;
     if (ORIGIN_ === 'math') {
       // Flip back at the anchor so the text reads upright. The baseline still
-      // sits on y; the letters rise above it, which in this mode is +y.
+      // sits on y; the letters rise above it, which in this mode is +y. In the
+      // flipped frame +y is down the screen, so later lines still go down.
       CTX_.translate(x, y);
       CTX_.scale(1, -1);
-      CTX_.fillText(str, 0, 0);
-    } else {
-      CTX_.fillText(str, x, y);
+      ox = 0; oy = 0;
     }
+    if (plain) CTX_.fillText(str, ox, oy);
+    else _paintLines(String(str), ox, oy, size, color, align, st);
     CTX_.restore();
+  }
+
+  // Width of one line as _paintLines draws it (letter by letter when spaced).
+  function _lineWidth(line, spacing) {
+    if (spacing === 0) return CTX_.measureText(line).width;
+    let w = 0, n = 0;
+    for (const ch of line) { w += CTX_.measureText(ch).width; n++; }
+    return n > 1 ? w + spacing * (n - 1) : w;
+  }
+
+  // The lines a text becomes: split at '\n', then wrapped to st.wrap.width.
+  function _layoutLines(str, st) {
+    const paras = str.split('\n');
+    if (!st.wrap) return paras;
+    const max = st.wrap.width;
+    const out = [];
+    for (let p = 0; p < paras.length; p++) {
+      const para = paras[p];
+      if (st.wrap.mode === CHAR) {
+        let cur = '';
+        for (const ch of para) {
+          if (cur && _lineWidth(cur + ch, st.spacing) > max) { out.push(cur); cur = ch; } else cur += ch;
+        }
+        out.push(cur);
+        continue;
+      }
+      const words = para.split(' ');
+      let cur = null;
+      for (let i = 0; i < words.length; i++) {
+        const next = cur === null ? words[i] : cur + ' ' + words[i];
+        if (cur === null || _lineWidth(next, st.spacing) <= max) cur = next;
+        else { out.push(cur); cur = words[i]; }
+      }
+      out.push(cur === null ? '' : cur);
+    }
+    return out;
+  }
+
+  // Multi-line, decorated, outlined, spaced or wrapped text, one line at a
+  // time from its own left edge (so the alignment and the decoration agree).
+  function _paintLines(str, x, y, size, color, align, st) {
+    const lines = _layoutLines(str, st);
+    const lead = st.leading !== null ? st.leading : size * 1.25;
+    const thick = Math.max(1, size / 14);
+    CTX_.textAlign = 'left';
+    if (st.outline) {
+      CTX_.strokeStyle = st.outline.color;
+      CTX_.lineWidth = st.outline.weight * 2; // half of it is under the letter
+      CTX_.lineJoin = 'round';
+    }
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const ly = y + i * lead;
+      const w = _lineWidth(line, st.spacing);
+      const left = align === 'center' ? x - w / 2 : align === 'right' ? x - w : x;
+      if (st.outline) _drawLine(line, left, ly, st.spacing, true);
+      _drawLine(line, left, ly, st.spacing, false);
+      if (st.deco !== NONE) {
+        if (st.deco.indexOf(UNDERLINE) !== -1) CTX_.fillRect(left, ly + size * 0.12, w, thick);
+        if (st.deco.indexOf(STRIKETHROUGH) !== -1) CTX_.fillRect(left, ly - size * 0.3, w, thick);
+      }
+    }
+  }
+  function _drawLine(line, left, y, spacing, stroke) {
+    if (spacing === 0) {
+      if (stroke) CTX_.strokeText(line, left, y); else CTX_.fillText(line, left, y);
+      return;
+    }
+    let cx = left;
+    for (const ch of line) {
+      if (stroke) CTX_.strokeText(ch, cx, y); else CTX_.fillText(ch, cx, y);
+      cx += CTX_.measureText(ch).width + spacing;
+    }
   }
 
   // ---- coordinate overlays: showGrid(step), showMouse() --------------------
@@ -4035,6 +4326,15 @@
   global.textSize = textSize;
   global.textAlign = textAlign;
   global.textStyle = textStyle;
+  global.textWeight = textWeight;
+  global.textFont = textFont;
+  global.fontNames = fontNames;
+  global._moshionPreloadFonts = _preloadFonts;
+  global.textDecoration = textDecoration;
+  global.textOutline = textOutline;
+  global.textSpacing = textSpacing;
+  global.textLeading = textLeading;
+  global.textWrap = textWrap;
   global.textLayer = textLayer;
   global.square = square;
   global.CENTER = CENTER;
@@ -4044,6 +4344,11 @@
   global.BOLD = BOLD;
   global.ITALIC = ITALIC;
   global.BOLDITALIC = BOLDITALIC;
+  global.UNDERLINE = UNDERLINE;
+  global.STRIKETHROUGH = STRIKETHROUGH;
+  global.NONE = NONE;
+  global.WORD = WORD;
+  global.CHAR = CHAR;
   global.storeItem = storeItem;
   global.getItem = getItem;
   global.removeItem = removeItem;

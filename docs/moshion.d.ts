@@ -835,11 +835,48 @@ declare function fill(c: string | number): void;
 declare function textSize(px: number): void;
 declare function textAlign(mode: 'left' | 'center' | 'right'): void;
 /** Bold or italic text: textStyle(BOLD), textStyle(ITALIC), textStyle(BOLDITALIC)
- *  for both, textStyle(NORMAL) to go back. Each call replaces the last one, and
- *  it lasts until you change it, like textSize(). With nothing, it returns the
- *  style in force. Throws a TypeError for any other value. */
+ *  for both, textStyle(NORMAL) to go back. Each call replaces the last one
+ *  (BOLD is weight 700, NORMAL is 400 and upright), and it lasts until you
+ *  change it, like textSize(). With nothing, it returns the style in force.
+ *  Throws a TypeError for any other value. */
 declare function textStyle(style: 'normal' | 'bold' | 'italic' | 'bold italic'): void;
 declare function textStyle(): 'normal' | 'bold' | 'italic' | 'bold italic';
+/** How thick the letters are, 100 (thin) to 900 (heavy): 400 is normal, 700
+ *  is bold. A font without that weight uses its nearest one. With nothing,
+ *  returns the weight in force. Throws a TypeError for anything else. */
+declare function textWeight(weight: number): void;
+declare function textWeight(): number;
+/** The typeface for text(): a built-in font ('sans', 'serif', 'code',
+ *  'rounded', 'pixel', 'arcade', 'handwriting', 'comic', 'bubbly', 'space',
+ *  'spooky', 'slab', 'blocky', 'script', 'tall') or one you saved in your
+ *  Library. textFont('monospace') goes back to the default. An unknown name
+ *  warns once in the console and leaves the font as it was. With nothing,
+ *  returns the font's name. */
+declare function textFont(name: string): void;
+declare function textFont(): string;
+/** Every font name textFont() accepts right now: 'monospace', the built-in
+ *  fonts and the ones you saved, sorted. */
+declare function fontNames(): string[];
+/** A line under the text (UNDERLINE), through it (STRIKETHROUGH), both, or
+ *  NONE. The line is the text's colour and grows with its size. With
+ *  nothing, returns 'none', 'underline', 'line-through' or both. */
+declare function textDecoration(...lines: Array<'underline' | 'line-through' | 'none'>): void;
+declare function textDecoration(): string;
+/** An outline around every letter, drawn behind it: textOutline('black', 3).
+ *  Thickness is in pixels (default 2). textOutline() turns it off. */
+declare function textOutline(color?: string | number | null, thickness?: number): void;
+/** Extra pixels between letters; a negative number squeezes them. 0 is
+ *  normal. With nothing, returns the spacing in force. */
+declare function textSpacing(px: number): void;
+declare function textSpacing(): number;
+/** Pixels from one line of text to the next (a '\n' in text(), or textWrap()).
+ *  textLeading(null) goes back to 1.25 x the text size. */
+declare function textLeading(px: number | null): void;
+declare function textLeading(): number | null;
+/** Breaks text() onto new lines so it fits inside `width` pixels: between
+ *  words (WORD, the default) or anywhere (CHAR). A '\n' always starts a new
+ *  line. textWrap() turns wrapping off. */
+declare function textWrap(width?: number | null, mode?: 'word' | 'char'): void;
 /** Puts the text() calls that follow, in draw(), on layer `n` among the
  *  sprites: over every sprite whose `.layer` is `n` or lower, under every
  *  sprite whose `.layer` is higher (a tie goes to the text). Texts on one
@@ -875,6 +912,11 @@ declare const NORMAL: 'normal';
 declare const BOLD: 'bold';
 declare const ITALIC: 'italic';
 declare const BOLDITALIC: 'bold italic';
+declare const UNDERLINE: 'underline';
+declare const STRIKETHROUGH: 'line-through';
+declare const NONE: 'none';
+declare const WORD: 'word';
+declare const CHAR: 'char';
 
 /** Every texture name usable right now — built-ins plus saved art, sorted. */
 declare function textureNames(): string[];
