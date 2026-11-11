@@ -301,13 +301,10 @@ function fire(tx, ty) {
 }
 
 function grounded() {
-  var hit = null;
-  world.rayCast(player.x, player.y + 12, player.x, player.y + 20, function (sprite, point, normal, fraction) {
-    if (sprite && sprite.collider === "none") return -1;
-    hit = sprite;
-    return 0;
-  });
-  return hit !== null;
+  // Anything solid in a short line down from the player's feet. With no
+  // callback, rayCast returns the closest solid hit (or null) and looks
+  // straight through sensors such as collider = "none" pickups.
+  return world.rayCast(player.x, player.y + 12, player.x, player.y + 20) !== null;
 }
 
 function update() {

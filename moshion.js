@@ -86,6 +86,10 @@
   // happens once per frame in loop()'s post-draw sweep — see the comment
   // there for why it must run AFTER update/draw.
   const KEYS_ = {};
+  // The state a counter drops to when its key/button comes up: -2 if it was
+  // held past the threshold, -1 if held more than a frame, -3 if pressed and
+  // released before a frame could count it. Every release path uses this.
+  function _releasedState(v, threshold) { return v >= threshold ? -2 : v > 1 ? -1 : -3; }
   const MOUSE = {
     x: 0, y: 0, _c: 0, _bl: 0, _bc: 0, _br: 0, _seen: false,
     _onCanvas: false,
@@ -170,15 +174,20 @@
     get canvasPos() { const o = _frameOrigin(); return { x: MOUSE.x - o.x, y: MOUSE.y - o.y }; },
     // Boolean, matching mouse.pressing() as taught in 6.7.3/6.7.8 (used as
     // `if (!mouse.pressing())` in the drag-and-drop lesson).
-    pressing: () => { const v = MOUSE._c; return v === -3 || v > 0; },
-    presses: () => { const v = MOUSE._c; return v === 1 || v === -3; },
-    holds: () => MOUSE._c === mouse.holdThreshold,
-    holding: () => { const v = MOUSE._c; return v >= mouse.holdThreshold ? v : 0; },
-    held: () => MOUSE._c === -2,
-    released: () => MOUSE._c <= -1,
-    pressed: () => mouse.released(),
+    //
+    // Every verb takes an optional button, 'left' | 'center' | 'right' (the
+    // same words mouse.left/.center/.right and mouse.drag use); with none it
+    // answers for ANY button, which is what every existing lesson expects.
+    // `mouse.presses('right')` is the right-click's first frame.
+    pressing: (b) => { const v = MOUSE[_btnSlot(b)]; return v === -3 || v > 0; },
+    presses: (b) => { const v = MOUSE[_btnSlot(b)]; return v === 1 || v === -3; },
+    holds: (b) => MOUSE[_btnSlot(b)] === mouse.holdThreshold,
+    holding: (b) => { const v = MOUSE[_btnSlot(b)]; return v >= mouse.holdThreshold ? v : 0; },
+    held: (b) => MOUSE[_btnSlot(b)] === -2,
+    released: (b) => MOUSE[_btnSlot(b)] <= -1,
+    pressed: (b) => mouse.released(b),
     // Same alias relationship as kb.releases() above (the reference implementation).
-    releases: () => mouse.released(),
+    releases: (b) => mouse.released(b),
     // True once the browser has reported the cursor inside the canvas and
     // stays true until a mouseleave — tracked by the two listeners in
     // start(). The reference API exposes the same name (mouse.isOnCanvas).
@@ -198,11 +207,34 @@
     // `drag` is the raw {left,center,right} frame-count object itself (goes
     // negative for one frame on release, like every other counter here);
     // dragging()/drags()/dragged() are the level/edge/release readers on it.
-    get drag() { return { left: MOUSE._dl, center: MOUSE._dc, right: MOUSE._dr }; },
+    //
+    // mouse.drag is callable -- `mouse.drag()` / `mouse.drag('right')` is the
+    // raw counter for one button, as the docs always said -- AND still has
+    // .left/.center/.right, the reference API's object form. It used to be
+    // only the object, so the documented call threw "not a function".
+    drag: _dragFn,
     dragging: (inp) => { const v = MOUSE[_dragSlot(inp)]; return v > 0 ? v : 0; },
     drags: (inp) => MOUSE[_dragSlot(inp)] === 1,
     dragged: (inp) => MOUSE[_dragSlot(inp)] <= -1,
   };
+  function _dragFn(inp) { return MOUSE[_dragSlot(inp)]; }
+  Object.defineProperties(_dragFn, {
+    left: { enumerable: true, get: () => MOUSE._dl },
+    center: { enumerable: true, get: () => MOUSE._dc },
+    right: { enumerable: true, get: () => MOUSE._dr },
+  });
+  // A button name -> its press counter: nothing (or 'any') is '_c', the
+  // any-button counter. An unknown name throws rather than quietly reading
+  // the wrong button.
+  function _btnSlot(b) {
+    if (b === undefined || b === null) return '_c';
+    const k = String(b).toLowerCase();
+    if (k === 'left') return '_bl';
+    if (k === 'right') return '_br';
+    if (k === 'center' || k === 'middle') return '_bc';
+    if (k === 'any') return '_c';
+    throw new TypeError(`mouse button must be 'left', 'center' or 'right' (or nothing, for any button), not ${JSON.stringify(b)}`);
+  }
   // left/center/right (default 'left', matching the reference API's Mouse._default,
   // the reference implementation) -> the MOUSE.* drag-counter slot each name backs.
   function _dragSlot(inp) {
@@ -623,6 +655,26 @@
 
   // A live vector: reads/writes the underlying Box2D body on every axis access,
   // so `player.vel.x = 3` and `player.pos.y += 5` work exactly like the reference API.
+  // The four collider types, by every spelling a sketch might use: the full
+  // word in any case ('Static'), p5play's one-letter form ('s'), and the
+  // STA/DYN/KIN constants (which are already the full words). Anything else
+  // throws, naming the four -- a typo like 'statik' used to be stored as-is
+  // and handed to planck, which treated it as a dynamic body, silently.
+  const COLLIDERS_ = { dynamic: 'dynamic', static: 'static', kinematic: 'kinematic', none: 'none',
+    d: 'dynamic', s: 'static', k: 'kinematic', n: 'none' };
+  function _colliderName(v, where) {
+    const k = typeof v === 'string' ? v.toLowerCase() : null;
+    if (k !== null && Object.prototype.hasOwnProperty.call(COLLIDERS_, k)) return COLLIDERS_[k];
+    throw new TypeError(`${where}: the collider must be 'dynamic', 'static', 'kinematic' or 'none', not ${JSON.stringify(v)}`);
+  }
+  // 'box' is p5play's name for a rectangle.
+  function _shapeName(v) {
+    const k = typeof v === 'string' ? v.toLowerCase() : null;
+    if (k === 'circle') return 'circle';
+    if (k === 'rect' || k === 'box') return 'rect';
+    throw new TypeError(`sprite.shape must be 'circle' or 'rect', not ${JSON.stringify(v)}`);
+  }
+
   function liveVec(read, write) {
     return {
       get x() { return read().x; },
@@ -632,6 +684,7 @@
     };
   }
 
+  const WARNED_ANIS_ = new Set();
   class Sprite {
     constructor(x, y, w, h, bodyType) {
       // The reference API constructor-argument dispatch, matched to actual lesson
@@ -640,15 +693,31 @@
       //   new Sprite(x, y, d)          -> circle, diameter d (2.2.6 lab)
       //   new Sprite(x, y, w, h)       -> rect
       //   new Sprite(x, y, w, h, type) -> rect + bodyType ('static'|'kinematic'|'dynamic')
+      //   new Sprite(x, y, d, type)    -> circle + bodyType (a string where h
+      //                                   would be can only be a type)
+      //   new Sprite()                 -> 50x50 square where the camera is looking
+      if (typeof h === 'string' && bodyType === undefined) { bodyType = h; h = undefined; }
+      if (x === undefined && y === undefined) { x = camera.x; y = camera.y; }
+      const sig = 'new Sprite(x, y, w, h, collider)';
+      for (const [k, v] of [['x', x], ['y', y], ['w', w], ['h', h]]) {
+        if (v !== undefined && typeof v !== 'number') {
+          throw new TypeError(`${sig}: ${k} must be a number, not ${JSON.stringify(v)}`);
+        }
+      }
       let isCircle = false;
       if (w !== undefined && h === undefined) { isCircle = true; h = w; }
       else if (w === undefined) { w = 50; h = 50; }
+      if (bodyType !== undefined) bodyType = _colliderName(bodyType, sig);
+      const wantsNone = bodyType === 'none'; // applied after the fixture exists, below
+      if (wantsNone) bodyType = undefined;
 
       this._body = _world().createBody({ type: 'dynamic', position: pl.Vec2(x / PXM, y / PXM) });
       this._body.setUserData(this);
 
-      this.w = w;
-      this.h = h;
+      // Plain storage; the public w/h setters rebuild the collider, which
+      // cannot happen yet (there is no fixture to rebuild).
+      this._w = w;
+      this._h = h;
       this.color = 'deeppink';
       this.layer = 0;
       this.visible = true;
@@ -679,7 +748,6 @@
       this._joints = []; // every Joint currently attached to this sprite — see `joints`
       this.autoDraw = true;
       this.autoUpdate = true;
-      this._visualOnly = false;
       this._prevPos = null; // snapshotted once per frame in loop() — see prevPos
       this._prevRotation = null;
 
@@ -694,6 +762,7 @@
       // DECISIONS.md D1; only the capability is new, not the default).
       this._density = 1;
       this._buildFixture();
+      if (wantsNone) this.collider = 'none';
 
       this.pos = liveVec(
         () => { const p = this._body.getPosition(); return { x: p.x * PXM, y: p.y * PXM }; },
@@ -717,9 +786,17 @@
 
     _buildFixture() {
       if (this._fixture) { this._body.destroyFixture(this._fixture); }
-      const r = (this._shape === 'circle' ? this.w : this.w) / 2 / PXM;
-      const hw = this.w / 2 / PXM;
-      const hh = this.h / 2 / PXM;
+      // The collider's size follows w/h, but only through sizes a collider
+      // can have: a size of 0, NaN or Infinity changes the drawing and leaves
+      // the collider at its last good size (planck has no infinite or empty
+      // box). A negative size is drawn mirrored; the collider uses its size.
+      const okSize = (v) => typeof v === 'number' && Number.isFinite(v) && v !== 0;
+      if (okSize(this._w)) this._physW = Math.abs(this._w);
+      if (okSize(this._h)) this._physH = Math.abs(this._h);
+      const pw = this._physW || 1, ph = this._physH || 1;
+      const r = pw / 2 / PXM;
+      const hw = pw / 2 / PXM;
+      const hh = ph / 2 / PXM;
       const shape = this._shape === 'circle' ? pl.Circle(r) : pl.Box(hw, hh);
       const fd = {
         shape,
@@ -732,10 +809,32 @@
       this._body.setType(this._bodyType);
     }
 
+    // w/h: the size, and the collider's size. They were plain fields, so
+    // `ball.w = 200` drew a 200px sprite around a 20px collider -- and a group
+    // default (`walls.w = 80`) did the same to every member. Setting either
+    // now rebuilds the collider, as `diameter` always did. A circle has one
+    // size, so on a circle setting either one sets both.
+    get w() { return this._w; }
+    set w(v) {
+      this._w = v;
+      if (this._shape === 'circle') this._h = v;
+      this._buildFixture();
+    }
+    get h() { return this._h; }
+    set h(v) {
+      this._h = v;
+      if (this._shape === 'circle') this._w = v;
+      this._buildFixture();
+    }
+
     get shape() { return this._shape; }
-    set shape(s) { this._shape = s; this._buildFixture(); }
-    get body() { return this._bodyType; }
-    set body(t) { this._bodyType = t; this._buildFixture(); }
+    set shape(s) { this._shape = _shapeName(s); this._buildFixture(); }
+    // .body and .physicsType are other names for .collider -- one setting,
+    // read and written the same way under all three names. (`body` used to
+    // write the body type without clearing 'none', so `s.collider = 'none';
+    // s.body = 'static'` still read back 'none'.)
+    get body() { return this.collider; }
+    set body(t) { this.collider = t; }
     get bounciness() { return this._bounciness; }
     set bounciness(v) { this._bounciness = v; this._buildFixture(); }
     get friction() { return this._friction; }
@@ -1099,6 +1198,7 @@
     // underlying bodyType — collider is just the taught name for it).
     get collider() { return this._sensor ? 'none' : this._bodyType; }
     set collider(v) {
+      v = _colliderName(v, 'sprite.collider');
       if (v === 'none') {
         this._sensor = true;
         // A 'none' sprite is a trigger zone, a pickup, a decoration — the
@@ -1131,7 +1231,7 @@
     // shorthand size setter for circular sprites (group default + per-sprite,
     // e.g. `apples.diameter = 20`, `leftWheel.diameter = 20`).
     get diameter() { return this.w; }
-    set diameter(v) { this.w = v; this.h = v; this._shape = 'circle'; this._buildFixture(); }
+    set diameter(v) { this._w = v; this._h = v; this._shape = 'circle'; this._buildFixture(); }
 
     // Aliases for numbers the sprite already has. None of these is a new
     // capability — they exist because a student arriving from p5/the reference API
@@ -1255,7 +1355,18 @@
 
     changeAni(name) {
       const ani = this._anis && this._anis[name];
-      if (!ani) return; // unregistered name — silent no-op, matches the reference API
+      if (!ani) {
+        // Still a no-op, as in the reference API, but no longer a silent one:
+        // a misspelt animation name looks exactly like a frozen sprite. Once
+        // per name, since this is usually called every frame.
+        if (!WARNED_ANIS_.has(name)) {
+          WARNED_ANIS_.add(name);
+          const have = this._anis ? Object.keys(this._anis) : [];
+          console.warn(`changeAni('${name}'): this sprite has no animation called '${name}'. ` +
+            (have.length ? `It has: ${have.join(', ')}.` : 'Add one first with sprite.addAni(name, sheet, frames).'));
+        }
+        return;
+      }
       this.ani = ani;
     }
 
@@ -1290,7 +1401,7 @@
         c[k] = this[k];
       }
       c._scale = { x: this._scale.x, y: this._scale.y };
-      if (this._visualOnly) c.visualOnly = true;
+      if (!this._body.isActive()) c.physicsEnabled = false;
       // art: pictures are shared (they never change); animations are copied
       // so the clone keeps its own frame instead of flipping in step
       c._img = this._img;
@@ -1351,33 +1462,48 @@
       return { l: this.x - w / 2, r: this.x + w / 2, t: this.y - h / 2, b: this.y + h / 2 };
     }
 
-    // boolean form: `sprite.overlaps(other)`. Also accepts a Group — true if
-    // ANY member overlaps — and the callback form `overlaps(group, cb)` /
-    // `overlaps(sprite, cb)`, which fires `cb(self, other)` once per
-    // overlapping pair/sprite, after this method has finished its own
-    // iteration (safe to delete() inside cb). Deliberately a LIVE geometry
-    // query (continuous truthy while touching), not the edge-triggered
-    // `_overlap` counter below — the reference API's overlaps() IS edge-triggered,
-    // but that ledger is only populated once per frame by _updateOverlaps()
-    // (run inside the main loop), so a call from setup() — before any frame
-    // has run — would always read empty and never fire. overlapping()/
-    // overlapped() below use the counter instead; see build report.
-    overlaps(other, cb) {
+    // The touch verbs, one table for all six (and the same words on Group,
+    // Sensor, kb and mouse):
+    //
+    //               first frame   every frame (count)   last frame
+    //   physics     collides      colliding             collided
+    //   overlap     overlaps*     overlapping           overlapped
+    //
+    // * overlaps() is the exception: a LIVE geometry query, true on every
+    //   frame the two touch, not only the first. That is what the curriculum
+    //   teaches, and it is the only verb that answers from setup() before a
+    //   frame has run. `overlapping(x) === 1` is the first-frame form.
+    //
+    // A Group target answers for its members: the longest count for the -ing
+    // verbs, "any of them" for the rest. With a callback, cb(this, other)
+    // fires once per member that answered. Every member is visited (never
+    // short-circuited -- .some() used to skip later callbacks) over a
+    // snapshot, so the callback may delete() sprites.
+    _verb(other, cb, one, count) {
+      let best = 0;
       if (other instanceof Group) {
-        let hit = false;
         for (const s of [...other]) {
           if (s === this) continue;
-          if (this._overlapsOne(s)) {
-            hit = true;
+          const v = one.call(this, s);
+          if (v) {
+            if (v > best) best = v;
             if (cb) cb(this, s);
           }
         }
-        return hit;
+      } else {
+        best = one.call(this, other);
+        if (best && cb) cb(this, other);
       }
-      const hit = this._overlapsOne(other);
-      if (hit && cb) cb(this, other);
-      return hit;
+      return count ? +best || 0 : !!best;
     }
+    overlaps(other, cb) { return this._verb(other, cb, this._overlapsOne, false); }
+    overlapping(other, cb) { return this._verb(other, cb, this._overlappingOne, true); }
+    overlapped(other, cb) { return this._verb(other, cb, this._overlappedOne, false); }
+    // colliding/collides/collided are backed by planck's real contact list,
+    // not the manual box math overlaps() uses -- see _updateContacts().
+    colliding(other, cb) { return this._verb(other, cb, this._collidingOne, true); }
+    collides(other, cb) { return this._verb(other, cb, this._collidesOne, false); }
+    collided(other, cb) { return this._verb(other, cb, this._collidedOne, false); }
 
     // Rect-vs-rect (and rect-vs-circle) stays AABB — rotation-awareness is
     // explicitly out of scope. Circle-vs-circle uses true circle-distance
@@ -1393,118 +1519,23 @@
       return a.l < b.r && a.r > b.l && a.t < b.b && a.b > b.t;
     }
 
-    // solid-body physics contact (2.3.17) — truthy (a running frame count)
-    // while actually touching `other` (or, if `other` is a Group, the
-    // longest-touching member). Backed by planck's real contact list, not
-    // the manual bounding-box math `overlaps()` uses — see _updateContacts().
-    //
-    // collides/colliding/collided and overlapping/overlapped (added here)
-    // are the p5play edge/count/release triple for collision and overlap —
-    // see the _touch/_overlap counter comment at _updateContacts().
-    //
-    // cb, like overlaps() above, fires cb(this, other) once per truthy pair
-    // — a plain loop, not .some(), so a Group target is visited in full
-    // even after the first hit (the return value is identical either way,
-    // but a later pair's callback would otherwise never fire).
-    colliding(other, cb) {
-      if (other instanceof Group) {
-        let count = 0;
-        for (const s of other) {
-          const v = this._collidingOne(s);
-          if (v > count) count = v;
-          if (v && cb) cb(this, s);
-        }
-        return count;
-      }
-      const v = this._collidingOne(other);
-      if (v && cb) cb(this, other);
-      return v;
-    }
+    // One sprite's answer for each verb, read off the signed per-pair
+    // counters _updateContacts()/_updateOverlaps() keep (see _advanceContact).
     _collidingOne(other) {
       const v = (this._touch && this._touch.get(other)) || 0;
       return v <= -3 ? 1 : v > 0 ? v : 0;
-    }
-    collides(other, cb) {
-      if (other instanceof Group) {
-        let hit = false;
-        for (const s of [...other]) {
-          if (this._collidesOne(s)) {
-            hit = true;
-            if (cb) cb(this, s);
-          }
-        }
-        return hit;
-      }
-      const hit = this._collidesOne(other);
-      if (hit && cb) cb(this, other);
-      return hit;
     }
     _collidesOne(other) {
       const v = (this._touch && this._touch.get(other)) || 0;
       return v === 1 || v <= -3;
     }
-    collided(other, cb) {
-      if (other instanceof Group) {
-        let hit = false;
-        for (const s of [...other]) {
-          if (this._collidedOne(s)) {
-            hit = true;
-            if (cb) cb(this, s);
-          }
-        }
-        return hit;
-      }
-      const hit = this._collidedOne(other);
-      if (hit && cb) cb(this, other);
-      return hit;
-    }
     _collidedOne(other) {
       const v = (this._touch && this._touch.get(other)) || 0;
       return v <= -1;
     }
-
-    // overlapping()/overlapped() — the count/release verbs backing the
-    // edge-triggered overlaps() above, read from the persistent `_overlap`
-    // ledger _updateOverlaps() fills every frame (see there).
-    overlapping(other, cb) {
-      if (other instanceof Group) {
-        let count = 0;
-        for (const s of other) {
-          if (s === this) continue;
-          const n = this._overlappingOne(s);
-          if (n > 0) {
-            count = Math.max(count, n);
-            if (cb) cb(this, s);
-          }
-        }
-        return count;
-      }
-      const n = this._overlappingOne(other);
-      if (n > 0 && cb) cb(this, other);
-      return n;
-    }
     _overlappingOne(other) {
       const v = (this._overlap && this._overlap.get(other)) || 0;
       return v <= -3 ? 1 : v > 0 ? v : 0;
-    }
-    // Plain loop, not .some() — .some() short-circuits on the first truthy
-    // member, so a callback would only ever see one of several ended overlaps.
-    // That exact bug was fixed on the other verbs; this one was missed.
-    overlapped(other, cb) {
-      if (other instanceof Group) {
-        let hit = false;
-        for (const s of [...other]) {
-          if (s === this) continue;
-          if (this._overlappedOne(s)) {
-            hit = true;
-            if (cb) cb(this, s);
-          }
-        }
-        return hit;
-      }
-      const hit = this._overlappedOne(other);
-      if (hit && cb) cb(this, other);
-      return hit;
     }
     _overlappedOne(other) {
       const v = (this._overlap && this._overlap.get(other)) || 0;
@@ -1557,8 +1588,10 @@
     // the same setActive(false) physicsEnabled already uses — planck still
     // lets a manually-positioned inactive body report its transform, which
     // is exactly "draw only".
-    get visualOnly() { return this._visualOnly; }
-    set visualOnly(v) { this._visualOnly = v; this._body.setActive(!v); }
+    // The same flag as physicsEnabled, read the other way round, so the two
+    // can never disagree (each used to keep its own copy).
+    get visualOnly() { return !this._body.isActive(); }
+    set visualOnly(v) { this._body.setActive(!v); }
 
     // Full destruction: tears down the physics body and removes this sprite
     // from every group it belongs to (including the implicit allSprites) —
@@ -1738,22 +1771,19 @@
       this._hits = new Map();
       this._removed = false;
     }
-    // Frames this sensor has been touching `other` (a Sprite, or for a Group
-    // the longest-touching member); 0 when it is not.
-    overlapping(other) {
-      if (other instanceof Group) {
-        let n = 0;
-        for (const s of other) n = Math.max(n, this._count(s));
-        return n;
-      }
-      return this._count(other);
-    }
-    // True while this sensor touches `other` (a Sprite, or any member of a Group).
-    overlaps(other) { return this.overlapping(other) > 0; }
-    _count(other) {
+    // The overlap verbs, as on a sprite (a Group answers for any member;
+    // cb(sensor, other) fires once per member that answered):
+    //   overlaps     true while touching `other`
+    //   overlapping  frames it has been touching (the longest member); 0 when not
+    //   overlapped   true on the frame contact ends
+    overlaps(other, cb) { return this._verb(other, cb, this._overlappingOne, false); }
+    overlapping(other, cb) { return this._verb(other, cb, this._overlappingOne, true); }
+    overlapped(other, cb) { return this._verb(other, cb, this._overlappedOne, false); }
+    _overlappingOne(other) {
       const v = this._hits.get(other) || 0;
       return v > 0 ? v : 0;
     }
+    _overlappedOne(other) { return (this._hits.get(other) || 0) <= -1; }
     // Takes the sensor off its sprite. Deleting the sprite does this too.
     remove() {
       if (this._removed) return;
@@ -1764,6 +1794,8 @@
       if (i >= 0) SENSORS_.splice(i, 1);
     }
   }
+
+  Sensor.prototype._verb = Sprite.prototype._verb; // one walk for every touch verb
 
   // ---- animation (2.4.x) --------------------------------------------------
   // Minimal sprite-sheet animation: a named horizontal frame-strip, advanced
@@ -1818,6 +1850,9 @@
       class GroupSprite extends Sprite {
         constructor(...args) {
           super(...args);
+          // The group's settings first (in the order they were last
+          // written), then any field the sketch made up itself (hp, points).
+          if (group._defaults) for (const [key, v] of group._defaults) this[key] = v;
           for (const key of Object.keys(group)) {
             if (/^\d+$/.test(key)) continue; // array indices = existing members, not defaults
             this[key] = group[key];
@@ -1914,53 +1949,23 @@
       if (diff > 0) { for (let i = 0; i < diff; i++) new this.Sprite(0, 0); }
       else { for (let i = 0; i < -diff; i++) this[0]?.delete(); }
     }
-    // A plain `for` loop, not `.some()` — `.some()` stops calling its
-    // callback the instant one member returns true, which would skip every
-    // later member's own overlap test (and its cb firings) entirely, not
-    // just its own truthy return. Every member must be visited.
-    overlaps(other, cb) {
-      let hit = false;
+    // The touch verbs, asked of every member (see the table on Sprite):
+    // a count verb answers with the longest count, the rest with "any".
+    // Every member is visited, so each one's callbacks fire.
+    _verb(name, other, cb, count) {
+      let best = 0;
       for (const s of [...this]) {
-        if (s.overlaps(other, cb)) hit = true;
+        const v = s[name](other, cb);
+        if (v > best) best = v;
       }
-      return hit;
+      return count ? +best : !!best;
     }
-    colliding(other, cb) {
-      let count = 0;
-      for (const s of this) count = Math.max(count, s.colliding(other, cb));
-      return count;
-    }
-    // Plain loops (not .some()), matching overlaps() above — every member
-    // must be visited so its cb firings (and, for a Group `other`, every
-    // cross-pair) aren't skipped once one hit is found.
-    collides(other, cb) {
-      let hit = false;
-      for (const s of [...this]) {
-        if (s.collides(other, cb)) hit = true;
-      }
-      return hit;
-    }
-    collided(other, cb) {
-      let hit = false;
-      for (const s of [...this]) {
-        if (s.collided(other, cb)) hit = true;
-      }
-      return hit;
-    }
-    overlapping(other, cb) {
-      let count = 0;
-      for (const s of [...this]) count = Math.max(count, s.overlapping(other, cb));
-      return count;
-    }
-    // Was `this.some(...)` — short-circuits on the first ended overlap, so the
-    // callback never saw the rest. Same bug the other verbs already fixed.
-    overlapped(other, cb) {
-      let hit = false;
-      for (const s of [...this]) {
-        if (s.overlapped(other, cb)) hit = true;
-      }
-      return hit;
-    }
+    overlaps(other, cb) { return this._verb('overlaps', other, cb, false); }
+    overlapping(other, cb) { return this._verb('overlapping', other, cb, true); }
+    overlapped(other, cb) { return this._verb('overlapped', other, cb, false); }
+    colliding(other, cb) { return this._verb('colliding', other, cb, true); }
+    collides(other, cb) { return this._verb('collides', other, cb, false); }
+    collided(other, cb) { return this._verb('collided', other, cb, false); }
 
     // Cascading versions of the Sprite methods of the same name. A group
     // already cascades PROPERTIES (`coins.color = 'gold'`), so a student
@@ -2025,6 +2030,35 @@
       }
       return culled;
     }
+  }
+
+  // What a group passes on to its members. Writing one of these on a group
+  // sets it on every CURRENT member and remembers it for every future one
+  // (`new group.Sprite()`, Tiles, group.amount) -- the way group.image always
+  // worked. They used to be stored only as defaults for future members, so
+  // `enemies.color = 'red'` after the enemies existed changed nothing on
+  // screen. The list is how a sprite looks and what it is made of; where it
+  // is and how it moves (x, vel, life, rotation) stay per sprite, and a field
+  // the sketch invents (hp) is still a default for new members only.
+  const GROUP_CASCADE_ = [
+    'color', 'colour', 'stroke', 'strokeWeight', 'layer', 'visible', 'opacity', 'debug',
+    'text', 'textColor', 'textFill', 'textSize', 'textStroke', 'textStrokeWeight',
+    'w', 'h', 'width', 'height', 'diameter', 'd', 'r', 'radius', 'shape',
+    'collider', 'body', 'physicsType', 'bounciness', 'friction', 'density',
+    'drag', 'rotationDrag', 'rotationLock', 'gravityScale',
+  ];
+  for (const prop of GROUP_CASCADE_) {
+    Object.defineProperty(Group.prototype, prop, {
+      configurable: true,
+      get() { return this._defaults && this._defaults.has(prop) ? this._defaults.get(prop) : undefined; },
+      set(v) {
+        if (!this._defaults) Object.defineProperty(this, '_defaults', { value: new Map() });
+        this._defaults.delete(prop); // re-insert, so members replay writes in the order they were made
+        this._defaults.set(prop, v);
+        // Skip members already there: some of these rebuild the collider.
+        for (const s of [...this]) if (s[prop] !== v) s[prop] = v;
+      },
+    });
   }
 
   // Implicit group every sprite auto-joins on creation (2.3.7: "removes it
@@ -2142,88 +2176,49 @@
     }
   }
 
-  // spatial hit-test (2.7.6): top-most (highest layer) live sprite at a point,
-  // or undefined. `x`/`y` are world coords, same space as mouse.x/y and sprite.x/y.
-  world.getSpriteAt = function (x, y) {
-    const hits = ALL_.filter((s) => {
-      if (s._dead) return false;
-      if (s.shape === 'circle') {
-        const dx = x - s.x, dy = y - s.y;
-        return dx * dx + dy * dy <= (s.w / 2) ** 2;
-      }
-      const b = s._bounds();
-      return x >= b.l && x <= b.r && y >= b.t && y <= b.b;
-    });
-    if (!hits.length) return undefined;
-    hits.sort((a, b) => a.layer - b.layer);
-    return hits[hits.length - 1];
-  };
+  // Is the point (x, y) on sprite s, or within `radius` of it? The radius is
+  // measured to the sprite's NEAREST edge, not its centre, so a big sprite
+  // whose edge only grazes the circle still counts. Same box/circle shapes
+  // overlaps() uses. A screenSpace sprite lives in screen pixels, so the world
+  // point is converted first -- otherwise the natural call,
+  // getSpriteAt(mouse.x, mouse.y), could never hit a HUD button once the
+  // camera moved. The one point test both hit-test queries below share (it
+  // was written out three times, and getSpriteAt's copy lacked the HUD case).
+  function _spriteNear(s, x, y, radius) {
+    if (s.screenSpace) { const o = _frameOrigin(); x -= o.x; y -= o.y; }
+    if (s.shape === 'circle') return Math.hypot(x - s.x, y - s.y) <= s.w / 2 + radius;
+    const b = s._bounds();
+    const nx = Math.max(b.l, Math.min(x, b.r));
+    const ny = Math.max(b.t, Math.min(y, b.b));
+    return Math.hypot(x - nx, y - ny) <= radius;
+  }
 
-  // Same hit test as getSpriteAt, but every live sprite at the point instead
-  // of just the topmost — an explosion/AOE query wants the whole stack.
-  // Real signature (the reference implementation): getSpritesAt(x, y, radius, group,
-  // cameraActiveWhenDrawn) with the same leading-object form as explodeAt,
-  // and the same mouse.isActive guard Sprite._target() already uses (an
-  // untouched mouse sits at world (0,0) and would otherwise "hit" whatever
-  // happens to be there). cameraActiveWhenDrawn is accepted for signature
-  // parity and silently ignored — it queries the reference API's own camera-active
-  // draw bookkeeping, which this file has no equivalent of.
+  // getSpritesAt(x, y, radius, group): every live sprite at a point, topmost
+  // first -- an explosion/AOE query wants the whole stack. Takes a point as
+  // two numbers or anything with .x/.y (`world.getSpritesAt(mouse)`), with the
+  // same mouse.isActive guard Sprite._target() uses (an untouched mouse sits
+  // at (0,0) and would otherwise "hit" whatever is there). "Topmost" is the
+  // order render() paints in: the higher layer, and on a tie the sprite made
+  // later. The reference API's fifth argument, cameraActiveWhenDrawn, is
+  // accepted for signature parity and ignored.
   world.getSpritesAt = function (x, y, radius, group /*, cameraActiveWhenDrawn */) {
     if (x === mouse && !mouse.isActive) return [];
     if (x !== null && typeof x === 'object') {
       [x, y, radius, group] = [x.x, x.y, y, radius];
     }
     radius = radius || 0;
-    // Group filtering happens on a plain-array COPY, never the live Group —
-    // Array.prototype.filter on a Group subclass would run results back
-    // through Group's own overridden push() (species construction), which
-    // has real side effects (membership bookkeeping) that a read-only hit
-    // test must never trigger.
-    const pool = group instanceof Group ? [...group] : ALL_;
-    const hits = pool.filter((s) => {
-      if (s._dead) return false;
-      // Screen-space sprites live at screen pixels, so the query point has to
-      // be converted before it can hit one. Without this, a HUD button was
-      // simply unclickable the moment the camera moved: the natural call,
-      // getSpritesAt(mouse.x, mouse.y), tests a world coordinate against a
-      // sprite that is not in world space. Doing it here means the natural
-      // call keeps working for both kinds at once.
-      if (s.screenSpace) {
-        const o = _frameOrigin();
-        const sx = x - o.x, sy = y - o.y;
-        if (radius > 0) {
-          if (s.shape === 'circle') return Math.hypot(sx - s.x, sy - s.y) <= s.w / 2 + radius;
-          const sb = s._bounds();
-          const cx = Math.max(sb.l, Math.min(sx, sb.r));
-          const cy = Math.max(sb.t, Math.min(sy, sb.b));
-          return Math.hypot(sx - cx, sy - cy) <= radius;
-        }
-        if (s.shape === 'circle') {
-          const dx = sx - s.x, dy = sy - s.y;
-          return dx * dx + dy * dy <= (s.w / 2) ** 2;
-        }
-        const sb = s._bounds();
-        return sx >= sb.l && sx <= sb.r && sy >= sb.t && sy <= sb.b;
-      }
-      if (radius > 0) {
-        // Distance to the NEAREST point of the sprite's shape, not
-        // center-to-center — a big sprite whose edge only grazes the
-        // radius should still count.
-        if (s.shape === 'circle') return Math.hypot(x - s.x, y - s.y) <= s.w / 2 + radius;
-        const b = s._bounds();
-        const nx = Math.max(b.l, Math.min(x, b.r));
-        const ny = Math.max(b.t, Math.min(y, b.b));
-        return Math.hypot(x - nx, y - ny) <= radius;
-      }
-      if (s.shape === 'circle') {
-        const dx = x - s.x, dy = y - s.y;
-        return dx * dx + dy * dy <= (s.w / 2) ** 2;
-      }
-      const b = s._bounds();
-      return x >= b.l && x <= b.r && y >= b.t && y <= b.b;
-    });
-    hits.sort((a, b) => b.layer - a.layer); // topmost first
+    // A plain-array copy, never the live Group: Array.prototype.filter on a
+    // Group would run results back through Group.push() (membership
+    // bookkeeping), which a read-only query must never trigger.
+    const pool = group instanceof Group ? [...group] : ALL_.slice();
+    const hits = pool.reverse().filter((s) => !s._dead && _spriteNear(s, x, y, radius));
+    hits.sort((a, b) => b.layer - a.layer); // stable, so a tie keeps "made later" first
     return hits;
+  };
+
+  // getSpriteAt(x, y): the topmost of those, or undefined (2.7.6).
+  world.getSpriteAt = function (x, y) {
+    return world.getSpritesAt(x, y)[0];
   };
 
   Object.defineProperty(world, 'allowSleeping', {
@@ -2351,15 +2346,31 @@
   //   1: continue without clipping → finds ALL
   //  -1: ignore this fixture, continue
   // point/normal are in PIXELS (world coords), fraction is 0..1
-  world.rayCast = function (x1, y1, x2, y2, callback) {
+  world.rayCast = function (x1, y1, x2, y2, callback, _solidOnly) {
     // Support object form: world.rayCast({x, y}, {x, y}, callback)
     if (x1 !== null && typeof x1 === 'object') {
-    [x1, y1, x2, y2, callback] = [x1.x, x1.y, y1.x, y1.y, x2];
+      [x1, y1, x2, y2, callback, _solidOnly] = [x1.x, x1.y, y1.x, y1.y, x2, y2];
     }
-    if (typeof callback !== 'function') return;
+    // No callback: the simple question, "what is the first SOLID thing on
+    // this line?" Returns { sprite, point, normal, fraction } for the closest
+    // hit, or null. Sensors are looked through -- a collider = 'none' pickup
+    // and an addSensor() box are not in the way of anything -- which is the
+    // filter every demo's hand-written ground check was writing for itself.
+    if (callback === undefined) {
+      let best = null;
+      world.rayCast(x1, y1, x2, y2, function (sprite, point, normal, fraction) {
+        best = { sprite, point, normal, fraction };
+        return fraction;
+      }, true);
+      return best;
+    }
+    if (typeof callback !== 'function') {
+      throw new TypeError('world.rayCast(x1, y1, x2, y2, callback): the callback must be a function (or leave it out to get the closest hit back)');
+    }
     const p1 = pl.Vec2(x1 / PXM, y1 / PXM);
     const p2 = pl.Vec2(x2 / PXM, y2 / PXM);
     _world().rayCast(p1, p2, function (fixture, point, normal, fraction) {
+      if (_solidOnly && fixture.isSensor()) return -1;
       // Convert hit point and normal back to pixels
       const hitPoint = { x: point.x * PXM, y: point.y * PXM };
       const hitNormal = { x: normal.x, y: normal.y }; // already unit vector
@@ -2398,18 +2409,30 @@
     // SPEC-surface #3) can list it and delete() below can detach it from
     // both ends. Every subclass constructor calls this right after super().
     _attach(a, b) {
+      // Checked here, before any constructor touches a or b: a missing sprite
+      // used to surface as "Cannot read properties of null (reading '_joints')".
+      const name = this.constructor.name;
+      for (const [k, v] of [['first', a], ['second', b]]) {
+        if (!(v instanceof Sprite)) throw new TypeError(`new ${name}(a, b): the ${k} argument must be a Sprite, not ${v === null ? 'null' : typeof v}`);
+        if (v._dead) throw new Error(`new ${name}(a, b): the ${k} sprite has been deleted`);
+      }
+      if (a === b) throw new Error(`new ${name}(a, b): a joint needs two different sprites`);
       this._a = a;
       this._b = b;
       a._joints.push(this);
       b._joints.push(this);
     }
     delete() {
+      if (this._deleted) return; // twice (or after its sprite went) is a no-op
+      this._deleted = true;
       _world().destroyJoint(this._joint);
       const i = JOINTS_.indexOf(this._joint);
       if (i >= 0) JOINTS_.splice(i, 1);
       if (this._a) { const ai = this._a._joints.indexOf(this); if (ai >= 0) this._a._joints.splice(ai, 1); }
       if (this._b) { const bi = this._b._joints.indexOf(this); if (bi >= 0) this._b._joints.splice(bi, 1); }
     }
+    // remove() is delete(), as on a sprite: the word students reach for.
+    remove() { this.delete(); }
   }
 
   class HingeJoint extends Joint {
@@ -2490,6 +2513,18 @@
       const maxF = (opt && opt.maxForce !== undefined) ? opt.maxForce : 100;
       this._joint = _world().createJoint(new pl.MouseJoint({ maxForce: maxF, target: pl.Vec2(ax / PXM, ay / PXM), localAnchorA: localA, localAnchorB: localB }, a._body, b._body));
       JOINTS_.push(this._joint);
+    }
+    // Where the grabbed sprite is pulled to, in world coordinates. Settable,
+    // which is the whole point of a grabber: `grab.target = mouse` each frame
+    // drags the sprite after the cursor. (It used to be fixed at creation.)
+    get target() { const t = this._joint.getTarget(); return { x: t.x * PXM, y: t.y * PXM }; }
+    set target(p) {
+      if (!p || typeof p.x !== 'number' || typeof p.y !== 'number') {
+        throw new TypeError('grabberJoint.target must be a point with x and y, like mouse or {x: 100, y: 50}');
+      }
+      if (p === mouse && !mouse.isActive) return; // an untouched mouse sits at (0,0)
+      this._joint.setTarget(pl.Vec2(p.x / PXM, p.y / PXM));
+      this._b._body.setAwake(true);
     }
   }
   class GlueJoint extends Joint {
@@ -3128,7 +3163,28 @@
   function max(...args) { return Math.max(...(Array.isArray(args[0]) ? args[0] : args)); }
   function sqrt(n) { return Math.sqrt(n); }
   function pow(b, e) { return Math.pow(b, e); }
-  function atan2(y, x) { return Math.atan2(y, x); }
+  // angleMode(DEGREES): every sprite angle (rotation, direction, angleTo) is
+  // in degrees, but cos/sin/atan2 took radians, so `cos(90)` was -0.45 and
+  // every sketch converted by hand. angleMode(DEGREES) makes the trig
+  // functions speak degrees too; the default stays RADIANS (p5's default,
+  // and what every existing sketch was written against).
+  const DEGREES = 'degrees', RADIANS = 'radians';
+  let ANGLE_MODE_ = RADIANS;
+  function angleMode(mode) {
+    if (mode === undefined) return ANGLE_MODE_;
+    if (mode !== DEGREES && mode !== RADIANS) {
+      throw new TypeError(`angleMode(mode): mode must be DEGREES or RADIANS, not ${JSON.stringify(mode)}`);
+    }
+    ANGLE_MODE_ = mode;
+    return mode;
+  }
+  const _in = (a) => (ANGLE_MODE_ === DEGREES ? (a * Math.PI) / 180 : a);
+  const _out = (a) => (ANGLE_MODE_ === DEGREES ? (a * 180) / Math.PI : a);
+  function cos(a) { return Math.cos(_in(a)); }
+  function sin(a) { return Math.sin(_in(a)); }
+  function tan(a) { return Math.tan(_in(a)); }
+  function atan(v) { return _out(Math.atan(v)); }
+  function atan2(y, x) { return _out(Math.atan2(y, x)); }
   function radians(deg) { return (deg * Math.PI) / 180; }
   function degrees(rad) { return (rad * 180) / Math.PI; }
   const PI = Math.PI, TWO_PI = Math.PI * 2, HALF_PI = Math.PI / 2;
@@ -3633,7 +3689,7 @@
     const _pressKey = (n) => { if (!KEYS_[n] || KEYS_[n] < 0) KEYS_[n] = 1; };
     const _releaseKey = (n) => {
       const v = KEYS_[n] || 0;
-      KEYS_[n] = v >= kb.holdThreshold ? -2 : v > 1 ? -1 : -3;
+      KEYS_[n] = _releasedState(v, kb.holdThreshold);
     };
     window.addEventListener('keydown', (e) => {
       // Browsers only honour AudioContext.resume() from inside a real user
@@ -3714,9 +3770,13 @@
       if (b && (!MOUSE[b] || MOUSE[b] < 0)) MOUSE[b] = 1;
     });
     window.addEventListener('mouseup', (e) => {
-      MOUSE._c = MOUSE._c >= mouse.holdThreshold ? -2 : MOUSE._c > 1 ? -1 : -3;
+      // Only a button that is down can come up. mouseup is on window, so a
+      // click that started anywhere else in the frame also lands here, and
+      // releasing an idle counter read as a full press-and-release
+      // (presses() true) with no press on the canvas at all.
+      if (MOUSE._c > 0) MOUSE._c = _releasedState(MOUSE._c, mouse.holdThreshold);
       const b = MOUSE_BTN_[(e && e.button) || 0];
-      if (b) MOUSE[b] = MOUSE[b] >= mouse.holdThreshold ? -2 : MOUSE[b] > 1 ? -1 : -3;
+      if (b && MOUSE[b] > 0) MOUSE[b] = _releasedState(MOUSE[b], mouse.holdThreshold);
       // drag release: a flat -1 (the reference implementation), not the holdThreshold
       // split press/release above uses — a drag has no "held past
       // threshold" distinction of its own.
@@ -3733,7 +3793,7 @@
       for (const k in KEYS_) if (KEYS_[k] > 0) _releaseKey(k);
       for (const slot of ['_c', '_bl', '_bc', '_br']) {
         const v = MOUSE[slot];
-        if (v > 0) MOUSE[slot] = v >= mouse.holdThreshold ? -2 : v > 1 ? -1 : -3;
+        if (v > 0) MOUSE[slot] = _releasedState(v, mouse.holdThreshold);
       }
       for (const slot of ['_dl', '_dc', '_dr']) if (MOUSE[slot] > 0) MOUSE[slot] = -1;
     });
@@ -3790,16 +3850,34 @@
     const _endTouch = (e) => {
       // A lift with fingers still down is not the end of the gesture.
       if (e && e.touches && e.touches.length) return;
-      MOUSE._c = MOUSE._c >= mouse.holdThreshold ? -2 : MOUSE._c > 1 ? -1 : -3;
-      MOUSE._bl = MOUSE._bl >= mouse.holdThreshold ? -2 : MOUSE._bl > 1 ? -1 : -3;
+      // As for mouseup: a finger that never touched the canvas releases nothing.
+      if (MOUSE._c > 0) MOUSE._c = _releasedState(MOUSE._c, mouse.holdThreshold);
+      if (MOUSE._bl > 0) MOUSE._bl = _releasedState(MOUSE._bl, mouse.holdThreshold);
       if (MOUSE._dl > 0) MOUSE._dl = -1; // flat -1, as in the mouseup handler
     };
     window.addEventListener('touchend', _endTouch);
     window.addEventListener('touchcancel', _endTouch);
 
+    // 60 game frames a second, whatever the screen's refresh rate. Every unit
+    // in this engine is per FRAME (vel in px/frame, timers, life, the hold
+    // threshold, physics' fixed 1/60 s step), and the loop used to run one
+    // frame per requestAnimationFrame -- so on a 120 Hz or 144 Hz screen the
+    // whole game ran 2x-2.4x fast. A screen tick that comes before the next
+    // game frame is due is skipped (the canvas keeps the last picture);
+    // `behind` carries the remainder so 144 Hz still averages 60. A 60 Hz
+    // screen runs every tick, exactly as before. A slow machine still slows
+    // down rather than jumping ahead several frames at once, also as before.
+    // The 1 ms of slack absorbs rAF jitter on a 60 Hz screen.
+    const FRAME_MS_ = 1000 / FPS;
     let last = performance.now();
+    let lastTick = last;
+    let behind = FRAME_MS_; // so the very first tick always runs a frame
     function loop(now) {
       if (!_loopRunning) return; // noLoop(): fully stop, don't idle-spin rAF
+      behind += now - lastTick;
+      lastTick = now;
+      if (behind < FRAME_MS_ - 1) { requestAnimationFrame(loop); return; }
+      behind = Math.min(behind - FRAME_MS_, FRAME_MS_); // never bank more than one frame
       const dt = (now - last) / 1000;
       last = now;
       const step = Math.min(dt, 0.05);
@@ -3930,8 +4008,13 @@
   Object.defineProperty(global, 'height', { get: () => H_ });
   Object.defineProperty(global, 'mouseX', { get: () => MOUSE.x });
   Object.defineProperty(global, 'mouseY', { get: () => MOUSE.y });
-  global.cos = Math.cos;
-  global.sin = Math.sin;
+  global.cos = cos;
+  global.sin = sin;
+  global.tan = tan;
+  global.atan = atan;
+  global.angleMode = angleMode;
+  global.DEGREES = DEGREES;
+  global.RADIANS = RADIANS;
   global.background = background;
   global.text = text;
   global.fill = fill;

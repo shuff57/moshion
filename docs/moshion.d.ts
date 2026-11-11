@@ -7,6 +7,18 @@
 // instead: `world.origin = 'math'` puts (0, 0) at the CENTRE of the canvas
 // with y growing UP and angles turning counter-clockwise. Every x, y, angle
 // and velocity in this file is then read in that frame. See World.origin.
+//
+// Units, all in one place (they are deliberately not all the same kind):
+//   position, size            pixels
+//   vel, speed, maxSpeed       pixels per FRAME (a game runs 60 frames a second
+//                              on every screen, so vel.x = 2 is 120 px/s)
+//   rotation, direction        degrees; angularVelocity in degrees per frame
+//   gravity                    m/s² as Box2D has it (y = 10 is about 1g)
+//   applyForce, attractTo      newtons
+//   every, after, life,        frames
+//   holdThreshold
+//   Sound.fade                 seconds;  millis() milliseconds
+//   cos, sin, tan, atan2       radians, or degrees after angleMode(DEGREES)
 
 // ---- vector types --------------------------------------------------------
 
@@ -42,14 +54,20 @@ declare class Anis {
 // `hp`, `heading`, `label`. The full list is every property declared below
 // (also color, scale, mass, x, y, w, h, d, r, width, height, visible, removed).
 declare class Sprite {
+  /** No arguments: a 50x50 square where the camera is looking (the canvas
+   *  centre until the camera moves). */
+  constructor();
   constructor(x: number, y: number);
   constructor(x: number, y: number, d: number);
   constructor(x: number, y: number, w: number, h: number);
-  constructor(x: number, y: number, w: number, h: number, bodyType: 'static' | 'kinematic' | 'dynamic');
+  /** A circle with a collider type: `new Sprite(200, 50, 30, 'static')`. */
+  constructor(x: number, y: number, d: number, collider: Collider);
+  constructor(x: number, y: number, w: number, h: number, collider: Collider);
 
   pos: Vec2;
   vel: Vec2;
-  position: Vec2; // alias of pos, matches the reference API
+  /** @deprecated Another name for pos. */
+  position: Vec2;
   x: number;
   y: number;
   color: string;
@@ -63,17 +81,25 @@ declare class Sprite {
   scale: Vec2;
   stroke: string | null;
   strokeWeight: number;
+  /** Width and height. Setting either resizes the collider too (and on a
+   *  circle, setting either sets both: a circle has one size). */
   w: number;
   h: number;
+  /** 'box' is accepted as another name for 'rect'. Anything else throws. */
   shape: 'circle' | 'rect';
-  body: 'static' | 'kinematic' | 'dynamic';
-  collider: 'static' | 'kinematic' | 'dynamic' | 'none';
+  /** How the sprite takes part in physics:
+   *   'dynamic'   moves, falls, gets pushed (the default)
+   *   'static'    never moves: floors and walls
+   *   'kinematic' moves only by its vel, nothing pushes it: moving platforms
+   *   'none'      passes through everything; overlaps() still sees it
+   *  Any case, or the first letter ('s'), is accepted; anything else throws. */
+  collider: Collider;
+  /** @deprecated Another name for collider. */
+  body: Collider;
   diameter: number;
   bounciness: number;
   friction: number;
-  // density (D2 — capability added, moSHion's own default of 1 kept, NOT
-  // real p5play's 5; see DECISIONS.md D1). Setting it rebuilds the fixture,
-  // same as bounciness/friction.
+  /** Default 1. Setting it rebuilds the collider, as bounciness/friction do. */
   density: number;
   // mass reads straight off the physics body; setting it scales density so
   // the resulting fixture mass matches (a static/kinematic sprite has 0
@@ -127,31 +153,33 @@ declare class Sprite {
    *  life, joints, or properties the sketch made up (hp, points). */
   clone(): Sprite;
   applyForce(fx: number, fy: number): void;
-  // Live geometry query (continuous truthy while touching), not edge-
-  // triggered — cb fires once per overlapping pair/sprite each call.
-  // A QUESTION, not a setting: it answers "are these touching right now?"
-  // and changes nothing. Calling a.overlaps(b) once in setup() does not
-  // let a and b pass through each other (it does in p5play); to make a
-  // pickup or a bullet pass through, set its collider to 'none'.
-  overlaps(other: Sprite | Group): boolean;
-  overlaps(other: Sprite | Group, cb: (self: Sprite, other: Sprite) => void): boolean;
-  // colliding/collides/collided and overlapping/overlapped are the p5play
-  // edge/count/release triple, backed by a per-pair signed frame counter:
-  // collides()/overlaps() fire once on the first touching frame, colliding()/
-  // overlapping() return the running frame count, collided()/overlapped()
-  // fire once on the frame contact ends.
-  // colliding/collides/collided take the same cb form as overlaps() above —
-  // cb(self, other) fires once per truthy pair.
-  colliding(other: Sprite | Group): number;
-  colliding(other: Sprite | Group, cb: (self: Sprite, other: Sprite) => void): number;
-  collides(other: Sprite | Group): boolean;
-  collides(other: Sprite | Group, cb: (self: Sprite, other: Sprite) => void): boolean;
-  collided(other: Sprite | Group): boolean;
-  collided(other: Sprite | Group, cb: (self: Sprite, other: Sprite) => void): boolean;
+  // The touch verbs. One table, the same words on Sprite, Group and Sensor:
+  //
+  //               first frame   every frame (count)   last frame
+  //   physics     collides      colliding             collided
+  //   overlap     overlaps*     overlapping           overlapped
+  //
+  // physics = the solid bodies are touching (never counts collider 'none').
+  // overlap = the shapes overlap, whatever the colliders (works for 'none').
+  // * overlaps() is the exception: it is true on EVERY frame the two
+  //   overlap, not only the first. It is a question, not a setting: calling
+  //   a.overlaps(b) once in setup() does not let a and b pass through each
+  //   other (it does in p5play); set a collider to 'none' for that. For the
+  //   first frame only, use `overlapping(b) === 1`.
+  //
+  // `other` may be a Group: the count verbs answer with the longest count,
+  // the rest with "any member". With a callback, cb(self, other) fires once
+  // per sprite that answered, and may delete() sprites.
+  // The touch verbs (see the table on Sprite), asked of every member.
+  overlaps(other: Sprite | Group, cb?: (self: Sprite, other: Sprite) => void): boolean;
+  colliding(other: Sprite | Group, cb?: (self: Sprite, other: Sprite) => void): number;
+  collides(other: Sprite | Group, cb?: (self: Sprite, other: Sprite) => void): boolean;
+  collided(other: Sprite | Group, cb?: (self: Sprite, other: Sprite) => void): boolean;
   overlapping(other: Sprite | Group, cb?: (self: Sprite, other: Sprite) => void): number;
   overlapped(other: Sprite | Group, cb?: (self: Sprite, other: Sprite) => void): boolean;
-  // Steps this fraction (default 0.1) of the remaining distance to (x, y)
-  // every call — call once per update() frame for a smooth approach.
+  /** Takes `s` out of this group only. The sprite keeps existing; to destroy
+   *  it, call s.delete(). (Not the same as sprite.remove(), which destroys.) */
+  remove(s: Sprite): void;
   // Distance and bearing to another point or sprite. angleTo uses the same
   // degree convention as .rotation and .direction (0 is right; 90 is down by
   // default and up in math mode).
@@ -160,13 +188,14 @@ declare class Sprite {
   angleTo(x: number, y: number): number;
   angleTo(target: { x: number; y: number }): number;
   // Multiplies the current .scale rather than replacing it. Art only — the
-  // collider keeps the size set by .w/.h. (the reference API's .scale DOES resize the
-  // physics shape; moSHion's is deliberately visual, as its docs state.)
+  // collider keeps the size set by .w/.h. (p5play's .scale also resizes the
+  // collider; moSHion's is deliberately visual.)
   scaleBy(x: number, y?: number): void;
+  /** Steps this fraction (default 0.1) of the remaining distance to the
+   *  target every call — call once per update() frame for a smooth approach. */
   moveTowards(x: number, y: number, tracking?: number): void;
   moveTowards(target: { x: number; y: number }, tracking?: number): void;
-  // The opposite of moveTowards. The reference API declares this but never implements
-  // it; ours follows the documented meaning.
+  // The opposite of moveTowards.
   moveAway(x: number, y: number, repel?: number): void;
   moveAway(target: { x: number; y: number }, repel?: number): void;
   // Applies a force (newtons, like applyForce) toward/away from a point,
@@ -177,8 +206,8 @@ declare class Sprite {
   repelFrom(target: { x: number; y: number }, force?: number): void;
   // Steps .rotation toward `angle` by at most `speed` degrees per call (the
   // shorter signed direction); with no `speed`, snaps immediately. Returns a
-  // Promise for API parity with real p5play — the rotation itself already
-  // happened synchronously by the time it resolves.
+  // Promise only so `await` works as in p5play — the turn has already
+  // happened by the time it resolves.
   rotateTo(angle: number, speed?: number): Promise<Sprite>;
   // Unlike rotateTo, sets a spin speed proportional to the angle remaining,
   // so the sprite eases round over several frames instead of stepping.
@@ -205,14 +234,13 @@ declare class Sprite {
   drag: number;
   /** Angular damping. */
   rotationDrag: number;
-  /** True freezes rotation. Unlike Box2D's own flag, this also blocks
-   *  explicit angularVelocity writes — see DECISIONS D21. */
+  /** True freezes rotation, including explicit angularVelocity writes. */
   rotationLock: boolean;
-  /** Live alias of angularVelocity, degrees per frame. The reference API's name for it. */
+  /** @deprecated Another name for angularVelocity. */
   rotationSpeed: number;
   /** Per-sprite multiplier on world gravity. 0 = weightless. */
   gravityScale: number;
-  /** Alias of drag; planck has no true rolling resistance. */
+  /** @deprecated Another name for drag (Box2D has no rolling resistance). */
   rollingResistance: number;
   applyTorque(t: number): void;
   /** Like applyForce but multiplied by this sprite's mass, so sprites of
@@ -225,14 +253,13 @@ declare class Sprite {
   resetMass(): void;
   /** Read-only, in pixels. */
   readonly centerOfMass: Vec2;
-  /** Alias of .collider. */
-  physicsType: 'dynamic' | 'static' | 'kinematic' | 'none';
+  /** @deprecated Another name for collider. */
+  physicsType: Collider;
   /** False leaves the sprite drawn but out of the simulation. */
   physicsEnabled: boolean;
   /** Conveyor-belt tangent speed, px/frame, re-applied to live contacts. */
   surfaceSpeed: number;
-  /** Draw only — no physics body participation. NOTE: shares one underlying
-   *  flag with physicsEnabled, so the two can drift out of sync. */
+  /** The opposite of physicsEnabled (the same flag, read the other way). */
   visualOnly: boolean;
 
   // ---- motion ---------------------------------------------------------------
@@ -244,8 +271,10 @@ declare class Sprite {
   readonly isMoving: boolean;
   /** Position at the end of the previous frame. */
   readonly prevPos: Vec2;
+  /** @deprecated Another name for prevPos. */
   readonly previousPosition: Vec2;
   readonly prevRotation: number;
+  /** @deprecated Another name for prevRotation. */
   readonly previousRotation: number;
   /** This sprite in screen pixels rather than world coordinates. */
   readonly canvasPos: Vec2;
@@ -254,9 +283,11 @@ declare class Sprite {
   /** Frames remaining; counts down and deletes at 0. Unset = immortal. */
   life: number;
   readonly removed: boolean;
-  /** Aliases of .color. */
+  /** @deprecated Another name for color. */
   colour: string;
+  /** @deprecated Another name for color. */
   fill: string;
+  /** @deprecated Another name for textColor. */
   textFill: string;
   textStroke: string;
   textStrokeWeight: number;
@@ -266,15 +297,15 @@ declare class Sprite {
   autoDraw: boolean;
   autoUpdate: boolean;
   /** True pins the sprite to the screen instead of the world: it ignores the
-   *  camera and draws after everything else. For HUDs. moSHion's own — the reference API
-   *  handles UI with camera.off() around drawing primitives instead. */
+   *  camera and draws after everything else. For HUDs. (p5play has no such
+   *  flag; there a HUD is drawn with camera.off() instead.) */
   screenSpace: boolean;
   /** Assign to run your own logic each frame, or to take over drawing. */
   update?: () => void;
   draw?: () => void;
 
-  // Aliases for numbers the sprite already has, so material written against
-  // p5/the reference API works unchanged. Not new capabilities.
+  // Other names for numbers the sprite already has, so code written for
+  // p5play works unchanged. Setting any of them resizes the collider.
   width: number;
   height: number;
   hw: number;
@@ -284,8 +315,12 @@ declare class Sprite {
   d: number;
   r: number;
   radius: number;
+  /** @deprecated Another name for vel. */
   velocity: Vec2;
 }
+
+/** The four collider types (see Sprite.collider). */
+type Collider = 'dynamic' | 'static' | 'kinematic' | 'none';
 
 /** What sprite.addSensor() returns. Answers from this frame's physics step,
  *  like colliding(). */
@@ -293,15 +328,28 @@ declare class Sensor {
   /** The sprite it rides on. */
   readonly sprite: Sprite;
   /** True while this sensor touches `other` (any member, for a Group). */
-  overlaps(other: Sprite | Group): boolean;
+  overlaps(other: Sprite | Group, cb?: (sensor: Sensor, other: Sprite) => void): boolean;
   /** Frames it has been touching `other` (the longest member, for a Group); 0 when not. */
-  overlapping(other: Sprite | Group): number;
+  overlapping(other: Sprite | Group, cb?: (sensor: Sensor, other: Sprite) => void): number;
+  /** True on the frame it stops touching `other`. */
+  overlapped(other: Sprite | Group, cb?: (sensor: Sensor, other: Sprite) => void): boolean;
   /** Takes the sensor off its sprite. Deleting the sprite does this too. */
   remove(): void;
 }
 
 // ---- group ---------------------------------------------------------------
 
+/**
+ * A list of sprites that share settings. Setting a sprite property on a group
+ * sets it on every member it has NOW and remembers it for every member made
+ * later with `new group.Sprite()`: color, stroke, layer, visible, opacity,
+ * text and its styling, size (w, h, diameter...), shape, collider,
+ * bounciness, friction, density, drag, rotationDrag, rotationLock,
+ * gravityScale, and image / texture / pattern. Where a sprite is and how it
+ * moves (x, y, vel, rotation, life) are not passed on to existing members.
+ * A field you make up (`enemies.hp = 3`) is a starting value for new
+ * members only.
+ */
 declare class Group extends Array<Sprite> {
   Sprite: typeof Sprite;
   /** Catalog texture name for every member, current and future. */
@@ -313,7 +361,6 @@ declare class Group extends Array<Sprite> {
 
   newSprite(x: number, y: number, w?: number, h?: number): Sprite;
   push(...sprites: Sprite[]): number;
-  remove(s: Sprite): void;
   overlaps(other: Sprite | Group, cb?: (self: Sprite, other: Sprite) => void): boolean;
   colliding(other: Sprite | Group, cb?: (self: Sprite, other: Sprite) => void): number;
   collides(other: Sprite | Group, cb?: (self: Sprite, other: Sprite) => void): boolean;
@@ -340,6 +387,7 @@ declare class Group extends Array<Sprite> {
   contains(s: Sprite): boolean;
   /** Deletes every member and empties the group. */
   delete(): void;
+  /** @deprecated Another name for delete(). */
   deleteAll(): void;
   /** Read or set the member count — setting spawns or deletes to match. */
   amount: number;
@@ -401,8 +449,14 @@ interface JointOptions {
   maxForce?: number;
 }
 
+/** Every joint throws a TypeError if either argument is not a live Sprite,
+ *  or if both are the same sprite. Where the joint pins the two together
+ *  (`anchor`) defaults per joint: Hinge and Slider at sprite a, Wheel and
+ *  Grabber at sprite b, Glue at sprite a; Distance joins the two centres. */
 declare class Joint {
   delete(): void;
+  /** Same as delete(). */
+  remove(): void;
 }
 
 declare class HingeJoint extends Joint {
@@ -424,6 +478,9 @@ declare class WheelJoint extends Joint {
 
 declare class GrabberJoint extends Joint {
   constructor(a: Sprite, b: Sprite, opt?: JointOptions);
+  /** Where sprite b is pulled to. Set it every frame to drag:
+   *  `grab.target = mouse`. An untouched mouse is ignored. */
+  target: Vec2;
 }
 
 declare class GlueJoint extends Joint {
@@ -514,7 +571,10 @@ interface World {
    *  nothing falls until you set world.gravity.y. In math mode (y up) a
    *  falling world is y = -10. */
   gravity: Vec2;
+  /** The topmost sprite at a point (highest layer; on a tie, the one made
+   *  later), or undefined. Hits HUD (screenSpace) sprites where they are drawn. */
   getSpriteAt(x: number, y: number): Sprite | undefined;
+  getSpriteAt(point: { x: number; y: number }): Sprite | undefined;
   /** Every live sprite at a point, topmost first. Optional radius (measured
    *  to the nearest edge) and group filter. Returns [] for an inactive mouse. */
   getSpritesAt(
@@ -558,6 +618,11 @@ interface World {
    *   `point` and `normal` are in world pixels; `fraction` is 0..1 along the ray.
    *   `sprite` is the hit Sprite, or null if the fixture has no sprite userData.
    */
+  /** With no callback: the closest SOLID sprite on the line (sensors and
+   *  collider 'none' are looked through), or null.
+   *  `if (world.rayCast(p.x, p.y, p.x, p.y + 30)) onGround = true;` */
+  rayCast(x1: number, y1: number, x2: number, y2: number): RayHit | null;
+  rayCast(from: Vec2, to: Vec2): RayHit | null;
   rayCast(
     x1: number | { x: number; y: number },
     y1: number | { x: number; y: number },
@@ -567,29 +632,41 @@ interface World {
   ): void;
 }
 
+interface RayHit {
+  /** The sprite hit, or null for a body that is not a sprite. */
+  sprite: Sprite | null;
+  point: Vec2;
+  normal: Vec2;
+  /** 0..1, how far along the ray. */
+  fraction: number;
+}
+
 // ---- input ---------------------------------------------------------------
 
 interface Kb {
   holdThreshold: number;
-  // Key names are normalised before lookup, so all three spellings of the
-  // same key work: what the browser reports ('ArrowRight', ' '), the reference API's
-  // name ('arrowRight'), and the course's ('right', 'space'). Pressing an
-  // arrow OR its WASD twin both answer to 'up'/'down'/'left'/'right'.
-  // pressing() returns a plain boolean, true every frame the key is held
-  // (matches the course: 5.1.5/6.3.3). Use holding(key) for the frame count.
-  pressing(key: string): boolean;
+  // Key names are normalised, so every spelling of a key works: what the
+  // browser reports ('ArrowRight', ' '), p5play's ('arrowRight'), and the
+  // course's ('right', 'space'). An arrow OR its WASD twin answers to
+  // 'up'/'down'/'left'/'right'.
+  //
+  //   presses(k)   the first frame it goes down
+  //   pressing(k)  true every frame it is held (holding(k) gives the count)
+  //   holds(k)     the one frame it has been held holdThreshold frames
+  //   released(k)  the frame it comes back up
+  //   held(k)      the frame it comes up after being held past holdThreshold
   presses(key: string): boolean;
+  pressing(key: string): boolean;
   holds(key: string): boolean;
+  /** Frames held, once held past holdThreshold; 0 before that. */
   holding(key: string): number;
   held(key: string): boolean;
   released(key: string): boolean;
-  // Matches the reference API: pressed() is an alias of released() — it fires on
-  // key-UP, not key-down. See the comment above the `kb` object in moshion.js.
+  /** @deprecated Fires when the key comes back UP (it is released(), as in
+   *  p5play) — not when it goes down. For the down press use presses(). */
   pressed(key: string): boolean;
 
-  // Named-key shorthands: same value kb.pressing(name) returns (a plain
-  // boolean). The reference API exposes the raw signed counter here, which is
-  // truthy on the release frame too — a deliberate divergence.
+  // Named-key shorthands: the same as kb.pressing(name), true while held.
   readonly space: boolean;
   readonly enter: boolean;
   readonly escape: boolean;
@@ -611,7 +688,7 @@ interface Kb {
   readonly windows: boolean;
   readonly opt: boolean;
   readonly option: boolean;
-  /** Alias of released() — true on the frame the key comes back up. */
+  /** @deprecated Another name for released(). */
   releases(key: string): boolean;
 }
 
@@ -632,18 +709,23 @@ interface Mouse {
   readonly position: Vec2;
   readonly canvasPos: Vec2;
   holdThreshold: number;
-  pressing(): boolean;
-  presses(): boolean;
-  holds(): boolean;
-  holding(): number;
-  held(): boolean;
-  released(): boolean;
-  pressed(): boolean;
-  // Per-button counters; pressing() above stays "any button".
+  // The same verbs as kb, for a button: 'left', 'center' or 'right'. With no
+  // button they answer for ANY button. `mouse.presses('right')` is the first
+  // frame of a right-click. Any other name throws.
+  pressing(button?: MouseButton): boolean;
+  presses(button?: MouseButton): boolean;
+  holds(button?: MouseButton): boolean;
+  holding(button?: MouseButton): number;
+  held(button?: MouseButton): boolean;
+  released(button?: MouseButton): boolean;
+  /** @deprecated Fires on button-UP, like kb.pressed(). Use presses() or released(). */
+  pressed(button?: MouseButton): boolean;
+  /** @deprecated Another name for released(). */
+  releases(button?: MouseButton): boolean;
+  /** Frames this button has been held (0 when up). Prefer pressing('left'). */
   readonly left: number;
   readonly center: number;
   readonly right: number;
-  releases(): boolean;
   /** True while the cursor is over the canvas. */
   readonly isOnCanvas: boolean;
   /** False until the browser first reports a cursor position — until then
@@ -653,12 +735,18 @@ interface Mouse {
   cursor: string;
   /** Wheel movement since the last frame, zeroed each frame. */
   readonly scrollDelta: Vec2;
-  /** Per-button drag counters, same signed-counter scheme as the press verbs. */
-  drag(button?: number): number;
-  dragging(button?: number): number;
-  drags(button?: number): boolean;
-  dragged(button?: number): boolean;
+  /** The raw drag counter for a button (default 'left'): frames moved while
+   *  held, negative for one frame on release. Also readable as
+   *  mouse.drag.left / .center / .right. */
+  drag: ((button?: MouseButton) => number) & { readonly left: number; readonly center: number; readonly right: number };
+  /** Frames the pointer has moved with this button held; 0 when not. */
+  dragging(button?: MouseButton): number;
+  /** The first frame of a drag. */
+  drags(button?: MouseButton): boolean;
+  /** The frame a drag ends. */
+  dragged(button?: MouseButton): boolean;
 }
+type MouseButton = 'left' | 'center' | 'right';
 
 // ---- canvas --------------------------------------------------------------
 
@@ -689,6 +777,7 @@ declare const mouse: Mouse;
 declare const allSprites: Group;
 // Collider-type constants — the same strings .collider already accepts, so
 // `s.collider = STATIC` and `s.collider = 'static'` are interchangeable.
+// STA/DYN/KIN are the same three again, shorter.
 declare const STATIC: 'static';
 declare const DYNAMIC: 'dynamic';
 declare const KINEMATIC: 'kinematic';
@@ -709,8 +798,9 @@ declare const mouseY: number;
 /** Runs once, before the first frame. Must call `new Canvas(w, h)`. */
 declare function setup(): void;
 /** Runs each frame BEFORE the physics step, so a sprite moved here is moved
-  * before this frame's collisions are resolved. `step` is the frame's
-  * duration in seconds, capped at 0.05. */
+  * before this frame's collisions are resolved. The game runs 60 frames a
+  * second on any screen (a 144 Hz monitor does not speed it up). `step` is
+  * the real time since the last frame in seconds, capped at 0.05. */
 declare function update(step: number): void;
 /** Runs each frame after physics, BEFORE sprites are rendered. Anything drawn
   * here is painted underneath every sprite — draw backgrounds and world
@@ -758,8 +848,18 @@ declare function textLayer(n?: number | null): void;
 /** rect(x, y, s, s, r): uses fill(), stroke(), noFill() and noStroke() like
  *  every other shape (before 2026-10-31 it ignored fill() and drew black). */
 declare function square(x: number, y: number, s: number, r?: number): void;
+/** Radians by default; degrees after angleMode(DEGREES), the unit every
+ *  sprite angle (rotation, direction, angleTo) already uses. */
 declare function cos(angle: number): number;
 declare function sin(angle: number): number;
+declare function tan(angle: number): number;
+/** Returns radians, or degrees after angleMode(DEGREES). */
+declare function atan(v: number): number;
+/** Sets the unit cos/sin/tan take and atan/atan2 return. With no argument,
+ *  returns the current one. Default RADIANS. */
+declare function angleMode(mode?: typeof DEGREES | typeof RADIANS): typeof DEGREES | typeof RADIANS;
+declare const DEGREES: 'degrees';
+declare const RADIANS: 'radians';
 declare function noLoop(): void;
 
 declare const CENTER: 'center';
@@ -812,6 +912,8 @@ declare function noFill(): void;
 
 // ---- math & random ---------------------------------------------------------
 
+// random() is seeded fresh on every run in runner.html, so each playthrough
+// differs. randomSeed(n) in setup() makes a run repeatable.
 declare function random(): number;
 declare function random(max: number): number;
 declare function random(min: number, max: number): number;
@@ -838,6 +940,7 @@ declare function max(...values: number[]): number;
 declare function max(values: number[]): number;
 declare function sqrt(n: number): number;
 declare function pow(base: number, exponent: number): number;
+/** Returns radians, or degrees after angleMode(DEGREES). */
 declare function atan2(y: number, x: number): number;
 declare function radians(deg: number): number;
 declare function degrees(rad: number): number;

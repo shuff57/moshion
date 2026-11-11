@@ -58,19 +58,30 @@ hand-authored reference):
   text drawn in `draw()` sits under every sprite; after `textLayer(n)` it is
   painted among them instead, over sprites whose `.layer` is `n` or lower and
   under higher ones (`textLayer()` with nothing goes back)
-- `Canvas`, `Sprite`, `Group`, `allSprites` — drawing + physics
+- `Canvas`, `Sprite`, `Group`, `allSprites` — drawing + physics. Setting a
+  sprite's `w`/`h` resizes its collider too, and a group setting
+  (`enemies.color = 'red'`) reaches the members it already has as well as
+  new ones
 - `Tiles` (a level built from rows of text and a legend of groups), `Walls`
   (static walls round the canvas edges), `sprite.addSensor()` (a detect-only
   box, e.g. a ground sensor)
 - `every(frames, fn)` / `after(frames, fn)` — frame timers
-- `world`, `camera` — gravity, hit-testing, viewport; `world.origin = 'math'`
+- `world`, `camera` — gravity, hit-testing, viewport, ray casts
+  (`world.rayCast(x1, y1, x2, y2)` with no callback returns the closest solid
+  hit, or null); `world.origin = 'math'`
   for centre-origin, y-up coordinates (see Coordinates below), with
   `showGrid()` / `showMouse()` to label whichever mode is active
-- `kb`, `mouse` — input with edge-triggered events (`kb.presses('w')`). A
+- `kb`, `mouse` — input with edge-triggered events (`kb.presses('w')`,
+  `mouse.presses('right')`; with no button a mouse verb means any button). A
   single touch drives the same `mouse` properties, so a pointer sketch works
   on a phone unchanged (no right-button equivalent: a second finger is ignored)
 - Joints: `HingeJoint`, `DistanceJoint`, `SliderJoint`, `WheelJoint`,
-  `GrabberJoint`, `GlueJoint`
+  `GrabberJoint` (`grab.target = mouse` drags), `GlueJoint`
+- `angleMode(DEGREES)` — makes `cos`/`sin`/`atan2` use degrees, like every
+  sprite angle already does (radians stay the default)
+- The game runs 60 frames a second on any screen: a 120 or 144 Hz monitor
+  does not speed it up. `runner.html` seeds `random()` fresh each run;
+  `randomSeed(n)` makes a run repeatable
 - `storeItem`/`getItem` — saves, bridged to the host page via postMessage
   (works even in opaque-origin iframes)
 - `loadSound` — a path or a data: URI loads that file; a bare code-safe name is

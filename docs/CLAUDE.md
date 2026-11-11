@@ -10,9 +10,9 @@ hand-authored JavaScript facade over [planck.js][] (a pure-JS/TS port of
 Box2D). There is no build step, no bundler and no linter configured. The only
 tooling is the Playwright spec suite under `tests/`.
 
-- `moshion.js` (~2,800 lines) — the entire engine. Edit directly; do not split
+- `moshion.js` (~4,100 lines) — the entire engine. Edit directly; do not split
   without discussion.
-- `docs/moshion.d.ts` (~640 lines) — public API types. Keep in sync with
+- `docs/moshion.d.ts` (~1,000 lines) — public API types. Keep in sync with
   runtime behavior in `moshion.js`.
 - `planck.min.js` — vendored planck.js v1.5.0 (MIT). Do not edit.
 - `runner.html` — sandbox host used by the app's preview iframes
@@ -39,6 +39,7 @@ Each spec is a standalone script that serves the repo, drives a real Chromium
 and prints `PASS`/`FAIL` per assertion (exit 0 only if all pass):
 
 ```sh
+bun tests/api-audit.spec.mjs      # engine: sizes, group cascade, colliders, mouse buttons, sensors, hit-tests, joints, angleMode, 60fps cap, seeding
 bun tests/raycast.spec.mjs        # engine: world.rayCast
 bun tests/drawtop.spec.mjs        # engine: the drawTop() HUD hook
 bun tests/textlayer.spec.mjs      # engine: textLayer(n), text() among the sprites by layer
@@ -160,6 +161,28 @@ any change once a sprite exists, gravity is non-zero or a frame has run.
 
 ### Key invariants when editing
 
+- **The loop runs 60 game frames a second, not one per screen refresh.**
+  `loop()` skips a requestAnimationFrame tick that arrives before the next
+  frame is due, carrying the remainder (`behind`) so 144 Hz still averages 60.
+  Every unit is per frame, so one frame per rAF ran a 144 Hz screen 2.4x fast.
+  It never runs two frames in one tick: a slow machine slows down, as before.
+- **`w`/`h` are accessors that rebuild the collider**, like `diameter`
+  always was (they were plain fields, so the drawing and the collider could
+  disagree). A size that cannot be a collider (0, NaN, Infinity) changes the
+  drawing only; `_buildFixture()` keeps the last good size in `_physW/_physH`.
+  Internally, write `_w/_h` when no rebuild is wanted (constructor, diameter).
+- **Group properties cascade.** The names in `GROUP_CASCADE_` are accessors on
+  `Group.prototype`: writing one sets every current member and records a
+  default in `group._defaults`, which `new group.Sprite()` replays before the
+  group's own enumerable fields (the made-up ones like `hp`). Position, motion
+  and `life` are deliberately not on the list.
+- **`collider` is the one body-type setting**; `body` and `physicsType` are
+  aliases of it, and `_colliderName()` normalises/validates every spelling.
+- **One walk for the touch verbs**: `Sprite.prototype._verb` (also used by
+  `Sensor`) and `Group.prototype._verb`. A new verb is one line on each.
+- **`random()`'s default seed is fixed** (headless harnesses replay a sketch
+  byte for byte); `runner.html` reseeds it per run so players get fresh dice.
+
 - **Units are pixels-per-frame for velocity, degrees-per-frame for angular
   velocity, raw Newtons for `applyForce`, raw m/s² for gravity.** The facade
   converts to Box2D meters behind the scenes (`PXM = 30` px/m, `FPS = 60`).
@@ -249,6 +272,33 @@ any change once a sprite exists, gravity is non-zero or a frame has run.
 - **The in-app docs** (`lib/moshion-docs.ts`, rendered at `/docs/moshion`) are
   hand-authored against this engine's real surface. If you change the engine
   API, update `lib/moshion-docs.ts` and `docs/challenges.md` too.
+
+## Committing and pushing: then check shCode
+
+shCode (`../shCode`, default branch `cs-3d`) carries its own copy of this
+engine in `public/moshion/` and its own docs, so a push here is not finished
+until shCode has been checked. After every commit that changes the engine's
+behaviour or API (`moshion.js`, `docs/moshion.d.ts`, `runner.html`):
+
+1. Read `public/moshion/VENDORED.md` in shCode. It records which commit is
+   vendored and the resync steps, including the local lines to re-apply.
+2. Resync from this repo's pushed `main`, following "To resync" there:
+   `moshion.js` and `docs/moshion.d.ts` byte for byte plus the local lines,
+   then `scripts/generate-moshion-completions.mjs`.
+3. Update shCode's docs by hand to match: `lib/moshion-docs.ts` (the in-app
+   docs students read), `public/moshion/docs/CLAUDE.md` (engine invariants),
+   and shCode's own `public/moshion/runner.html` if this repo's runner changed
+   behaviour (shCode's reads `?code=`, so never copy it over).
+4. Run shCode's gates: `scripts/test-moshion.mjs`,
+   `scripts/check-moshion-textures.mjs`, `scripts/test-editor-completions.mjs`.
+   For a change in behaviour, also run the corpus comparison
+   `VENDORED.md` describes (`scripts/moshion-harness.mjs`, old engine vs new).
+5. Record the sync in `VENDORED.md` (commit, date, what changed), then commit
+   and push in shCode on a branch. shCode's working checkout often has other
+   work in progress, so do this in a `git worktree` off `origin/cs-3d`.
+
+A change that only touches this repo's demo games, homepage or tests needs no
+shCode sync, but still say so when reporting the push.
 
 ## Consuming moSHion (context for user-facing questions)
 

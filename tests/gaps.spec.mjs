@@ -151,7 +151,15 @@ function draw() { background('#000000'); frames++; if (moveNow) { camera.x = 100
 `;
 {
   const { ctx, page, frame, errors } = await open(CULL, 30);
-  const a = await frame.evaluate(() => { moveNow = true; return { seen: { ...seen }, frames, ownCalls, ani: spin.ani.frame + spin.ani._tick }; });
+  // The animation clock over five frames. A single reading cannot tell
+  // stopped from running: frame + tick returns to 0 every 16 frames (4
+  // frames x 4 ticks), so a running clock read at the wrong moment is 0 too.
+  const aniClock = await frame.evaluate(() => new Promise((res) => {
+    const v = [];
+    const t = every(1, () => { v.push(spin.ani.frame * 4 + spin.ani._tick); if (v.length === 5) { t.stop(); res(v); } });
+  }));
+  const a = await frame.evaluate(() => { moveNow = true; return { seen: { ...seen }, frames, ownCalls }; });
+  a.ani = new Set(aniClock).size > 1 ? 1 : 0;
   await waitFrames(frame, 40); // the camera moved to x = 1000 on the next frame
   const b = await frame.evaluate(() => ({ seen: { ...seen }, frames, ownCalls }));
   const n = (s, k) => s.seen[k] || 0;
@@ -162,7 +170,7 @@ function draw() { background('#000000'); frames++; if (moveNow) { camera.x = 100
   check('C5 a rotated sprite that stays off screen is not drawn', n(a, '#ff0006') === 0, a.seen);
   check('C6 screenSpace sprites draw whatever the camera does', n(b, '#ff0008') > n(a, '#ff0008') && n(a, '#ff0008') > 10, { a: a.seen, b: b.seen });
   check('C7 a sprite with its own draw() runs it every frame even off screen', a.ownCalls >= a.frames - 1 && b.ownCalls > a.ownCalls, { a, b });
-  check('C8 an animation keeps its clock while its sprite is culled', a.ani > 0, a.ani);
+  check('C8 an animation keeps its clock while its sprite is culled', a.ani > 0, aniClock);
   check('C9 after the camera moves to x=1000 the sprite there is drawn', n(b, '#ff0007') > 5 && n(a, '#ff0007') === 0, { a: a.seen, b: b.seen });
   check('C10 ...and the one that was on screen stops being drawn',
     n(b, '#ff0002') - n(a, '#ff0002') <= 2 && b.frames - a.frames > 20, { a: a.seen, b: b.seen });

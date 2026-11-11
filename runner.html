@@ -154,6 +154,14 @@
 <script src="./planck.min.js"></script>
 <script src="./textures/textures.js"></script>
 <script src="./moshion.js"></script>
+<script>
+	/* A fresh random() sequence every run. The engine's own default seed is
+	   fixed, so a headless harness that loads moshion.js directly replays the
+	   same sketch byte for byte -- but in a player's hands that meant every
+	   playthrough rolled the same dice. A sketch that wants a repeatable run
+	   still calls randomSeed(n) in setup(), which comes after this. */
+	if (typeof randomSeed === 'function') randomSeed((Math.random() * 4294967296) >>> 0);
+</script>
 </head>
 <body>
 <div id="error"></div>
