@@ -35,7 +35,12 @@ declare class Ani {
   frameDelay: number;
   /** Optional per-frame holds (game frames), one per frame; null = uniform frameDelay. */
   frameDelays: number[] | null;
+  /** The frame showing, 0 first. Set it to jump there: a whole number, wrapped
+   *  (-1 is the last frame), and the frame starts from the beginning of its duration. */
   frame: number;
+  /** Game frames the current frame has been showing, 0 when it just started.
+   *  Set it after `frame` to start part-way through a frame (kept below its duration). */
+  tick: number;
   spriteSheet: HTMLImageElement;
 }
 
@@ -144,7 +149,9 @@ declare class Sprite {
    *  platforms. Any `image` / `texture` / `ani` draws instead. null clears it. */
   pattern: string | HTMLImageElement | HTMLCanvasElement | ImageBitmap | null;
 
-  addAni(name: string, sheetUrl: string, frameCount: number): Ani;
+  /** `sheet` is a picture's path or the name of a texture (a drawn animation brings its
+   *  own frames and durations; a count given here overrides them). */
+  addAni(name: string, sheet: string, frameCount?: number): Ani;
   changeAni(name: string): void;
   /** A new sprite that looks and behaves like this one: size, shape, colour,
    *  outline, art, layer, rotation and physics settings, in the same groups.
@@ -358,6 +365,10 @@ declare class Group extends Array<Sprite> {
   pattern: string | HTMLImageElement | HTMLCanvasElement | ImageBitmap | null;
   /** Art for every member, current and future (`new group.Sprite()`). */
   image: string | HTMLImageElement | HTMLCanvasElement | ImageBitmap | null;
+  /** Scale for every member, current and future. A number sets both axes;
+   *  `group.scale.y = 3` or `group.scale = { y: 3 }` sets one and leaves the other. */
+  get scale(): { x: number; y: number };
+  set scale(v: number | [number, number] | { x?: number; y?: number });
 
   newSprite(x: number, y: number, w?: number, h?: number): Sprite;
   push(...sprites: Sprite[]): number;

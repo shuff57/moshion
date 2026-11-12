@@ -1349,7 +1349,26 @@
     // minimal sprite-sheet animation (2.4.3a–2.4.3c): a named animation is a
     // horizontal frame-strip; only one is "active" (this.ani) at a time.
     addAni(name, sheetUrl, frameCount) {
-      const ani = new Ani(name, sheetUrl, frameCount);
+      // shCode #111: a texture drawn in the Texture editor has no URL to give
+      // here -- it lives in the store as 'texture:<name>' -- so the sheet can
+      // be a texture NAME too, built-in or saved, and an animated one brings
+      // its own frame count and durations unless the call gives a count. A
+      // name used to become img.src = 'myWalk', which failed with no message.
+      let src = sheetUrl, delays = null, delay = 0;
+      if (typeof sheetUrl === 'string' && /^[A-Za-z][A-Za-z0-9_]*$/.test(sheetUrl)) {
+        const named = _textureSrc(sheetUrl);
+        if (named) {
+          src = named;
+          const meta = _textureMeta(sheetUrl);
+          if (meta && frameCount === undefined) { frameCount = meta.frames; delays = meta.delays; delay = meta.frameDelay; }
+        } else if (!WARNED_ANIS_.has('sheet:' + sheetUrl)) {
+          WARNED_ANIS_.add('sheet:' + sheetUrl);
+          console.warn(`addAni('${name}', '${sheetUrl}'): there is no texture called '${sheetUrl}'. ` +
+            'Draw and save it in the Textures tab (more than one frame makes it animate), or give the path of a picture.');
+        }
+      }
+      const ani = new Ani(name, src, frameCount, delays);
+      if (delay) ani.frameDelay = delay;
       if (!this._anis) this._anis = new Anis();
       this._anis[name] = ani;
       if (!this.ani) this.ani = ani; // first addAni auto-activates
@@ -1820,9 +1839,33 @@
       this.frameDelays = Array.isArray(frameDelays) && frameDelays.length === this.frameCount
         ? frameDelays.map(function (d) { return Math.max(1, Math.floor(d) || 1); })
         : null;
-      this.frame = 0;
+      this._frame = 0;
       this._tick = 0;
       this.spriteSheet = loadArt_(sheetUrl);
+    }
+    // Which frame is showing, 0 first. Setting it jumps there (shCode #110):
+    // `sprite.ani.frame = 2` shows the third frame from the start of its
+    // duration. It used to be a plain field, so a jump kept the old frame's
+    // count (the new frame could last one game frame or a whole hold), a
+    // frame past the end drew a blank slice of the sheet, and 1.5 drew half
+    // of two frames. Now a whole number is required and it wraps, so -1 is
+    // the last frame and frameCount is the first again.
+    get frame() { return this._frame; }
+    set frame(n) {
+      if (typeof n !== 'number' || !Number.isFinite(n)) return;
+      const c = this.frameCount;
+      this._frame = ((Math.trunc(n) % c) + c) % c;
+      this._tick = 0;
+    }
+    // How many game frames the frame showing now has been on screen, 0 when
+    // it has just started. A frame with a duration of 3 shows for ticks 0, 1
+    // and 2. Set it after .frame to start part-way through a frame: `ani.frame
+    // = 1; ani.tick = 1;` is the second game frame of frame 1 (#110). It is
+    // kept below that frame's duration.
+    get tick() { return this._tick; }
+    set tick(n) {
+      if (typeof n !== 'number' || !Number.isFinite(n)) return;
+      this._tick = Math.max(0, Math.min(this.holdOf(this._frame) - 1, Math.trunc(n)));
     }
     /** How long the frame showing right now is held, in game frames. */
     holdOf(frame) {
@@ -1831,9 +1874,9 @@
     }
     _advance() {
       if (this.frameCount <= 1) return;
-      if (++this._tick < this.holdOf(this.frame)) return;
+      if (++this._tick < this.holdOf(this._frame)) return;
       this._tick = 0;
-      this.frame = (this.frame + 1) % this.frameCount;
+      this._frame = (this._frame + 1) % this.frameCount;
     }
   }
 
@@ -2066,6 +2109,43 @@
       },
     });
   }
+
+  // A group's scale (shCode #108) cascades like the settings above, and one
+  // axis can be set on its own: `walls.scale.y = 3` stretches every wall up and
+  // down and leaves their widths alone. `group.scale = 2` (both axes),
+  // `{ x: 2 }` or `{ x: 2, y: 1 }` and `[2, 1]` work too. An axis the write does
+  // not name keeps each member's own value. Before this a group's scale was a
+  // plain field: it reached only sprites made afterwards, and `.x` on the
+  // number 2 changed nothing at all. The default kept for new members is the
+  // whole {x, y}, so they match what the group was last told.
+  Object.defineProperty(Group.prototype, 'scale', {
+    configurable: true,
+    get() {
+      const group = this;
+      const cur = () => (this._defaults && this._defaults.get('scale')) || { x: 1, y: 1 };
+      return {
+        get x() { return cur().x; },
+        set x(n) { group.scale = { x: n }; },
+        get y() { return cur().y; },
+        set y(n) { group.scale = { y: n }; },
+      };
+    },
+    set(v) {
+      const pick = (n) => (typeof n === 'number' && Number.isFinite(n) ? (n || 0.01) : undefined);
+      let x, y;
+      if (typeof v === 'number') x = y = pick(v);
+      else if (v && typeof v === 'object') { x = pick(v.x ?? v[0]); y = pick(v.y ?? v[1]); }
+      if (x === undefined && y === undefined) return;
+      if (!this._defaults) Object.defineProperty(this, '_defaults', { value: new Map() });
+      const prev = this._defaults.get('scale') || { x: 1, y: 1 };
+      this._defaults.delete('scale');
+      this._defaults.set('scale', { x: x ?? prev.x, y: y ?? prev.y });
+      const write = {};
+      if (x !== undefined) write.x = x;
+      if (y !== undefined) write.y = y;
+      for (const s of [...this]) s.scale = write;
+    },
+  });
 
   // Implicit group every sprite auto-joins on creation (2.3.7: "removes it
   // from every group it belongs to, including the implicit allSprites").
@@ -3706,8 +3786,11 @@
       } catch (e) {
         // A missing or unplayable file must not take the sketch down; the
         // sound just never makes noise. `error` is there for a sketch that
-        // wants to say so.
+        // wants to say so -- and the console says why, once per file: a wrong
+        // name, a saved name typed with `.mp3`, or a file on another website
+        // used to fail with nothing on screen at all.
         this.error = e && e.message ? e.message : String(e);
+        _warnSoundOnce('load:' + this.url, _soundLoadAdvice(this.url, this.error));
         return null;
       }
     }
@@ -3764,7 +3847,16 @@
      */
     play(clipName) {
       const src = this._voice();
-      if (!src) return null;
+      if (!src) {
+        // Still a no-op (a chime arriving late is worse than none), but said
+        // once: play() in setup() is the usual way a sound "never works".
+        // A sound that failed to load has already said why.
+        if (this._buffer === null && this.error === null && _audioCtx()) {
+          _warnSoundOnce('early:' + this.url, `${_soundLabel(this.url)}.play() did nothing: the sound has not finished loading yet. ` +
+            'Play it on an event (a key press, a hit) instead of in setup(), or use .loop() for music, which starts once it has loaded.');
+        }
+        return null;
+      }
       _unlockAudio();
       const clip = this._clip(clipName);
       if (clip === 'unknown') return null;
@@ -3900,6 +3992,52 @@
   }
 
   function loadSound(url, opts) { return new Sound(url, opts); }
+
+  // What a failed loadSound() says in the console, in plain words. Once per
+  // file (and once per too-early play), since the calls are often in draw().
+  const WARNED_SOUNDS_ = new Set();
+  function _warnSoundOnce(key, msg) {
+    if (WARNED_SOUNDS_.has(key)) return;
+    WARNED_SOUNDS_.add(key);
+    console.warn(msg);
+  }
+  function _soundLabel(url) { return "loadSound('" + String(url) + "')"; }
+  function _savedSoundNames() {
+    const out = [];
+    const keys = _storeKeys();
+    for (let i = 0; i < keys.length; i++) {
+      const k = keys[i];
+      if (typeof k === 'string' && k.slice(0, SOUND_PREFIX_.length) === SOUND_PREFIX_) out.push(k.slice(SOUND_PREFIX_.length));
+    }
+    return out.sort();
+  }
+  function _soundLoadAdvice(url, err) {
+    const u = String(url);
+    const names = _savedSoundNames();
+    const fileName = /^([A-Za-z][A-Za-z0-9_]*)\.(mp3|wav|ogg)$/i.exec(u);
+    if (fileName && names.indexOf(fileName[1]) !== -1) {
+      return _soundLabel(u) + ": a saved sound is loaded by its name, without the ." + fileName[2] +
+        ". Write loadSound('" + fileName[1] + "').";
+    }
+    if (/^[A-Za-z][A-Za-z0-9_]*$/.test(u)) {
+      const low = u.toLowerCase();
+      const near = names.filter(function (n) {
+        const l = n.toLowerCase();
+        return l === low || l.indexOf(low) !== -1 || low.indexOf(l) !== -1;
+      });
+      return _soundLabel(u) + ": there is no saved sound called '" + u + "'. " +
+        (near.length ? 'Did you mean ' + near.map(function (n) { return "'" + n + "'"; }).join(' or ') + '? The name must match exactly, capitals too.'
+          : names.length ? 'Your saved sounds are: ' + names.join(', ') + '.'
+          : 'Make or import one in the Sounds tab first, then load it by the name you saved it under.');
+    }
+    let other = false;
+    try { other = /^https?:/i.test(u) && new URL(u).host !== location.host; } catch (e) { /* not a URL */ }
+    if (other) {
+      return _soundLabel(u) + ': sounds from other websites are blocked here. Download the file, import it in the ' +
+        "Sounds tab, and load it by its name: loadSound('name').";
+    }
+    return _soundLabel(u) + ' could not load that file (' + err + '). Check the path, or import the file in the Sounds tab and load it by its name.';
+  }
 
   // Scales every sound at once without disturbing their individual volumes —
   // a mute button, or ducking under a cutscene. One gain node at the end of
