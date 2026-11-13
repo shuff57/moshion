@@ -1321,14 +1321,39 @@
     // one is a StillTexture with the same fields (frameCount 1). Both print as
     // their name, so text('using ' + s.texture) still reads 'using coin'.
     // null when the sprite has no texture. It used to return the name string.
-    get texture() { return this._texture ? (this._textureObj || null) : null; }
+    //
+    // An animation made with addAni() counts too: sprite.texture is the one
+    // showing (the same object as sprite.ani), and `sprite.texture = 'run'`
+    // switches to the sprite's own animation called 'run' the way
+    // changeAni('run') does. The sprite's own animation names come first,
+    // then the texture catalog. So .texture is the one name for the art a
+    // sprite shows, whichever way it was added.
+    get texture() {
+      if (this._texture) return this._textureObj || null;
+      return this.ani || null;
+    }
     set texture(name) {
       // `a.texture = b.texture` copies by name.
       if (name && typeof name === 'object' && typeof name.name === 'string') name = name.name;
+      // One of this sprite's own addAni() animations (not one a texture made):
+      // switch to it, exactly as changeAni(name) does.
+      if (typeof name === 'string' && this._anis && Object.prototype.hasOwnProperty.call(this._anis, name)) {
+        const own = this._anis[name];
+        if (own && own !== this._textureArt) {
+          this.ani = own;
+          this._img = null;
+          this._emoji = null;
+          this._texture = null;
+          return;
+        }
+      }
       if (name === null || name === undefined || name === '') {
-        // Only undo art that CAME from a texture; an addAni()/image the sketch
-        // set itself is not ours to clear.
-        if (this._texture) { this._img = null; this.ani = null; }
+        // Undo the art .texture reads back: a texture, or the animation
+        // showing (an addAni() one stays registered, so changeAni() or
+        // .texture = its name brings it back). An .image the sketch set
+        // itself is not ours to clear.
+        if (this._texture) this._img = null;
+        this.ani = null;
         this._texture = null;
         this._textureArt = null;
         this._textureObj = null;

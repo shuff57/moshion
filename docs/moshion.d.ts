@@ -158,7 +158,10 @@ declare class Sprite {
    * Reads back as the texture itself: `sprite.texture.name` is 'coin', and an
    * animated one is controlled here too (`.frameDelay`, `.frame`, `.loop`,
    * `.frameCount`; it is the same object as `sprite.ani`). null when the
-   * sprite has no texture. Setting the name it already shows does nothing
+   * sprite has no texture. An animation made with `addAni()` counts too:
+   * `sprite.texture` is the one showing, and `sprite.texture = 'run'`
+   * switches to the sprite's own animation 'run' like `changeAni('run')`.
+   * Setting the name it already shows does nothing
    * (no restart); a different name starts at its first picture. Setting it clears
    * `.image` and `.ani`, and setting either of those clears this. An
    * unknown name warns and leaves the sprite as it was. Drawn with image

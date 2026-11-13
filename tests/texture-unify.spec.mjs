@@ -58,6 +58,24 @@ try {
   check('frame = 0 replays a play-once animation to its end', replay === 0 && after.f === 3, { replay, after });
   check('a.texture = b.texture copies by name', after.copy === 'coin', after);
   check('a different name switches', after.swap === 'coin/true', after);
+
+  // addAni() animations are read and switched through .texture too.
+  const own = await frame.evaluate(() => {
+    const g = new Sprite(150, 50, 30, 30); g.collider = 'none';
+    g.addAni('idle', 'batFly'); g.addAni('fly', 'beeFly');
+    const first = g.texture && g.texture.name, isAni = g.texture === g.ani;
+    g.texture.frameDelay = 9; const delay = g.ani.frameDelay;
+    g.texture = 'fly'; const switched = g.texture.name;
+    g.texture = 'idle'; const back = g.texture.name + '/' + g.texture.frameDelay;
+    g.texture = 'coin'; const cat = g.texture.name + '/' + (g.ani === null);
+    g.texture = 'fly'; const ownAfterCat = g.texture.name;
+    g.texture = null; const cleared = g.texture;
+    return { first, isAni, delay, switched, back, cat, ownAfterCat, cleared };
+  });
+  check('after addAni, .texture is the active animation', own.first === 'idle' && own.isAni === true && own.delay === 9, own);
+  check(".texture = 'fly' switches to the sprite's own animation", own.switched === 'fly' && own.back === 'idle/9', own);
+  check('a catalog name still works next to own animations', own.cat === 'coin/true' && own.ownAfterCat === 'fly', own);
+  check('.texture = null clears the animation showing', own.cleared === null, own);
 } finally {
   await browser.close();
   srv.close();
