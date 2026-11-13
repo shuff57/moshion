@@ -75,8 +75,10 @@ hand-authored reference):
   `mouse.presses('right')`; with no button a mouse verb means any button). A
   single touch drives the same `mouse` properties, so a pointer sketch works
   on a phone unchanged (no right-button equivalent: a second finger is ignored)
-- Joints: `HingeJoint`, `DistanceJoint`, `SliderJoint`, `WheelJoint`,
-  `GrabberJoint` (`grab.target = mouse` drags), `GlueJoint`
+- Joints: `HingeJoint` (`stiffness` 0..1 holds its starting pose,
+  `lowerLimit`/`upperLimit` in degrees stop the turn), `DistanceJoint`,
+  `SliderJoint`, `WheelJoint`, `GrabberJoint` (`grab.target = mouse` drags),
+  `GlueJoint`
 - `angleMode(DEGREES)` — makes `cos`/`sin`/`atan2` use degrees, like every
   sprite angle already does (radians stay the default)
 - The game runs 60 frames a second on any screen: a 120 or 144 Hz monitor

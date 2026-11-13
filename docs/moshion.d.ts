@@ -458,6 +458,12 @@ interface JointOptions {
   length?: number;
   axis?: Vec2;
   maxForce?: number;
+  /** HingeJoint: 0 (floppy, the default) to 1 (holds its starting pose). */
+  stiffness?: number;
+  /** HingeJoint: the smallest angle it may turn to, in degrees from the starting pose. */
+  lowerLimit?: number | null;
+  /** HingeJoint: the largest angle it may turn to, in degrees from the starting pose. */
+  upperLimit?: number | null;
 }
 
 /** Every joint throws a TypeError if either argument is not a live Sprite,
@@ -470,8 +476,18 @@ declare class Joint {
   remove(): void;
 }
 
+/** Angles are in degrees, counted from the pose the two sprites were in when
+ *  the hinge was made, in the same direction as `rotation`. */
 declare class HingeJoint extends Joint {
   constructor(a: Sprite, b: Sprite, opt?: JointOptions);
+  /** How hard it holds its starting pose: 0 floppy (default) to 1 stiff. */
+  stiffness: number;
+  /** Stops it turning below this angle; null for no limit. */
+  lowerLimit: number | null;
+  /** Stops it turning past this angle; null for no limit. */
+  upperLimit: number | null;
+  /** How far it has turned from the starting pose. */
+  readonly angle: number;
 }
 
 declare class DistanceJoint extends Joint {

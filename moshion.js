@@ -2348,7 +2348,7 @@
   // colliding()/overlapping() stay correct when a sketch is driving physics
   // by hand (autoStep = false) rather than skip half the automatic pipeline.
   world.physicsUpdate = function (step) {
-    if (step !== undefined) _world().step(step, 8, 3);
+    if (step !== undefined) { _driveHinges(); _world().step(step, 8, 3); }
     else stepPhysics();
     _updateContacts();
     _updateOverlaps();
@@ -2544,6 +2544,24 @@
     remove() { this.delete(); }
   }
 
+  // Hinges with a stiffness, driven before every physics step (_driveHinges).
+  const HINGES_ = [];
+  // An unset side of a hinge limit: far enough that it never stops anything.
+  const NO_LIMIT_ = 1e6;
+
+  function _hingeDegrees(v, name) {
+    if (v === null || v === undefined) return null;
+    if (typeof v !== 'number' || !isFinite(v)) {
+      throw new TypeError(`hinge.${name} must be a number of degrees, like ${name === 'lowerLimit' ? -45 : 90}, or null for no limit, not ${JSON.stringify(v)}`);
+    }
+    return v;
+  }
+
+  // shCode #116: a hinge can stop at an angle (lowerLimit/upperLimit, an elbow
+  // that bends one way) and hold its shape (stiffness, the "tension" that keeps
+  // a ragdoll's limbs from going floppy). Every angle is in degrees, measured
+  // from the pose the two sprites were in when the hinge was made, in the same
+  // direction as sprite.rotation: 0 is the starting pose.
   class HingeJoint extends Joint {
     constructor(a, b, opt) {
       super();
@@ -2551,7 +2569,99 @@
       const { localA, localB } = _anchor(a, b, opt);
       this._joint = _world().createJoint(new pl.RevoluteJoint({ localAnchorA: localA, localAnchorB: localB }, a._body, b._body));
       JOINTS_.push(this._joint);
+      this._lower = null;
+      this._upper = null;
+      this._stiffness = 0;
+      if (opt) {
+        if (opt.lowerLimit !== undefined) this.lowerLimit = opt.lowerLimit;
+        if (opt.upperLimit !== undefined) this.upperLimit = opt.upperLimit;
+        if (opt.stiffness !== undefined) this.stiffness = opt.stiffness;
+      }
     }
+    /** How far sprite b has turned from the starting pose, in degrees. */
+    get angle() { return (this._joint.getJointAngle() * 180) / Math.PI; }
+    get lowerLimit() { return this._lower; }
+    set lowerLimit(v) { this._lower = _hingeDegrees(v, 'lowerLimit'); this._applyLimits(); }
+    get upperLimit() { return this._upper; }
+    set upperLimit(v) { this._upper = _hingeDegrees(v, 'upperLimit'); this._applyLimits(); }
+    _applyLimits() {
+      const lo = this._lower, hi = this._upper;
+      if (lo === null && hi === null) {
+        this._joint.enableLimit(false);
+      } else {
+        const l = lo === null ? -NO_LIMIT_ : (lo * Math.PI) / 180;
+        const h = hi === null ? NO_LIMIT_ : (hi * Math.PI) / 180;
+        // Set one at a time, the two can cross for a moment: use them in order.
+        this._joint.setLimits(Math.min(l, h), Math.max(l, h));
+        this._joint.enableLimit(true);
+      }
+      this._wake();
+    }
+    // 0 (the default) swings freely; 1 snaps straight back to the starting
+    // pose and holds it against gravity. In between, it sags a little and
+    // springs back when hit.
+    get stiffness() { return this._stiffness; }
+    set stiffness(v) {
+      if (typeof v !== 'number' || !isFinite(v)) {
+        throw new TypeError(`hinge.stiffness must be a number from 0 (floppy) to 1 (stiff), not ${JSON.stringify(v)}`);
+      }
+      this._stiffness = Math.max(0, Math.min(1, v));
+      const on = this._stiffness > 0 && !this._deleted;
+      this._joint.enableMotor(on);
+      if (!on) this._joint.setMaxMotorTorque(0);
+      const i = HINGES_.indexOf(this);
+      if (on && i < 0) HINGES_.push(this);
+      else if (!on && i >= 0) HINGES_.splice(i, 1);
+      this._wake();
+    }
+    // The stiffness is a motor aimed back at the starting pose: the further
+    // the hinge has turned, the faster it is asked to turn back, with only so
+    // much strength. The strength is worked out from what hangs off sprite b
+    // (b, and everything joined on past it), so 1 holds a whole arm up
+    // whatever its size, and smaller numbers let it sag.
+    _drive() {
+      const s = this._stiffness;
+      // Faster than this and the hinges shake against the floor (measured on
+      // ragdolls of several sizes: 2 + 3s settles, 4 + 16s never stops).
+      this._joint.setMotorSpeed(-this._joint.getJointAngle() * (2 + 3 * s));
+      this._joint.setMaxMotorTorque(s * 3 * this._holdTorque());
+    }
+    _holdTorque() {
+      const g = _world().getGravity();
+      const gm = Math.sqrt(g.x * g.x + g.y * g.y);
+      const at = this._joint.getAnchorB();
+      let torque = 0, inertia = 0;
+      const seen = new Set([this._a, this._b]);
+      const stack = [this._b];
+      for (let n = 0; stack.length && n < 64; n++) {
+        const s = stack.pop();
+        const body = s._body;
+        if (!body || !body.isDynamic()) continue; // a wall holds itself up
+        const m = body.getMass();
+        const c = body.getWorldCenter();
+        const dx = c.x - at.x, dy = c.y - at.y;
+        torque += m * gm * Math.sqrt(dx * dx + dy * dy);
+        inertia += body.getInertia() + m * (dx * dx + dy * dy);
+        for (const j of s._joints) {
+          const o = j._a === s ? j._b : j._a;
+          if (o && !seen.has(o)) { seen.add(o); stack.push(o); }
+        }
+      }
+      // The inertia term lets it swing back with no gravity at all.
+      return torque + inertia * 30;
+    }
+    _wake() {
+      if (this._a && this._a._body) this._a._body.setAwake(true);
+      if (this._b && this._b._body) this._b._body.setAwake(true);
+    }
+    delete() {
+      const i = HINGES_.indexOf(this);
+      if (i >= 0) HINGES_.splice(i, 1);
+      super.delete();
+    }
+  }
+  function _driveHinges() {
+    for (const h of HINGES_) if (!h._deleted) h._drive();
   }
   class DistanceJoint extends Joint {
     constructor(a, b, opt) {
@@ -2656,6 +2766,7 @@
   // ---- physics step -----------------------------------------------------
 
   function stepPhysics() {
+    _driveHinges();
     _world().step(1 / FPS, 8, 3);
   }
 
