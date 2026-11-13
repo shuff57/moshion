@@ -98,9 +98,9 @@ const region = (cx, cy) => count(cx, cy, 12);
 let r;
 r = await region(40, 100);  add('N1 texture = "coin" draws catalog art, no colored block', nonBg(r) && r.blue === 0, r);
 r = await region(220, 100); add('N2 setting .image after .texture clears the name', nonBg(r) && r.blue === 0, r);
-const names = await frame.evaluate(() => ({ get: named.texture, swappedName: swapped.texture, unknown: unknown.texture,
-  has: hasTexture('coin'), no: hasTexture('nopeNotAThing'), n: textureNames().length, mine: mine.texture }));
-add('N3 .texture reads back the NAME', names.get === 'coin' && names.mine === 'myRed', names);
+const names = await frame.evaluate(() => { const nm = (s) => s.texture && s.texture.name; return { get: nm(named), swappedName: swapped.texture, unknown: unknown.texture,
+  has: hasTexture('coin'), no: hasTexture('nopeNotAThing'), n: textureNames().length, mine: nm(mine) }; });
+add('N3 .texture.name reads back the name', names.get === 'coin' && names.mine === 'myRed', names);
 add('N4 .image clears .texture; unknown name leaves it unset', names.swappedName === null && names.unknown === null, names);
 add('N5 hasTexture / textureNames cover the 40 built-ins plus saved', names.has && !names.no && names.n >= 41, names);
 p = await px(340, 100); add('N6 saveTexture() art is found by name', near(p, 255, 0, 0), p);
@@ -108,7 +108,7 @@ r = await region(400, 100); add('N7 group.texture reaches existing members', non
 r = await region(430, 100); add('N8 group.texture is the default for new group.Sprite()', nonBg(r) && r.blue === 0, r);
 
 await waitFrames(frame, 30);
-const anim = await frame.evaluate(() => ({ n: fly.ani && fly.ani.frameCount, f: fly.ani && fly.ani.frame, name: fly.texture,
+const anim = await frame.evaluate(() => ({ n: fly.ani && fly.ani.frameCount, f: fly.ani && fly.ani.frame, name: fly.texture && fly.texture.name,
   run: (() => { const s = new Sprite(0, 0, 24, 24); s.texture = 'runner'; return s.ani && s.ani.frameCount; })() }));
 add('N9 built-in animated texture plays as a sprite sheet (batFly = 4 frames, advancing)', anim.n === 4 && anim.name === 'batFly' && anim.f > 0, anim);
 add('N10 original sheet in the catalog: runner = 6 frames', anim.run === 6, anim);

@@ -41,7 +41,27 @@ declare class Ani {
   /** Game frames the current frame has been showing, 0 when it just started.
    *  Set it after `frame` to start part-way through a frame (kept below its duration). */
   tick: number;
+  /** true (default) repeats forever; false plays once and stays on the last frame. Set `frame = 0` to play it again. */
+  loop: boolean;
   spriteSheet: HTMLImageElement;
+  /** The name, so `'using ' + sprite.texture` reads 'using coin'. */
+  toString(): string;
+}
+
+/** What `sprite.texture` reads back for a still (one-picture) texture: the
+ *  same fields as an animated one, with frameCount 1. */
+declare class StillTexture {
+  name: string;
+  /** Always 0: one picture. */
+  frame: number;
+  /** Always 1. */
+  frameCount: number;
+  /** No effect on a still. */
+  frameDelay: number;
+  frameDelays: null;
+  /** No effect on a still. */
+  loop: boolean;
+  toString(): string;
 }
 
 declare class Anis {
@@ -135,7 +155,11 @@ declare class Sprite {
   /**
    * Named art from the texture catalog, e.g. `sprite.texture = 'coin'`.
    *
-   * Reads back as the NAME that was set, not the image. Setting it clears
+   * Reads back as the texture itself: `sprite.texture.name` is 'coin', and an
+   * animated one is controlled here too (`.frameDelay`, `.frame`, `.loop`,
+   * `.frameCount`; it is the same object as `sprite.ani`). null when the
+   * sprite has no texture. Setting the name it already shows does nothing
+   * (no restart); a different name starts at its first picture. Setting it clears
    * `.image` and `.ani`, and setting either of those clears this. An
    * unknown name warns and leaves the sprite as it was. Drawn with image
    * smoothing off, so pixel art stays crisp when scaled.
@@ -143,7 +167,8 @@ declare class Sprite {
    * Names come from `textureNames()`: the built-in catalog plus anything
    * `saveTexture()` has stored. A saved name wins over a built-in one.
    */
-  texture: string | null;
+  get texture(): Ani | StillTexture | null;
+  set texture(name: string | Ani | StillTexture | null);
   /** A picture that repeats at its natural size inside the sprite's shape
    *  (anchored top-left) instead of stretching. For ground, walls and
    *  platforms. Any `image` / `texture` / `ani` draws instead. null clears it. */

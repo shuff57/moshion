@@ -54,7 +54,7 @@ function update() {
 
   var grounded = groundSensor.overlaps(ground);
   var pose = grounded ? "runner" : "runnerJump";
-  if (player.texture !== pose) player.texture = pose;
+  player.texture = pose;   // the same texture again changes nothing
   if ((kb.presses("up") || kb.presses("space") || mouse.presses()) && grounded) player.vel.y = -3.5;
 
   nextSpawn--;

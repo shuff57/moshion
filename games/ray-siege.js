@@ -53,7 +53,7 @@ function drawBtn(b, label) {
 function pose(base) {
   var moving = Math.abs(player.vel.x) > 0.3;
   var want = moving && Math.abs(player.vel.y) < 0.5 ? base + "Walk" : base;
-  if (player.texture !== want) player.texture = want;
+  player.texture = want;   // the same texture again changes nothing
   if (moving) player.scale.x = player.vel.x < 0 ? -1 : 1;
 }
 
