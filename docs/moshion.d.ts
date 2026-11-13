@@ -547,11 +547,14 @@ declare class Sound {
   readonly blocked: boolean;
 }
 
-/** Load a sound from a URL. A bare code-safe name (letters, digits, _) is
- *  looked up first in the store under `sound:<name>`, so a host page can save a
- *  wave with storeItem() and a sketch can play it by name. If nothing is saved,
- *  the name is used as a URL. A path or a data: URI is fetched directly and is
- *  never looked up. */
+/** Load a sound from a URL or by name. A bare code-safe name (letters, digits,
+ *  _) is looked up first in the store under `sound:<name>`, so a host page can
+ *  save a wave with storeItem() and a sketch can play it by name. If nothing is
+ *  saved, a built-in name (blip, clang, coin, crown, dice, door, explode, hit,
+ *  jump, laser, levelup, lose, music, pop, potion, powerup, select, step,
+ *  sword, title, tone, whoosh, win) plays the engine's own sound:
+ *  `loadSound('coin')`. Any other name is used as a URL. A path or a data: URI
+ *  is fetched directly and is never looked up. */
 declare function loadSound(url: string, opts?: { clips?: SoundClips }): Sound;
 /** Scales every sound at once without disturbing their individual volumes.
  *  Call with no argument to read the current value. */

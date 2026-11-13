@@ -86,14 +86,20 @@ hand-authored reference):
   (works even in opaque-origin iframes)
 - `loadSound` — a path or a data: URI loads that file; a bare code-safe name is
   looked up first in the store under `sound:<name>`, so a host page can save a
-  wave and a sketch can play it by name
+  wave and a sketch can play it by name, then among the built-in sounds in
+  `assets/` (`loadSound('coin')`)
 
 ### Sound saved by name
 
 `loadSound('jump.wav')` loads a file, exactly as before. `loadSound('zap')`
 first looks for a saved sound in the moSHion store under `sound:zap`; a host
 page can write one with `storeItem('sound:zap', dataUri)` (a WAV data: URI).
-If nothing is saved, the name is used as a URL. This is how a host-side sound
+If nothing is saved and the name is one of the built-in sounds (the `.wav`
+files in `assets/`: blip, clang, coin, crown, dice, door, explode, hit, jump,
+laser, levelup, lose, music, pop, potion, powerup, select, step, sword, title,
+tone, whoosh, win), that file plays: `loadSound('coin')` is `assets/coin.wav`,
+found beside `moshion.js` wherever the page is. Any other name is used as a
+URL. This is how a host-side sound
 editor can hand a student's own effect to a sketch without an upload. The store
 is the same one `storeItem`/`getItem` use, including the preview bridge.
 

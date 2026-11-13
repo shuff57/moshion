@@ -554,6 +554,29 @@
     return (typeof raw === 'string' && raw.slice(0, 11) === 'data:audio/') ? raw : null;
   }
 
+  // A bare name with nothing saved under it is the engine's own sound of that
+  // name, the file beside moshion.js in assets/: `loadSound('coin')` plays
+  // assets/coin.wav. Saved still wins, so a student's own `coin` replaces the
+  // built-in one, like a texture. The list is the .wav files in assets/
+  // (tests/builtin-sounds.spec.mjs keeps the two in step); a name not on it
+  // is never fetched, so a typo gets the plain warning and no 404.
+  const BUILTIN_SOUNDS_ = ['blip', 'clang', 'coin', 'crown', 'dice', 'door', 'explode', 'hit', 'jump',
+    'laser', 'levelup', 'lose', 'music', 'pop', 'potion', 'powerup', 'select', 'step', 'sword', 'title',
+    'tone', 'whoosh', 'win'];
+  // Resolved against moshion.js's own address, not the page's, so a page in
+  // another folder still finds the files. With no <script src> (a harness
+  // that evaluates the file) it is relative to the page.
+  const SOUND_ASSETS_ = (function () {
+    try {
+      const s = global.document && global.document.currentScript;
+      if (s && s.src) return new URL('assets/', s.src).href;
+    } catch (e) { /* no usable script address */ }
+    return 'assets/';
+  })();
+  function _builtInSoundSrc(name) {
+    return (typeof name === 'string' && BUILTIN_SOUNDS_.indexOf(name) !== -1) ? SOUND_ASSETS_ + name + '.wav' : null;
+  }
+
   function _textureSrc(name) {
     const saved = _savedTextureSrc(name);
     if (saved) return saved;
@@ -3776,9 +3799,10 @@
       const ctx = _audioCtx();
       if (!ctx || typeof fetch !== 'function') return null;
       try {
-        // A saved sound is a data: URI under `sound:<name>`; a path or a
-        // pasted data: URI passes through untouched.
-        const res = await fetch(_savedSoundSrc(this.url) || this.url);
+        // A saved sound is a data: URI under `sound:<name>`; with none, a
+        // built-in name is its file in assets/; a path or a pasted data: URI
+        // passes through untouched.
+        const res = await fetch(_savedSoundSrc(this.url) || _builtInSoundSrc(this.url) || this.url);
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const bytes = await res.arrayBuffer();
         this._buffer = await ctx.decodeAudioData(bytes);
@@ -4019,16 +4043,24 @@
       return _soundLabel(u) + ": a saved sound is loaded by its name, without the ." + fileName[2] +
         ". Write loadSound('" + fileName[1] + "').";
     }
-    if (/^[A-Za-z][A-Za-z0-9_]*$/.test(u)) {
+    // A built-in name typed with its .wav: say the name alone works.
+    if (fileName && fileName[2].toLowerCase() === 'wav' && BUILTIN_SOUNDS_.indexOf(fileName[1]) !== -1) {
+      return _soundLabel(u) + ": a built-in sound is loaded by its name, without the ." + fileName[2] +
+        ". Write loadSound('" + fileName[1] + "').";
+    }
+    if (/^[A-Za-z][A-Za-z0-9_]*$/.test(u) && BUILTIN_SOUNDS_.indexOf(u) === -1) {
       const low = u.toLowerCase();
-      const near = names.filter(function (n) {
+      const close = function (n) {
         const l = n.toLowerCase();
         return l === low || l.indexOf(low) !== -1 || low.indexOf(l) !== -1;
-      });
-      return _soundLabel(u) + ": there is no saved sound called '" + u + "'. " +
+      };
+      const near = names.filter(close).concat(BUILTIN_SOUNDS_.filter(function (n) {
+        return close(n) && names.indexOf(n) === -1;
+      }));
+      return _soundLabel(u) + ": there is no saved or built-in sound called '" + u + "'. " +
         (near.length ? 'Did you mean ' + near.map(function (n) { return "'" + n + "'"; }).join(' or ') + '? The name must match exactly, capitals too.'
-          : names.length ? 'Your saved sounds are: ' + names.join(', ') + '.'
-          : 'Make or import one in the Sounds tab first, then load it by the name you saved it under.');
+          : (names.length ? 'Your saved sounds are: ' + names.join(', ') + '. ' : '') +
+            'The built-in sounds are: ' + BUILTIN_SOUNDS_.join(', ') + '. To use your own, make or import one in the Sounds tab and load it by the name you saved it under.');
     }
     let other = false;
     try { other = /^https?:/i.test(u) && new URL(u).host !== location.host; } catch (e) { /* not a URL */ }
