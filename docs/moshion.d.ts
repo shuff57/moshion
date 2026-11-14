@@ -41,8 +41,12 @@ declare class Ani {
   /** Game frames the current frame has been showing, 0 when it just started.
    *  Set it after `frame` to start part-way through a frame (kept below its duration). */
   tick: number;
-  /** true (default) repeats forever; false plays once and stays on the last frame. Set `frame = 0` to play it again. */
-  loop: boolean;
+  /** How many times it plays: true (default) forever, false once, a number n
+   *  plays it n times (`loop = 3`). A finished animation stays on its last frame.
+   *  Set `frame = 0` to play it again (the count starts over). Reads back true,
+   *  false or the whole number set. */
+  get loop(): boolean | number;
+  set loop(v: boolean | number);
   spriteSheet: HTMLImageElement;
   /** The name, so `'using ' + sprite.texture` reads 'using coin'. */
   toString(): string;
@@ -60,7 +64,7 @@ declare class StillTexture {
   frameDelay: number;
   frameDelays: null;
   /** No effect on a still. */
-  loop: boolean;
+  loop: boolean | number;
   toString(): string;
 }
 
