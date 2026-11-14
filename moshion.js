@@ -1946,10 +1946,13 @@
         : null;
       this._frame = 0;
       this._tick = 0;
-      // false = play once and stay on the last frame (a door that opens and
-      // stays open). Setting `frame = 0` plays it again; `loop = true` resumes
-      // looping from wherever it stopped.
-      this.loop = true;
+      // How many times it plays: true (the default) forever, false once, a
+      // number n plays it n times. A finished animation stays on its last
+      // frame (a door that opens and stays open). Setting `frame = 0` plays it
+      // again from the start, with the count starting over; setting `loop` to
+      // a different value starts the count over from wherever it is.
+      this._loop = true;
+      this._played = 0;   // complete passes so far (last frame back to the first)
       this.spriteSheet = loadArt_(sheetUrl);
     }
     // Which frame is showing, 0 first. Setting it jumps there (shCode #110):
@@ -1965,6 +1968,26 @@
       const c = this.frameCount;
       this._frame = ((Math.trunc(n) % c) + c) % c;
       this._tick = 0;
+      if (this._frame === 0) this._played = 0;   // `frame = 0` replays it, count and all
+    }
+    // true (forever), false (once), or how many times to play: `loop = 3`.
+    // 0, negatives and fractions below 1 count as once; Infinity is forever.
+    // Setting the value it already has does nothing, so `loop = 3` inside
+    // update() still stops after three (like setting the same texture); a new
+    // value starts the count over.
+    get loop() { return this._loop; }
+    set loop(v) {
+      const next = (typeof v === 'number') ? (v >= 1 ? (Number.isFinite(v) ? Math.floor(v) : true) : false) : v !== false;
+      if (next === this._loop) return;
+      this._loop = next;
+      this._played = 0;
+    }
+    // On the last frame: is this the end of the last pass?
+    _finished() {
+      const l = this._loop;
+      if (l === true) return false;
+      if (l === false) return true;
+      return this._played + 1 >= l;
     }
     // How many game frames the frame showing now has been on screen, 0 when
     // it has just started. A frame with a duration of 3 shows for ticks 0, 1
@@ -1983,9 +2006,11 @@
     }
     _advance() {
       if (this.frameCount <= 1) return;
-      if (!this.loop && this._frame >= this.frameCount - 1) return;
+      const last = this.frameCount - 1;
+      if (this._frame >= last && this._finished()) return;
       if (++this._tick < this.holdOf(this._frame)) return;
       this._tick = 0;
+      if (this._frame >= last) this._played++;
       this._frame = (this._frame + 1) % this.frameCount;
     }
     /** Prints as its name: text('using ' + s.texture) reads 'using coin'. */

@@ -26,7 +26,7 @@ function setup() {
   seen = []; everySeen = [];
 }
 function update() { every.texture = 'batFly'; }
-function draw() { background('black'); seen.push(d.texture.frame); everySeen.push(every.texture.frame); }
+function draw() { background('black'); seen.push(d.texture.frame); everySeen.push(every.texture.frame); if (window.__trk) window.__trk.out.push(window.__trk.s.texture.frame); }
 `;
 
 const browser = await launch();
@@ -76,6 +76,37 @@ try {
   check(".texture = 'fly' switches to the sprite's own animation", own.switched === 'fly' && own.back === 'idle/9', own);
   check('a catalog name still works next to own animations', own.cat === 'coin/true' && own.ownAfterCat === 'fly', own);
   check('.texture = null clears the animation showing', own.cleared === null, own);
+
+  // loop = n plays n times, then stays on the last frame; frame = 0 starts the count over.
+  // Frames are recorded once per game frame from draw(), so a busy machine cannot skip any.
+  const passes = (a) => a.filter((f, i) => i > 0 && f < a[i - 1]).length;
+  await frame.evaluate(() => {
+    const s = new Sprite(250, 150, 30, 30); s.collider = 'none';
+    s.texture = 'batFly'; s.texture.frameDelay = 2; s.texture.loop = 3;   // 4 frames x 2 = 8 game frames a pass
+    window.__trk = { s, out: [] };
+  });
+  await frame.waitForFunction(() => window.__trk.out.length >= 60, null, { timeout: 30000 });
+  const first = await frame.evaluate(() => { const r = { out: window.__trk.out.slice(), loopVal: window.__trk.s.texture.loop };
+    window.__trk.out = []; window.__trk.s.texture.frame = 0; return r; });
+  await frame.waitForFunction(() => window.__trk.out.length >= 60, null, { timeout: 30000 });
+  const again = await frame.evaluate(() => window.__trk.out.slice());
+  // loop = 3 written every frame (inside update) must still stop after three: same value = no reset.
+  await frame.evaluate(() => {
+    const s = new Sprite(300, 150, 30, 30); s.collider = 'none';
+    s.texture = 'batFly'; s.texture.frameDelay = 2;
+    window.__trk = { s, out: [] };
+    const tick = () => { s.texture.loop = 3; if (window.__trk && window.__trk.s === s) requestAnimationFrame(tick); };
+    tick();
+  });
+  await frame.waitForFunction(() => window.__trk.out.length >= 60, null, { timeout: 30000 });
+  const everyFrame = await frame.evaluate(() => window.__trk.out.slice());
+  check('loop = 3 set every frame still stops after three', passes(everyFrame) === 2 && everyFrame[everyFrame.length - 1] === 3, everyFrame);
+  const odd = await frame.evaluate(() => { const a = new Sprite(0, 0, 5, 5); a.texture = 'batFly'; const out = [];
+    for (const v of [0, -2, 0.5, 2.7, Infinity, true, false]) { a.texture.loop = v; out.push(a.texture.loop); } return out; });
+  const counted = { wraps: passes(first.out), end: first.out[first.out.length - 1], loopVal: first.loopVal, againWraps: passes(again), againEnd: again[again.length - 1], odd };
+  check('loop = 3 plays three times, then stays on the last frame', counted.wraps === 2 && counted.end === 3 && counted.loopVal === 3, counted);
+  check('frame = 0 plays a counted animation again, all three times', again[0] <= 1 && counted.againWraps === 2 && counted.againEnd === 3, again);
+  check('loop values: 0/negative/below 1 = once, n floored, Infinity = forever', JSON.stringify(counted.odd) === JSON.stringify([false, false, false, 2, true, true, false]), counted.odd);
 } finally {
   await browser.close();
   srv.close();
