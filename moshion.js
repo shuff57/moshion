@@ -2004,8 +2004,15 @@
       if (this.frameDelays) return this.frameDelays[frame];
       return this.frameDelay;
     }
+    // pause() freezes the animation on the frame showing, play() carries on from
+    // there (shCode #117). A paused animation keeps its frame, its tick and its
+    // loop count; `paused` reads which it is. play() does not restart a finished
+    // one: set `frame = 0` for that.
+    pause() { this._paused = true; }
+    play() { this._paused = false; }
+    get paused() { return !!this._paused; }
     _advance() {
-      if (this.frameCount <= 1) return;
+      if (this._paused || this.frameCount <= 1) return;
       const last = this.frameCount - 1;
       if (this._frame >= last && this._finished()) return;
       if (++this._tick < this.holdOf(this._frame)) return;
@@ -2030,6 +2037,10 @@
       this.frameDelays = null;
       this.loop = true;
     }
+    // One picture: nothing to pause, so these do nothing rather than throw.
+    pause() {}
+    play() {}
+    get paused() { return false; }
     toString() { return String(this.name); }
   }
 

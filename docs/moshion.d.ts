@@ -47,6 +47,13 @@ declare class Ani {
    *  false or the whole number set. */
   get loop(): boolean | number;
   set loop(v: boolean | number);
+  /** Freezes the animation on the frame showing. `sprite.texture.pause()`. */
+  pause(): void;
+  /** Carries on from where pause() stopped it. Does not restart a finished
+   *  animation: set `frame = 0` for that. */
+  play(): void;
+  /** true while paused. */
+  readonly paused: boolean;
   spriteSheet: HTMLImageElement;
   /** The name, so `'using ' + sprite.texture` reads 'using coin'. */
   toString(): string;
@@ -65,6 +72,11 @@ declare class StillTexture {
   frameDelays: null;
   /** No effect on a still. */
   loop: boolean | number;
+  /** No effect on a still. */
+  pause(): void;
+  /** No effect on a still. */
+  play(): void;
+  readonly paused: boolean;
   toString(): string;
 }
 
