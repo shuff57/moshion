@@ -876,7 +876,9 @@ declare function draw(): void;
   * on top of the world, instead of behind whatever sprite is there. */
 declare function drawTop(): void;
 
-declare function background(color: string): void;
+declare function background(c: string | number): void;
+declare function background(gray: number, alpha: number): void;
+declare function background(r: number, g: number, b: number, alpha?: number): void;
 /** Text with its baseline on y. The letters rise above the baseline in both
  *  coordinate modes, so in math mode they rise toward +y; never mirrored. */
 declare function text(str: string, x: number, y: number, size?: number, color?: string): void;
@@ -894,7 +896,11 @@ declare function showGrid(step?: number): void;
 /** Prints the pointer's (x, y) in the active coordinates beside it. Call it
  *  from draw(); painted with showGrid(), over the sprites. */
 declare function showMouse(): void;
+/** A CSS colour ('red', '#ff79c6'), one number for grey (0-255), grey and
+ *  alpha, r, g, b, or r, g, b, alpha. Alpha is 0-255. */
 declare function fill(c: string | number): void;
+declare function fill(gray: number, alpha: number): void;
+declare function fill(r: number, g: number, b: number, alpha?: number): void;
 declare function textSize(px: number): void;
 declare function textAlign(mode: 'left' | 'center' | 'right'): void;
 /** Bold or italic text: textStyle(BOLD), textStyle(ITALIC), textStyle(BOLDITALIC)
@@ -1020,7 +1026,11 @@ declare function ellipse(x: number, y: number, w: number, h?: number): void;
 declare function rect(x: number, y: number, w: number, h: number, r?: number): void;
 declare function line(x1: number, y1: number, x2: number, y2: number): void;
 declare function clear(): void;
+/** A CSS colour ('red', '#ff79c6'), one number for grey (0-255), grey and
+ *  alpha, r, g, b, or r, g, b, alpha. Alpha is 0-255. */
 declare function stroke(c: string | number): void;
+declare function stroke(gray: number, alpha: number): void;
+declare function stroke(r: number, g: number, b: number, alpha?: number): void;
 declare function noStroke(): void;
 declare function strokeWeight(n: number): void;
 declare function noFill(): void;

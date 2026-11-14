@@ -454,7 +454,26 @@
     }
   }
 
-  function background(color) {
+  // fill(), stroke() and background() read a colour the way p5 does: a CSS
+  // string ('red', '#ff79c6'), one number for grey (0-255), grey and alpha,
+  // r, g, b, or r, g, b, alpha (alpha 0-255). fill(80, 250, 123) used to read
+  // only the 80 and paint grey, and background(220) handed the canvas a bare
+  // number, which it ignores, so the screen stayed black.
+  function _colorFrom(args) {
+    const a = args.length === 1 && Array.isArray(args[0]) ? args[0] : args;
+    if (a.length === 0 || a[0] === undefined || a[0] === null) return null;
+    if (typeof a[0] !== 'number') return a[0];
+    const n = (v) => Math.max(0, Math.min(255, Math.round(Number(v) || 0)));
+    const al = (v) => Math.max(0, Math.min(1, (Number(v) || 0) / 255));
+    if (a.length === 1) return `rgb(${n(a[0])},${n(a[0])},${n(a[0])})`;
+    if (a.length === 2) return `rgba(${n(a[0])},${n(a[0])},${n(a[0])},${al(a[1])})`;
+    if (a.length === 3) return `rgb(${n(a[0])},${n(a[1])},${n(a[2])})`;
+    return `rgba(${n(a[0])},${n(a[1])},${n(a[2])},${al(a[3])})`;
+  }
+
+  function background(...args) {
+    const color = _colorFrom(args);
+    if (color === null) return;
     CTX_.save();
     if (ORIGIN_ === 'math') {
       // The whole canvas, whatever the camera is doing: the same answer the
@@ -3160,7 +3179,7 @@
   // screens, game-over messages — 27 real script.js/solution.js files).
   let TEXT_COLOR = 'white', TEXT_SIZE = 14, TEXT_ALIGN = 'left';
   const CENTER = 'center', LEFT = 'left', RIGHT = 'right';
-  function fill(c) { TEXT_COLOR = typeof c === 'number' ? `rgb(${c},${c},${c})` : c; HAS_FILL = true; }
+  function fill(...args) { const c = _colorFrom(args); if (c === null) return; TEXT_COLOR = c; HAS_FILL = true; }
   function textSize(px) { TEXT_SIZE = px; }
   function textAlign(mode) { TEXT_ALIGN = mode; }
 
@@ -3630,7 +3649,7 @@
   // same convention as fill()/TEXT_COLOR above: shapes drawn below read it
   // at call time, matching p5's real defaults (fill white, stroke black).
   let STROKE_COLOR = 'black', STROKE_WEIGHT = 1, HAS_STROKE = true, HAS_FILL = true;
-  function stroke(c) { HAS_STROKE = true; STROKE_COLOR = typeof c === 'number' ? `rgb(${c},${c},${c})` : c; }
+  function stroke(...args) { const c = _colorFrom(args); if (c === null) return; HAS_STROKE = true; STROKE_COLOR = c; }
   function noStroke() { HAS_STROKE = false; }
   function strokeWeight(n) { STROKE_WEIGHT = n; }
   function noFill() { HAS_FILL = false; }
