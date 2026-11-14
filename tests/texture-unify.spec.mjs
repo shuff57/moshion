@@ -107,6 +107,25 @@ try {
   check('loop = 3 plays three times, then stays on the last frame', counted.wraps === 2 && counted.end === 3 && counted.loopVal === 3, counted);
   check('frame = 0 plays a counted animation again, all three times', again[0] <= 1 && counted.againWraps === 2 && counted.againEnd === 3, again);
   check('loop values: 0/negative/below 1 = once, n floored, Infinity = forever', JSON.stringify(counted.odd) === JSON.stringify([false, false, false, 2, true, true, false]), counted.odd);
+
+  // pause() freezes the frame, play() carries on from it (shCode #117).
+  await frame.evaluate(() => {
+    const s = new Sprite(350, 150, 30, 30); s.collider = 'none';
+    s.texture = 'batFly'; s.texture.frameDelay = 2;
+    window.__trk = { s, out: [] };
+  });
+  await frame.waitForFunction(() => window.__trk.out.length >= 12, null, { timeout: 30000 });
+  const pz = await frame.evaluate(() => { const t = window.__trk.s.texture; t.pause(); const at = t.frame;
+    window.__trk.out = []; return { at, paused: t.paused }; });
+  await frame.waitForFunction(() => window.__trk.out.length >= 40, null, { timeout: 30000 });
+  const held = await frame.evaluate(() => { const t = window.__trk.s.texture; const o = window.__trk.out.slice();
+    window.__trk.out = []; t.play(); return { o, paused: t.paused }; });
+  await frame.waitForFunction(() => window.__trk.out.length >= 40, null, { timeout: 30000 });
+  const moved = await frame.evaluate(() => new Set(window.__trk.out).size);
+  const still = await frame.evaluate(() => { const a = new Sprite(0, 0, 5, 5); a.texture = 'coin'; a.texture.pause(); a.texture.play(); return a.texture.paused; });
+  check('pause() freezes the animation on its frame and paused reads true', pz.paused === true && held.o.every((f) => f === pz.at) && held.paused === false, { pz, held: held.o.slice(0, 6) });
+  check('play() carries on after a pause', moved === 4, moved);
+  check('pause() and play() on a still texture do nothing and do not throw', still === false, still);
 } finally {
   await browser.close();
   srv.close();
