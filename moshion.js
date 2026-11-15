@@ -1355,10 +1355,15 @@
       // `a.texture = b.texture` copies by name.
       if (name && typeof name === 'object' && typeof name.name === 'string') name = name.name;
       // One of this sprite's own addAni() animations (not one a texture made):
-      // switch to it, exactly as changeAni(name) does.
+      // switch to it, exactly as changeAni(name) does. An Ani this setter built
+      // is tagged `_fromTexture` and is NOT one of these: it is kept in `_anis`
+      // only so changeAni(name) can find it. Taking it for an addAni() one made
+      // the second `texture = 'death'` resume the old Ani part-way through its
+      // loop and clear `_texture`, which turns pixel-art smoothing back on
+      // (report 118: clean the first time, fuzzy the second).
       if (typeof name === 'string' && this._anis && Object.prototype.hasOwnProperty.call(this._anis, name)) {
         const own = this._anis[name];
-        if (own && own !== this._textureArt) {
+        if (own && !own._fromTexture && own !== this._textureArt) {
           this.ani = own;
           this._img = null;
           this._emoji = null;
@@ -1416,6 +1421,7 @@
         // it IS an animation, reached by the friendlier name.
         const ani = new Ani(name, src, meta.frames, meta.delays);
         ani.frameDelay = meta.frameDelay;
+        ani._fromTexture = true;
         if (!this._anis) this._anis = new Anis();
         this._anis[name] = ani;
         this.ani = ani;

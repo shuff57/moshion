@@ -126,6 +126,18 @@ try {
   check('pause() freezes the animation on its frame and paused reads true', pz.paused === true && held.o.every((f) => f === pz.at) && held.paused === false, { pz, held: held.o.slice(0, 6) });
   check('play() carries on after a pause', moved === 4, moved);
   check('pause() and play() on a still texture do nothing and do not throw', still === false, still);
+
+  // Switching away from an animated texture and back starts it again at frame 0 (shCode report 118).
+  // The setter used to find the Ani it built earlier in the sprite's animations, take it for an
+  // addAni() one, resume it where it stopped and clear _texture (which is what keeps pixel art crisp).
+  const back = await frame.evaluate(() => {
+    const s = new Sprite(0, 0, 20, 20); s.collider = 'none';
+    s.texture = 'batFly'; const firstAni = s.ani; s.texture.frame = 2;
+    s.texture = 'coin'; s.texture = 'batFly';
+    return { frame: s.texture.frame, fresh: s.ani !== firstAni, name: s.texture.name, crisp: s._texture === 'batFly' };
+  });
+  check('switching away from an animated texture and back restarts it at frame 0, still crisp',
+    back.frame === 0 && back.fresh === true && back.name === 'batFly' && back.crisp === true, back);
 } finally {
   await browser.close();
   srv.close();
