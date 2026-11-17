@@ -17,7 +17,9 @@ const MIME = {
   '.d.ts': 'text/plain', '.md': 'text/plain',
 };
 
-export async function serve(port = 8177) {
+// `extra(req, res)` may answer a request itself (return true) before the
+// file server sees it: preload.spec.mjs uses it for slow and silent files.
+export async function serve(port = 8177, extra = null) {
   // maxHeaderSize: capped to what production actually accepts, which is NOT
   // Node's 16KB default and NOT "no cap". GitHub Pages is fronted by Varnish,
   // which 414s "Error: URI Too Long" past a ~6.1KB request line (measured
@@ -27,6 +29,7 @@ export async function serve(port = 8177) {
   // belief that production had no limit. Sketch source now rides the
   // postMessage bridge instead of the URL, so the cap only bites a regression.
   const srv = createServer({ maxHeaderSize: 6144 }, (req, res) => {
+    if (extra && extra(req, res)) return;
     let p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
     if (p === '/') p = '/index.html';
     try {
@@ -49,7 +52,7 @@ export async function serve(port = 8177) {
     }
   });
   await new Promise((r) => srv.listen(port, r));
-  return { base: `http://localhost:${port}`, close: () => srv.close() };
+  return { base: `http://localhost:${port}`, close: () => { srv.close(); if (srv.closeAllConnections) srv.closeAllConnections(); } };
 }
 
 // runner.html refuses ?code= at top level, so sketches always run via

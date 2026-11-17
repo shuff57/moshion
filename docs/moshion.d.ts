@@ -961,6 +961,14 @@ declare function draw(): void;
   * `text('SCORE ' + score, 14, 20)` lands 14px from the canvas's left edge and
   * on top of the world, instead of behind whatever sprite is there. */
 declare function drawTop(): void;
+/** Optional. Runs once, BEFORE setup(), and the game waits until every file
+  * it asks for is ready: loadSound(), loadJSON() and loadImage() called here
+  * hand their object back at once, and by setup() it is loaded (a picture's
+  * width/height are real, the JSON object is filled in). No time limit; a file
+  * that fails is reported in the console and the game starts without it; if no
+  * file finishes for 10 s, a Start anyway button appears. Called anywhere else
+  * the loaders load in the background, as always. */
+declare function preload(): void;
 
 declare function background(c: string | number): void;
 declare function background(gray: number, alpha: number): void;
@@ -1210,5 +1218,9 @@ declare function createVector(x?: number, y?: number): Vector;
 // loadJSON(url)` also works — matches real q5. moSHion teaches (and only
 // implements) the callback form; see 6.5.14.
 declare function loadJSON(path: string, callback?: (data: any) => void): Promise<any> & Record<string, any>;
+/** A picture by URL (or data: URI), the same shared <img> that
+  * `sprite.image = url` uses. Call it in preload() and img.width/img.height are
+  * real in setup(); `sprite.image = img` draws it. */
+declare function loadImage(url: string): HTMLImageElement;
 
 declare function start(): void;

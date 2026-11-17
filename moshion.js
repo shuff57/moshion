@@ -71,6 +71,13 @@
 
   let FRAME_ = 0;
   let START_TIME_ = 0;   // performance.now() right before setup() runs, for millis()
+  // While preload() runs: the files it asked for, as {label, promise}. Every
+  // loader pushes onto it; null the rest of the time, so a loader called in
+  // setup() or draw() loads in the background exactly as it always has.
+  let LOAD_PENDING_ = null;
+  function _joinPreload_(label, promise) {
+    if (LOAD_PENDING_) LOAD_PENDING_.push({ label: String(label), promise: promise });
+  }
   let FPS_ = 0;           // 1 / last frame's dt, for frameRate()
   // deltaTime (shCode #104, 2026-11-12): milliseconds since the previous frame,
   // as in p5 -- about 16.7 at 60 frames a second, more on a slow computer. A
@@ -522,6 +529,32 @@
       img.src = art;
       ART_CACHE_.set(art, img);
     }
+    return img;
+  }
+  // loadImage(url): the same shared <img> that `sprite.image = url` uses, so
+  // the two never decode a picture twice. Called in preload(), the game waits
+  // for it and img.width / img.height are real in setup(). Anywhere else it
+  // loads in the background, like a sprite's image always has.
+  const IMG_WARNED_ = new Set();
+  function _imageLoadWarn(url) {
+    if (IMG_WARNED_.has(url)) return;
+    IMG_WARNED_.add(url);
+    console.warn("loadImage('" + url + "') could not load that picture. Check the name and the path " +
+      "(capitals count), and that the file is a PNG, JPEG, GIF or WebP.");
+  }
+  function loadImage(url) {
+    const img = loadArt_(url);
+    if (typeof url !== 'string') return img;
+    const settled = new Promise((resolve) => {
+      if (img.complete && img.naturalWidth > 0) return resolve(img);
+      if (img._failed || (img.complete && img.naturalWidth === 0)) {
+        _imageLoadWarn(url);
+        return resolve(img);
+      }
+      img.addEventListener('load', () => resolve(img), { once: true });
+      img.addEventListener('error', () => { _imageLoadWarn(url); resolve(img); }, { once: true });
+    });
+    _joinPreload_(url, settled);
     return img;
   }
   // canvas / ImageBitmap have no `complete`; they are ready the moment they exist.
@@ -4199,19 +4232,41 @@
   // global) teaches the callback form only — "you cannot write `let data =
   // loadJSON(...)` and use the return value" — never q5's preload/`_loaders`
   // pattern (loadJSON called in setup(), used unconditionally in draw()
-  // because the framework awaited it first). Matching that preload gate
-  // would mean changing moshion's boot sequence (`start()`), which is out of
-  // scope here — flagged to team-lead, not built.
+  // because the framework awaited it first). moSHion's version of that gate
+  // is preload() (see start()): called there, the game waits for the file and
+  // the object is filled in by setup(). Anywhere else, the callback form.
   function loadJSON(path, callback) {
     const result = {};
-    const req = typeof fetch === 'function' ? fetch(path).then((r) => r.json()) : Promise.resolve({});
+    const req = typeof fetch === 'function' ? fetch(path).then((r) => {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }) : Promise.resolve({});
+    let fileOk = false;
+    let parsed = {};
+    // The promise settles with the parsed JSON, NOT with `result`: `result`
+    // is thenable (its then is this promise's), and a promise settled with a
+    // thenable adopts it, so returning `result` here made the promise wait on
+    // itself for ever. `await loadJSON(url)` never finished until 2026-11-17,
+    // and preload() waits on this same promise.
     const promise = req
       .then((data) => {
+        fileOk = true;
+        parsed = data;
         Object.assign(result, data);
         if (typeof callback === 'function') callback(result);
-        return result;
+        return parsed;
       })
-      .catch(() => result);
+      .catch((e) => {
+        // A wrong name used to give an empty object and nothing on screen.
+        // (An error thrown by the sketch's own callback stays silent here, as
+        // it always has: it is not the file's fault.)
+        if (!fileOk) {
+          console.warn("loadJSON('" + path + "') could not load: " + (e && e.message ? e.message : String(e)) +
+            '. Check the name and the path, and that the file is JSON.');
+        }
+        return parsed;
+      });
+    _joinPreload_(path, promise);
     result.then = promise.then.bind(promise);
     result.catch = promise.catch.bind(promise);
     return result;
@@ -4266,6 +4321,13 @@
   function _unlockAudio() {
     const ctx = AUDIO_CTX_;
     if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {});
+  }
+  // True from the player's first key, click or tap. Until then the browser
+  // keeps sound off, and play() skips (see play()).
+  let GESTURE_SEEN_ = false;
+  function _gestureUnlock() {
+    GESTURE_SEEN_ = true;
+    _unlockAudio();
   }
 
   class Sound {
@@ -4364,6 +4426,18 @@
      * overlap. Returns the voice, or null if the sound is not loaded yet.
      */
     play(clipName) {
+      // Loaded, but the browser still has sound off because the player has
+      // not clicked or pressed a key yet. Started now, the voice would sit in
+      // the suspended context and sound at the first click, late: a jump
+      // chime from setup() going off when the player first presses a key.
+      // Skipped instead, and said once (owner's decision 2026-11-17). Only
+      // before the FIRST gesture: after it, resume() is on its way and a
+      // play() in that instant sounds a few ms late, which is fine.
+      if (this._buffer && AUDIO_CTX_ && AUDIO_CTX_.state === 'suspended' && !GESTURE_SEEN_) {
+        _warnSoundOnce('locked:' + this.url, `${_soundLabel(this.url)}.play() did nothing: sound turns on after the first click or key press. ` +
+          'Play it on an event (a key press, a hit) instead of in setup(), or use .loop() for music, which starts at the first click.');
+        return null;
+      }
       const src = this._voice();
       if (!src) {
         // Still a no-op (a chime arriving late is worse than none), but said
@@ -4509,7 +4583,11 @@
     }
   }
 
-  function loadSound(url, opts) { return new Sound(url, opts); }
+  function loadSound(url, opts) {
+    const s = new Sound(url, opts);
+    _joinPreload_(url, s.ready);
+    return s;
+  }
 
   // What a failed loadSound() says in the console, in plain words. Once per
   // file (and once per too-early play), since the calls are often in draw().
@@ -4642,7 +4720,125 @@
 
   function noLoop() { _loopRunning = false; }
 
+  // ---- preload() ------------------------------------------------------
+  //
+  // An optional fifth hook, run once BEFORE setup(). The loaders it calls
+  // (loadSound, loadJSON, loadImage) hand their object back at once, as
+  // always, and the game waits until every one has settled: loaded or failed.
+  // Owner's decisions, 2026-11-17 (docs/LOAD-SPEC.md):
+  //   - no time limit: setup() runs the moment the last file settles, a tenth
+  //     of a second or a minute on a slow line;
+  //   - a failed file never stops the game (its loader says why, once);
+  //   - progress, not a clock: if NO file settles for 10 s, the note names the
+  //     file it is waiting for and offers Start anyway. Waiting stays the
+  //     default; the file keeps loading after the button;
+  //   - a fixed note, "Loading... 2 of 3 files", shown only past 300 ms.
+  // A sketch without preload() never reaches any of this: start() calls
+  // _beginGame() on the same tick, exactly as before.
+  const PRELOAD_NOTE_MS_ = 300;
+  const PRELOAD_STALL_MS_ = 10000;
+
+  function _preloadNote() {
+    const el = document.createElement('div');
+    el.setAttribute('role', 'status');
+    el.setAttribute('data-moshion-preload', '');
+    el.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:90;' +
+      'padding:10px 16px;border-radius:8px;border:1px solid rgba(255,255,255,0.18);background:rgba(20,20,28,0.9);color:#f0f0f0;' +
+      'font:14px/1.4 system-ui,sans-serif;text-align:center;max-width:80vw;';
+    const msg = document.createElement('div');
+    el.appendChild(msg);
+    return { el: el, msg: msg };
+  }
+
+  function _waitForPreload(pending) {
+    return new Promise((resolve) => {
+      const total = pending.length;
+      const done = new Array(total).fill(false);
+      let count = 0;
+      let finished = false;
+      let note = null;
+      let stallTimer = null;
+      let button = null;
+
+      const firstWaiting = () => { for (let i = 0; i < total; i++) if (!done[i]) return pending[i].label; return ''; };
+      const render = () => {
+        if (!note) return;
+        note.msg.textContent = 'Loading... ' + count + ' of ' + total + (total === 1 ? ' file' : ' files');
+        if (button) {
+          note.msg.textContent = 'Still waiting for ' + firstWaiting();
+          if (!button.parentNode) note.el.appendChild(button);
+        }
+      };
+      const showNote = () => {
+        if (finished || note || !document.body) return;
+        note = _preloadNote();
+        render();
+        document.body.appendChild(note.el);
+      };
+      const finish = () => {
+        if (finished) return;
+        finished = true;
+        clearTimeout(noteTimer);
+        clearTimeout(stallTimer);
+        if (note && note.el.parentNode) note.el.parentNode.removeChild(note.el);
+        resolve();
+      };
+      const onStall = () => {
+        if (finished) return;
+        const name = firstWaiting();
+        console.warn(name + ' has not finished after 10 seconds. If the name is right, the file may be very large. ' +
+          'The game is still waiting for it; press Start anyway to play without it.');
+        button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = 'Start anyway';
+        button.style.cssText = 'display:block;margin:8px auto 0;padding:6px 14px;border:0;border-radius:6px;' +
+          'background:#f0f0f0;color:#14141c;font:inherit;cursor:pointer;';
+        button.addEventListener('click', finish);
+        showNote();
+        render();
+      };
+      // Restarted every time ANY file settles: a big file on a slow line is
+      // not a stall while the files around it keep finishing.
+      const armStall = () => { clearTimeout(stallTimer); stallTimer = setTimeout(onStall, PRELOAD_STALL_MS_); };
+      const noteTimer = setTimeout(showNote, PRELOAD_NOTE_MS_);
+
+      if (total === 0) { finish(); return; }
+      armStall();
+      pending.forEach((p, i) => {
+        Promise.resolve(p.promise).catch(() => {}).then(() => {
+          if (done[i]) return;
+          done[i] = true;
+          count++;
+          if (count === total) { finish(); return; }
+          if (!button) armStall();
+          render();
+        });
+      });
+    });
+  }
+
   function start() {
+    const preloadFn = typeof window.preload === 'function' ? window.preload : null;
+    if (!preloadFn) { _beginGame(); return; }
+    LOAD_PENDING_ = [];
+    let pending;
+    try {
+      // An error in here (a typo, a missing variable) is thrown from start()
+      // the same way one in setup() is, and the game does not start.
+      preloadFn.call(global);
+    } finally {
+      pending = LOAD_PENDING_;
+      LOAD_PENDING_ = null;
+    }
+    // An error in setup() here becomes this promise's rejection, which the
+    // runner reports with its stack (its 'unhandledrejection' handler), so it
+    // names the student's line. Rethrowing it from a setTimeout instead was
+    // tried: thrown from the engine's own script in the sandboxed (opaque
+    // origin) frame, the browser hides it as "Script error.".
+    _waitForPreload(pending).then(() => { _beginGame(); });
+  }
+
+  function _beginGame() {
     const setupFn = window.setup || (() => {});
     const updateFn = window.update || (() => {});
     const drawFn = window.draw || (() => {});
@@ -4670,7 +4866,7 @@
       // Browsers only honour AudioContext.resume() from inside a real user
       // gesture. Hooking it here means a sketch never has to think about it:
       // the first key or click the player presses unlocks sound for good.
-      _unlockAudio();
+      _gestureUnlock();
       const k = _key(e.key);
       _pressKey(k);
       // ...and the direction name it doubles as, so 'right' and 'd' both answer.
@@ -4739,7 +4935,7 @@
       MOUSE.scrollDelta.y += e.deltaY;
     });
     CANVAS_.addEventListener('mousedown', (e) => {
-      _unlockAudio(); // same reason as keydown above
+      _gestureUnlock(); // same reason as keydown above
       if (!MOUSE._c || MOUSE._c < 0) MOUSE._c = 1;
       const b = MOUSE_BTN_[(e && e.button) || 0];
       if (b && (!MOUSE[b] || MOUSE[b] < 0)) MOUSE[b] = 1;
@@ -4791,7 +4987,7 @@
     CANVAS_.addEventListener('touchstart', (e) => {
       const t = _touchAt(e);
       if (!t) return;
-      _unlockAudio(); // same reason as keydown/mousedown above
+      _gestureUnlock(); // same reason as keydown/mousedown above
       // Position BEFORE the press counter, and not optional: a tap carries
       // its position and its press in the same event — there is no hover
       // first — so a sketch reading mouse.x on the frame it sees presses()
@@ -5080,6 +5276,7 @@
   global.Vector = Vector;
   global.loadJSON = loadJSON;
   global.loadSound = loadSound;
+  global.loadImage = loadImage;
   global.masterVolume = masterVolume;
   global.Sound = Sound;
 
@@ -5089,10 +5286,15 @@
   // tags in the page have executed, which is when the student sketch has
   // defined window.setup. The immediate check handles the edge case where
   // the engine <script> tag appears after the student sketch.
+  let PRELOAD_ONLY_WARNED_ = false;
   function _tryAutoBoot() {
     if (typeof global.setup === 'function' && !global._moshionStarted) {
       global._moshionStarted = true;
       start();
+    } else if (typeof global.preload === 'function' && typeof global.setup !== 'function' &&
+               !global._moshionStarted && !PRELOAD_ONLY_WARNED_) {
+      PRELOAD_ONLY_WARNED_ = true;
+      console.warn('preload() is there, but there is no setup() to start the game. Add function setup() { new Canvas(400, 400); }.');
     }
   }
   // Exposed because the sketch does not always arrive before these two
