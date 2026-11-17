@@ -1,6 +1,6 @@
 # `load()`: get the files ready before the game starts
 
-Status: **draft, 2026-11-17. Not built.** Open questions for the owner are at the end.
+Status: **draft, 2026-11-17. Not built.** Decided by the owner (2026-11-17): the name is `load()`, and there is no time limit (it waits as long as the files need). Open questions are at the end.
 
 ## The problem
 
@@ -41,8 +41,10 @@ The rules, in the course's words:
 1. `load()` is optional. It runs once, before `setup()`.
 2. Inside `load()`, `loadSound()`, `loadJSON()` and `loadImage()` hand the file back at once, as they do today, and the game waits until every one is ready.
 3. Then `setup()` runs, then `update()` / `draw()` / `drawTop()` every frame, exactly as now.
-4. A file that fails, or is still not ready after 10 seconds, never stops the game. The console says which file and why, and the game starts anyway.
-5. Outside `load()` the loaders behave exactly as today: in the background, no waiting.
+4. It waits exactly as long as the files need, no more and no less. Every file loads at the same time, and `setup()` runs the moment the last one is ready, whether that takes a tenth of a second or a minute on a slow connection.
+5. A file that fails (a wrong name, a missing file) never stops the game. The console says which file and why, and the game starts with the rest.
+6. A file that stops making progress never leaves the game stuck. If no file finishes for 10 seconds, the loading note names the file it is waiting for and shows a **Start anyway** button. That file keeps loading in the background.
+7. Outside `load()` the loaders behave exactly as today: in the background, no waiting.
 
 ## What it does not fix (the docs must say this)
 
@@ -55,9 +57,9 @@ Open question 4 below is about what `play()` should do in that window.
 1. **A pending list.** `LOAD_PENDING_` is an array only while `load()` runs, otherwise `null`.
 2. **Loaders join it.** `loadSound()` pushes its `ready`, `loadJSON()` its promise, and the new `loadImage()` a promise that settles on the image's `load` or `error` event. Each still returns its object synchronously.
 3. **`loadImage(url)`, new.** It returns the `HTMLImageElement` from the existing `loadArt_` cache, so `sprite.image = img` and `sprite.image = 'hero.png'` share one decode. `img.width` / `img.height` are real in `setup()`. Failure follows the existing art path (`_failed`, the existing warning).
-4. **`start()` in two halves.** If `typeof global.load === 'function'`: show the loading note, run `load()`, then `await Promise.allSettled(pending)` raced against a 10 s timer, remove the note, then run today's `start()` body unchanged. `START_TIME_` stays anchored right before `setup()`, so `millis()` and `frameCount` count from the game's start, not the loading.
-5. **The loading note.** There is no canvas before `setup()`, so the note is a small DOM element ("Loading... 2 of 3 files") centred in `document.body`. It appears only if loading takes more than 300 ms, so a fast load never flashes.
-6. **A slow file.** At 10 s the game starts. The console says once per file: "hero.png was still loading after 10 seconds, so the game started without it. Check the name, or make the file smaller."
+4. **`start()` in two halves.** If `typeof global.load === 'function'`: run `load()`, then `await Promise.allSettled(pending)` with **no time limit**, raced only against the student pressing **Start anyway** (6 below). Remove the note, then run today's `start()` body unchanged. `START_TIME_` stays anchored right before `setup()`, so `millis()` and `frameCount` count from the game's start, not the loading.
+5. **The loading note.** There is no canvas before `setup()`, so the note is a small DOM element ("Loading... 2 of 3 files") centred in `document.body`. It appears only if loading takes more than 300 ms, so a fast load never flashes. Showing it never delays the start: the game starts the moment the last file settles, note or no note.
+6. **A stalled file: progress, not a clock.** A stall timer restarts every time ANY file settles. If it reaches 10 s, the note changes to "Still waiting for hero.png" with a **Start anyway** button. Pressing it starts the game. The file keeps loading, and a sprite given that image shows it once it arrives, as `sprite.image` already does. A big file on a slow line is not a stall while the files around it keep finishing. Only the last file left, if it is huge, sees the button, and waiting stays the default: nothing starts until the student presses it. The console also says once: "hero.png has not finished after 10 seconds. If the name is right, the file may be very large." (Images give no byte progress, so "progress" means a file settling, not bytes arriving. Measuring bytes for `fetch`-based files is a possible later refinement.)
 7. **An error inside `load()`** (a typo, a missing variable) is reported the same way an error in `setup()` is, and the game does not start, as with `setup()`.
 8. **Auto-boot is unchanged.** It still starts on a `setup()` function. A sketch with `load()` and no `setup()` gets one console line: "load() ran, but there is no setup() to start the game."
 9. **`docs/moshion.d.ts`:** the `load` hook and `loadImage(url): HTMLImageElement`.
@@ -74,7 +76,9 @@ Open question 4 below is about what `play()` should do in that window.
 - `load()` runs once, before `setup()`, and `setup()` does not run until every file has settled.
 - In `setup()`: `levels.world1` is filled in, `hero.width > 0`, and `jump.loaded === true`.
 - A missing file: the game still starts, with one console line naming the file.
-- A file that never answers: the game starts at 10 s, with a line naming it.
+- A file that never answers: the game does NOT start by itself. At 10 s with nothing settling, the note names the file and shows Start anyway; pressing it starts the game.
+- A slow but healthy set (five files settling 4 s apart, 20 s in all): no Start anyway button ever appears, and `setup()` runs right after the last one.
+- A fast load: `setup()` runs within one frame of the last file settling (no fixed delay).
 - The note appears for a slow load and never for a load under 300 ms.
 - `millis()` is near 0 at the start of `setup()`, not 3 s for a 3 s load.
 - A loader called in `setup()` or `draw()` does not wait (rule 5).
@@ -82,7 +86,7 @@ Open question 4 below is about what `play()` should do in that window.
 
 ## Open questions for the owner
 
-1. **The name.** `load()` (recommended: one word, matches `setup` / `update` / `draw`) or `preload()` (p5.js 1.x; p5 2.0 and q5 dropped it for `async setup()` with `await`). Neither name is used anywhere today.
-2. **The time limit.** Is 10 s right for a school network?
+1. ~~The name.~~ Decided: `load()`.
+2. ~~The time limit.~~ Decided: none. It waits as long as the files need; only a 10 s stall offers Start anyway. Open: is 10 s of nothing finishing the right point to offer the button?
 3. **The note.** The wording, and whether a student can style it.
 4. **`play()` before the first click.** Today a ready sound played while the browser still has sound off is queued and sounds at the first click, late. Should it do nothing and warn ("sound turns on after the first click or key press") instead? This matters more once `load()` makes sounds ready in `setup()`.
