@@ -1762,7 +1762,7 @@
     //     player.jump(platforms);       // jumps if one is left; true when it jumped
     //   }
     //   player.jumpsLeft                // jumps left before landing; set it to give some back
-    //   player.jumpPower                // how fast a jump starts, px per frame (default 8)
+    //   player.jumpPower                // how high: 1 a normal jump (~120 px), 2 twice as high
     //   player.onGround                 // true while ground is under its feet
     //
     // "Jump only on the ground" is `kb.presses(' ') && player.colliding(ground)`,
@@ -1787,13 +1787,19 @@
     // frames where the sketch never asks. The sensor is sized when it is made,
     // so set these after the sprite's size.
     //
+    // jumpPower is a HEIGHT multiplier, not a speed: 1 rises about JUMP_HEIGHT_
+    // (120 px), 2 twice that, 0.5 half, whatever world.gravity.y is. The launch
+    // speed is worked out from the gravity this sprite feels (world gravity x
+    // gravityScale) so the height comes out right (see jump()).
+    // With no gravity at all a jump starts as fast as it would at gravity 10.
+    //
     // A sketch's own `class Hero extends Sprite { jump() {} }` wins, and a sketch
     // that stores its own `sprite.onGround = true` gets a plain field.
     _jumpState() {
       if (this._jumping) return this._jumping;
       const gy = world.gravity.y;
       const down = gy > 0 ? 1 : gy < 0 ? -1 : (ORIGIN_ === 'math' ? -1 : 1);
-      const st = { max: 1, power: 8, used: 0, fresh: false, down, feet: null, ground: null, born: FRAME_ };
+      const st = { max: 1, power: 1, used: 0, fresh: false, down, feet: null, ground: null, born: FRAME_ };
       this._jumping = st;
       if (this._dead) return st;
       const w = Math.abs(this.w) || 1;
@@ -1836,7 +1842,13 @@
       this._settleJump(st);
       if (st.used >= st.max) return false;
       st.used++;
-      this.vel.y = -st.down * st.power;
+      // px/frame^2 this sprite falls by; 10 when nothing pulls it (top-down)
+      const pull = Math.abs(world.gravity.y * this._body.getGravityScale()) || 10;
+      const accel = pull * PXM / (FPS * FPS);
+      // The step-by-step physics rises v^2/2a - v/2, so solve that for the
+      // height (not v^2/2a, which falls ~2% short): 1 rises 120, 2 rises 240.
+      const h = JUMP_HEIGHT_ * st.power;
+      this.vel.y = -st.down * (accel + Math.sqrt(accel * accel + 8 * accel * h)) / 2;
       return true;
     }
     get maxJumps() { return this._jumpState().max; }
@@ -2006,6 +2018,7 @@
   // Every sprite that has used jump() / maxJumps / ...: _settleJumps() re-counts
   // their jumps once a frame (see the jumping section on Sprite).
   let JUMPERS_ = [];
+  const JUMP_HEIGHT_ = 120; // px a jump with jumpPower 1 rises, at any gravity
   function _jumpNumber(v, what) {
     if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) {
       throw new TypeError(`sprite.${what} must be a number, 0 or more, not ${JSON.stringify(v)}`);
