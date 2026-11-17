@@ -2257,6 +2257,10 @@
         if (this.includes(s)) continue; // already a member — a no-op, like the reference API
         if (s && s._groups && !s._groups.includes(this)) s._groups.push(this);
         super.push(s);
+        // A group's autoDraw/autoUpdate, once set, reach members that join
+        // later too (shCode #124).
+        if (s && this._autoDraw !== undefined) s.autoDraw = this._autoDraw;
+        if (s && this._autoUpdate !== undefined) s.autoUpdate = this._autoUpdate;
       }
       return this.length;
     }
@@ -2328,16 +2332,39 @@
     attractTo(x, y, force) { for (const s of [...this]) s.attractTo(x, y, force); }
     repelFrom(x, y, force) { for (const s of [...this]) s.repelFrom(x, y, force); }
 
-    // autoDraw/autoUpdate: cascading accessors, same pattern as the methods
-    // above rather than the factory's copy-to-future-members convention —
-    // `enemies.autoDraw = false` freezes every CURRENT enemy on the spot.
-    // The getter reports true only if every member agrees, so a
-    // partially-toggled group reads as false rather than silently picking
-    // one member's answer.
-    get autoDraw() { return this.every((s) => s.autoDraw); }
-    set autoDraw(v) { for (const s of this) s.autoDraw = v; }
-    get autoUpdate() { return this.every((s) => s.autoUpdate); }
-    set autoUpdate(v) { for (const s of this) s.autoUpdate = v; }
+    // autoDraw/autoUpdate: set on every CURRENT member, and remembered for
+    // every sprite that joins the group later (push() applies it), so
+    // `allSprites.autoDraw = false` once in setup() also covers the bullets
+    // made a minute later. It used to reach only the members already there, so
+    // a sketch had to set it again every frame (shCode #124). The getter
+    // reports true only if every member agrees, so a partially-toggled group
+    // reads as false rather than silently picking one member's answer; an
+    // empty group reports what it was last told (true if never).
+    get autoDraw() { return this.length ? this.every((s) => s.autoDraw) : this._autoDraw !== false; }
+    set autoDraw(v) {
+      Object.defineProperty(this, '_autoDraw', { value: !!v, writable: true, configurable: true, enumerable: false });
+      for (const s of this) s.autoDraw = !!v;
+    }
+    get autoUpdate() { return this.length ? this.every((s) => s.autoUpdate) : this._autoUpdate !== false; }
+    set autoUpdate(v) {
+      Object.defineProperty(this, '_autoUpdate', { value: !!v, writable: true, configurable: true, enumerable: false });
+      for (const s of this) s.autoUpdate = !!v;
+    }
+
+    // group.draw(): paint this group's sprites NOW, lowest layer first, the
+    // way the engine paints them after draw() (camera, culling, a sprite's own
+    // .draw, its animation). It draws them whatever autoDraw says, so with
+    // `allSprites.autoDraw = false` a sketch decides when the world is drawn:
+    // `background(...)`, then `allSprites.draw()`, then text on top
+    // (shCode #124). screenSpace members are drawn after the rest, without the
+    // camera, as the engine does. Call it in update() or draw(); in drawTop()
+    // the camera is off, so world sprites would be drawn without it.
+    draw() {
+      if (!CTX_) return;
+      const list = this.filter((s) => s && !s._dead).sort((a, b) => a.layer - b.layer);
+      _drawSprites(list.filter((s) => !s.screenSpace), true, true);
+      _drawSprites(list.filter((s) => s.screenSpace), false, true);
+    }
 
     // cull(margin) or cull(top, bottom, left, right): delete members that have
     // drifted this far outside the canvas, returning how many went. With a
@@ -3270,36 +3297,41 @@
     // level. `sprite.screenSpace = true` is ours, not the reference API's. Screen-space
     // sprites draw last so a HUD is never buried under the world, and their
     // .layer still orders them among themselves.
-    const drawPass = (list, useCamera) => {
-      if (!list.length) return;
-      const view = _cullView(useCamera);
-      CTX_.save();
-      _applyFrame(useCamera && camera._active);
-      for (const s of list) {
-        if (s._queuedText) {
-          // _paintText applies its own frame from an untransformed context,
-          // with the camera as it was when text() was called.
-          CTX_.restore();
-          _paintText(s.str, s.x, s.y, s.size, s.color, s.align, s.cam, s.st);
-          CTX_.save();
-          _applyFrame(useCamera && camera._active);
-          continue;
-        }
-        if (!s.autoDraw) continue; // Sprite, SPEC-surface #3: false skips this sprite entirely
-        if (s.ani) s.ani._advance(); // advances on or off screen, so culling never freezes it
-        // A sketch-assigned sprite.draw REPLACES the default rendering for
-        // that sprite (Sprite, SPEC-surface #3) — everything else (layer
-        // order, ani advance, autoDraw gating above) still applies around it.
-        // It is never culled: it may do more than draw.
-        if (typeof s.draw === 'function') s.draw();
-        else if (!view || !_offView(s, view)) s._draw();
-      }
-      CTX_.restore();
-    };
-
     const world = ordered.filter((s) => !s.screenSpace);
-    drawPass(texts && texts.length ? _withTexts(world, texts) : world, true);
-    drawPass(ordered.filter((s) => s.screenSpace), false);
+    _drawSprites(texts && texts.length ? _withTexts(world, texts) : world, true, false);
+    _drawSprites(ordered.filter((s) => s.screenSpace), false, false);
+  }
+
+  // One pass of render(), and group.draw()'s painter. `force` draws a sprite
+  // whose autoDraw is false (group.draw() is the sketch asking for it).
+  function _drawSprites(list, useCamera, force) {
+    if (!list.length) return;
+    const view = _cullView(useCamera);
+    CTX_.save();
+    _applyFrame(useCamera && camera._active);
+    for (const s of list) {
+      if (s._queuedText) {
+        // _paintText applies its own frame from an untransformed context,
+        // with the camera as it was when text() was called.
+        CTX_.restore();
+        _paintText(s.str, s.x, s.y, s.size, s.color, s.align, s.cam, s.st);
+        CTX_.save();
+        _applyFrame(useCamera && camera._active);
+        continue;
+      }
+      if (!s.autoDraw && !force) continue; // Sprite, SPEC-surface #3: false skips this sprite entirely
+      // Advances on or off screen, so culling never freezes it; once a frame,
+      // so a sprite drawn by group.draw() and by the engine does not run at
+      // double speed.
+      if (s.ani && s._aniFrame !== FRAME_) { s._aniFrame = FRAME_; s.ani._advance(); }
+      // A sketch-assigned sprite.draw REPLACES the default rendering for
+      // that sprite (Sprite, SPEC-surface #3) — everything else (layer
+      // order, ani advance, autoDraw gating above) still applies around it.
+      // It is never culled: it may do more than draw.
+      if (typeof s.draw === 'function') s.draw();
+      else if (!view || !_offView(s, view)) s._draw();
+    }
+    CTX_.restore();
   }
 
   // Off-screen culling for render(). A sprite whose whole picture lies outside
