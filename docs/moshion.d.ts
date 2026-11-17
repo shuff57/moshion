@@ -281,7 +281,8 @@ declare class Sprite {
   addSensor(offsetX?: number, offsetY?: number, w?: number, h?: number): Sensor;
 
   // ---- jumping -------------------------------------------------------------
-  /** Jump, if a jump is left: sets vel.y to jumpPower, upward. True when it
+  /** Jump, if a jump is left: launches it upward fast enough to rise
+   *  120 px x jumpPower, at any gravity. True when it
    *  jumped, false when none were left. `ground` is what the sprite jumps off,
    *  like colliding(ground): a sprite or a Group. Only landing on it gives the
    *  jumps back (a crate or an enemy's head does not); the sprite remembers it.
@@ -295,8 +296,9 @@ declare class Sprite {
   /** The most jumps before landing again: 1 (the default) a normal jump, 2 a
    *  double jump. Whole numbers, 0 or more. */
   maxJumps: number;
-  /** How fast a jump starts, in pixels a frame, upward (the way gravity does
-   *  not pull). Default 8. */
+  /** How high a jump goes: 1 (the default) is a normal jump of about 120 px,
+   *  2 twice as high, 0.5 half, whatever world.gravity.y is (the launch speed
+   *  is worked out from the gravity the sprite feels). 0 or more. */
   jumpPower: number;
   /** How many jumps are left before landing. Set it to give jumps back, even
    *  in mid-air: `player.jumpsLeft = player.maxJumps`. */

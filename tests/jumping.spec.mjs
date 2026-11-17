@@ -1,5 +1,6 @@
 // Scenario: a sprite's jumping (shCode, 2026-11-16): player.jump(ground),
-// maxJumps, jumpPower, jumpsLeft, onGround. A double jump goes twice and not a
+// maxJumps, jumpPower, jumpsLeft, onGround. jumpPower is a height multiplier
+// (1 rises 120 px, 2 twice that); a double jump goes twice and not a
 // third time; landing gives the jumps back; only the ground given to jump()
 // refills them (a crate does not); the space bar drives it through kb.presses;
 // a clone keeps the settings; a sketch's own onGround field still works; a
@@ -51,15 +52,15 @@ async function landed(frame) {
   const frame = await runSketch(page, srv.base, LEVEL);
   await waitFrames(frame, 30);
   const start = await frame.evaluate(() => ({ on: player.onGround, left: player.jumpsLeft, max: player.maxJumps, pow: player.jumpPower }));
-  check('J1 standing on the platforms: onGround, every jump left, jumpPower 8 by default',
-    start.on === true && start.left === 2 && start.max === 2 && start.pow === 8, start);
+  check('J1 standing on the platforms: onGround, every jump left, jumpPower 1 by default',
+    start.on === true && start.left === 2 && start.max === 2 && start.pow === 1, start);
 
   const air = await frame.evaluate(() => {
     const a = player.jump(platforms);
     const v = player.vel.y;
     return { a, v };
   });
-  check('J2 jump() goes and sets vel.y to -jumpPower', air.a === true && Math.abs(air.v + 8) < 1e-9, air);
+  check('J2 jump() goes, upward', air.a === true && air.v < -7, air);
   await waitFrames(frame, 4);
   const more = await frame.evaluate(() => ({ second: player.jump(platforms), third: player.jump(platforms), left: player.jumpsLeft }));
   check('J3 maxJumps 2: a second jump in mid-air, then none', more.second === true && more.third === false && more.left === 0, more);
@@ -122,6 +123,33 @@ async function landed(frame) {
   check("J10 jump('ground') says to pass the sprite or group", /sprite or group it jumps off/.test(out.str), out);
   check('J11 a negative maxJumps is refused', /maxJumps must be a number/.test(out.neg), out);
   check("J12 a sketch's own sprite.onGround field reads back what it stored", out.flag === 'my flag', out);
+  await page.close();
+}
+
+{
+  // jumpPower is a height multiplier, measured in the browser at gravity 30 and 10.
+  const page = await browser.newPage({ viewport: { width: 900, height: 700 } });
+  const frame = await runSketch(page, srv.base, `
+    var a, b;
+    function setup() {
+      new Canvas(400, 400);
+      world.gravity.y = 30;
+      new Sprite(200, 390, 400, 20, 'static');
+      a = new Sprite(100, 350, 24, 32); a.rotationLock = true; a.jumpPower = 1;
+      b = new Sprite(300, 350, 24, 32); b.rotationLock = true; b.jumpPower = 2;
+    }
+    function draw() { background('black'); }
+  `);
+  await waitFrames(frame, 40);
+  const peaks = await frame.evaluate(() => new Promise((res) => {
+    const y0a = a.y, y0b = b.y;
+    let ta = y0a, tb = y0b;
+    a.jump(); b.jump();
+    const t = setInterval(() => { ta = Math.min(ta, a.y); tb = Math.min(tb, b.y); }, 5);
+    setTimeout(() => { clearInterval(t); res({ one: Math.round(y0a - ta), two: Math.round(y0b - tb) }); }, 1500);
+  }));
+  check('J13 jumpPower 1 rises about 120 px and jumpPower 2 about twice as high',
+    Math.abs(peaks.one - 120) <= 3 && Math.abs(peaks.two - 240) <= 4, peaks);
   await page.close();
 }
 
