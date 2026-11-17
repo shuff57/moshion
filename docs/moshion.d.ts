@@ -911,7 +911,8 @@ declare function update(step: number): void;
 /** Runs each frame after physics, BEFORE sprites are rendered. Anything drawn
   * here is painted underneath every sprite — draw backgrounds and world
   * decoration here, and put a HUD in drawTop(). The one exception is text()
-  * after textLayer(n), which is painted among the sprites by layer. */
+  * after textLayer(n) (here or in update()), which is painted among the
+  * sprites by layer. */
 declare function draw(): void;
 /** Runs each frame AFTER sprites are rendered, in screen space (the camera is
   * off for its duration and restored afterwards). This is where a HUD goes:
@@ -989,7 +990,7 @@ declare function textLeading(): number | null;
  *  words (WORD, the default) or anywhere (CHAR). A '\n' always starts a new
  *  line. textWrap() turns wrapping off. */
 declare function textWrap(width?: number | null, mode?: 'word' | 'char'): void;
-/** Puts the text() calls that follow, in draw(), on layer `n` among the
+/** Puts the text() calls that follow, in update() or draw(), on layer `n` among the
  *  sprites: over every sprite whose `.layer` is `n` or lower, under every
  *  sprite whose `.layer` is higher (a tie goes to the text). Texts on one
  *  layer keep the order they were written in. Like textSize(), it lasts until

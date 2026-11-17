@@ -79,6 +79,25 @@ function setup() {
 function draw() { background('#000000'); text('ok', 10, 20); }
 `;
 
+// shCode #123/#126: a game written all in update() -- background, then text,
+// then textLayer(10), every frame, no draw() at all. Only draw() used to queue,
+// so the text was painted at once, under every sprite, whatever the layer.
+const UPDATE_ONLY = SPY + `
+function setup() {
+  new Canvas(200, 200);
+  world.gravity.y = 0;
+  hi = new Sprite(100, 100, 50, 50, 'static'); hi.color = '#ff00ff'; hi.layer = 20;
+  lo = new Sprite(100, 100, 80, 80, 'static'); lo.color = '#0000ff'; lo.layer = 5;
+  spy();
+}
+function update() {
+  lastOps = ops; ops = [];
+  background('#000000');
+  fill('#ffffff'); text('hud', 10, 20);
+  textLayer(10);
+}
+`;
+
 const srv = await serve(8191);
 const browser = await launch();
 
@@ -137,6 +156,17 @@ async function run(code, frames = 15) {
   const msg = await frame.evaluate(() => badMessage);
   check('L3a textLayer(\'top\') throws a TypeError naming textLayer(n)', /^TypeError: textLayer\(n\): n must be a number/.test(msg), msg);
   check('L3b textLayer(null) is allowed and the sketch runs', errors.length === 0 && (await frameErrors(page)).length === 0, JSON.stringify({ page: errors, runner: await frameErrors(page) }));
+  await page.close();
+}
+
+// ---------------------------------------------------------------------------
+// L4: text() in update() is layered too.
+{
+  const { page, frame, errors } = await run(UPDATE_ONLY);
+  const ops = await frame.evaluate(() => lastOps.map((o) => o[0] + ' ' + o[1]));
+  check('L4a text() in update() after textLayer(10) goes over a layer-5 sprite and under a layer-20 one',
+    ops.indexOf('rect #0000ff') < ops.indexOf('text:hud #ffffff') && ops.indexOf('text:hud #ffffff') < ops.indexOf('rect #ff00ff'), ops);
+  check('L4b zero engine errors', errors.length === 0 && (await frameErrors(page)).length === 0, JSON.stringify({ page: errors, runner: await frameErrors(page) }));
   await page.close();
 }
 
