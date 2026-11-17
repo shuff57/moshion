@@ -475,8 +475,20 @@ declare class Group extends Array<Sprite> {
   amount: number;
   applyTorque(t: number): void;
   applyForceScaled(fx: number, fy: number): void;
+  /** Set on every member AND remembered for sprites that join later, so
+   *  `allSprites.autoDraw = false` once in setup() covers sprites made
+   *  afterwards. Reads true only if every member agrees (an empty group reads
+   *  what it was last told, true if never). */
   autoDraw: boolean;
+  /** Like autoDraw: false stops each member's own update(), for members now
+   *  and later. */
   autoUpdate: boolean;
+  /** Draws this group's sprites now, lowest layer first, with the camera,
+   *  whatever their autoDraw says. With `allSprites.autoDraw = false`, call
+   *  `allSprites.draw()` in update() or draw() to choose when the world is
+   *  painted (background first, text after). screenSpace members are drawn
+   *  after the rest, without the camera. */
+  draw(): void;
 }
 
 // ---- tile maps and walls ---------------------------------------------------
