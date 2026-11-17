@@ -201,8 +201,16 @@
     get isOnCanvas() { return MOUSE._onCanvas; },
     // CSS cursor on the canvas element itself — the reference API's mouse.cursor
     // (the reference implementation) reads/writes $.canvas.style.cursor directly.
-    get cursor() { return CANVAS_ ? CANVAS_.style.cursor : 'default'; },
-    set cursor(v) { if (CANVAS_) CANVAS_.style.cursor = v; },
+    // Set before new Canvas() it is kept and applied when the canvas is made.
+    get cursor() { return CANVAS_ ? CANVAS_.style.cursor : (MOUSE._cursor ?? 'default'); },
+    set cursor(v) { MOUSE._cursor = v; if (CANVAS_) CANVAS_.style.cursor = v; },
+    // mouse.visible = false hides the pointer over the canvas (cursor 'none');
+    // true brings back the cursor it had before (shCode #125).
+    get visible() { return mouse.cursor !== 'none'; },
+    set visible(v) {
+      if (v) { if (mouse.cursor === 'none') mouse.cursor = MOUSE._cursorBefore || ''; }
+      else if (mouse.cursor !== 'none') { MOUSE._cursorBefore = mouse.cursor === 'default' ? '' : mouse.cursor; mouse.cursor = 'none'; }
+    },
     // Wheel delta accumulated since the last frame, zeroed in the per-frame
     // sweep (matches the reference API's postDraw: `m.scrollDelta.x = 0` etc,
     // the reference implementation) — read it once per draw() call, not per event.
@@ -446,6 +454,7 @@
       CANVAS_ = document.createElement('canvas');
       CANVAS_.width = w; CANVAS_.height = h;
       CTX_ = CANVAS_.getContext('2d');
+      if (MOUSE._cursor != null) CANVAS_.style.cursor = MOUSE._cursor; // mouse.cursor/visible set before the canvas
       // An untouched camera must be a no-op, so it starts centred on the
       // canvas rather than at the world origin (in 'math' mode the centre IS
       // the origin, so it starts at (0, 0) -- see _parkCamera).
@@ -1061,6 +1070,36 @@
     // canvasPos means "where is this on screen"; for these it is identity.
     // "On screen" is the fixed frame drawTop() draws in: raw pixels in
     // 'screen' mode, the centred y-up frame with the camera removed in 'math'.
+    // sprite.mouse: the mouse as this sprite sees it (shCode #125), the
+    // reference API's names. hovering() is true while the pointer is over the
+    // sprite, hovers() on the first frame it is, hovered() on the first frame
+    // after it left. presses(), pressing() and released() are mouse.presses()
+    // and friends for a press that STARTED on this sprite: pressing() stays
+    // true while the button is held, even if the pointer slides off, which is
+    // what dragging wants; dragging() counts frames like mouse.dragging().
+    // Each takes 'left' | 'center' | 'right' or nothing (any button), like
+    // mouse. The point test is world.getSpriteAt()'s, so a sprite under
+    // another one still counts as hovered; nothing is tracked for a sprite
+    // until a sketch first reads its .mouse.
+    get mouse() {
+      if (!this._mouseApi) {
+        const s = this;
+        Object.defineProperty(this, '_mouseApi', { configurable: true, enumerable: false, writable: true, value: {
+          hovering: () => _mouseOver(s),
+          hovers: () => _mouseOver(s) && !s._mHoverPrev,
+          hovered: () => !!s._mHoverPrev && !_mouseOver(s),
+          presses: (b) => mouse.presses(b) && _mouseOwns(s, _btnSlot(b)),
+          pressing: (b) => mouse.pressing(b) && _mouseOwns(s, _btnSlot(b)),
+          released: (b) => mouse.released(b) && _mouseOwns(s, _btnSlot(b)),
+          dragging: (b) => (_mouseOwns(s, _btnSlot(b || 'left')) ? mouse.dragging(b) : 0),
+        } });
+        _mouseWatch(s);
+      }
+      return this._mouseApi;
+    }
+    // A sketch that already used .mouse as its own field keeps it.
+    set mouse(v) { Object.defineProperty(this, 'mouse', { value: v, writable: true, configurable: true, enumerable: true }); }
+
     get canvasPos() {
       if (this.screenSpace) return { x: this.x, y: this.y };
       const o = _frameOrigin();
@@ -2577,6 +2616,41 @@
     const nx = Math.max(b.l, Math.min(x, b.r));
     const ny = Math.max(b.t, Math.min(y, b.b));
     return Math.hypot(x - nx, y - ny) <= radius;
+  }
+
+  // sprite.mouse bookkeeping (shCode #125). Only sprites whose .mouse has
+  // been read are watched. At the start of each frame a press that has just
+  // begun is given to every watched sprite under the pointer (_mOwn, per
+  // button slot); at the end, each remembers whether it was hovered, which is
+  // what hovers()/hovered() compare against.
+  const MOUSE_SPRITES_ = new Set();
+  const MOUSE_SLOTS_ = ['_c', '_bl', '_bc', '_br'];
+  function _mouseOver(s) {
+    return MOUSE._seen && MOUSE._onCanvas && !s._dead && _spriteNear(s, MOUSE.x, MOUSE.y, 0);
+  }
+  function _mouseOwns(s, slot) { return !!(s._mOwn && s._mOwn[slot]); }
+  function _mouseClaim(s) {
+    const over = _mouseOver(s);
+    for (const slot of MOUSE_SLOTS_) {
+      const v = MOUSE[slot];
+      if (v === 1 || v === -3) { // this button's press began since the last frame
+        if (!s._mOwn) Object.defineProperty(s, '_mOwn', { value: {}, enumerable: false });
+        s._mOwn[slot] = over;
+      }
+    }
+  }
+  function _mouseWatch(s) {
+    MOUSE_SPRITES_.add(s);
+    _mouseClaim(s); // read for the first time on the very frame of a press
+  }
+  function _spriteMouseFrameStart() {
+    for (const s of MOUSE_SPRITES_) {
+      if (s._dead) { MOUSE_SPRITES_.delete(s); continue; }
+      _mouseClaim(s);
+    }
+  }
+  function _spriteMouseFrameEnd() {
+    for (const s of MOUSE_SPRITES_) s._mHoverPrev = _mouseOver(s);
   }
 
   // getSpritesAt(x, y, radius, group): every live sprite at a point, topmost
@@ -4754,6 +4828,7 @@
       if (dt > 0) FPS_ = 1 / dt; // frameRate() reads this — matches real q5's 1000/deltaTime
 
       FRAME_++;
+      _spriteMouseFrameStart(); // sprite.mouse: who a press that just began belongs to
 
       updateFn(step);
       // Per-sprite update override (Sprite, SPEC-surface #3): "before
@@ -4803,6 +4878,7 @@
       // Matches the reference API's postDraw sweep (the reference implementation): a
       // negative (just-released) state is visible for exactly one frame
       // then decays to 0; a positive (held) state keeps counting up.
+      _spriteMouseFrameEnd(); // sprite.mouse: hovered this frame? (for hovers()/hovered())
       for (const k in KEYS_) {
         if (KEYS_[k] < 0) KEYS_[k] = 0;
         else if (KEYS_[k] > 0) KEYS_[k]++;

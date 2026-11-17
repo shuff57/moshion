@@ -356,6 +356,10 @@ declare class Sprite {
   readonly previousRotation: number;
   /** This sprite in screen pixels rather than world coordinates. */
   readonly canvasPos: Vec2;
+  /** The mouse as this sprite sees it: hovering(), hovers(), hovered(), and
+   *  presses() / pressing() / released() / dragging() for a press that began
+   *  on this sprite. */
+  readonly mouse: SpriteMouse;
 
   // ---- lifecycle and presentation -------------------------------------------
   /** Frames remaining; counts down and deletes at 0. Unset = immortal. */
@@ -832,8 +836,12 @@ interface Mouse {
   /** False until the browser first reports a cursor position — until then
    *  mouse.x/y are 0, which is a real coordinate and not a safe target. */
   readonly isActive: boolean;
-  /** CSS cursor on the canvas element. */
+  /** CSS cursor on the canvas element ('pointer', 'crosshair', 'none'...).
+   *  Set before new Canvas() it is applied when the canvas is made. */
   cursor: string;
+  /** False hides the pointer over the canvas (cursor 'none'); true brings
+   *  back the cursor it had before. */
+  visible: boolean;
   /** Wheel movement since the last frame, zeroed each frame. */
   readonly scrollDelta: Vec2;
   /** The raw drag counter for a button (default 'left'): frames moved while
@@ -875,6 +883,28 @@ interface Camera extends Vec2 {
 declare const camera: Camera;
 declare const kb: Kb;
 declare const mouse: Mouse;
+
+/** sprite.mouse. Buttons are 'left' | 'center' | 'right', or nothing for any
+ *  button, as for mouse. The point test is world.getSpriteAt()'s, so a
+ *  sprite under another one still counts as hovered. */
+interface SpriteMouse {
+  /** True while the pointer is over the sprite. */
+  hovering(): boolean;
+  /** True on the first frame the pointer is over the sprite. */
+  hovers(): boolean;
+  /** True on the first frame after the pointer left the sprite. */
+  hovered(): boolean;
+  /** True on the first frame of a press that began over the sprite. */
+  presses(button?: MouseButton): boolean;
+  /** True while a press that began over the sprite is held, even if the
+   *  pointer has slid off it since. */
+  pressing(button?: MouseButton): boolean;
+  /** True on the frame a press that began over the sprite is let go. */
+  released(button?: MouseButton): boolean;
+  /** Frames the pointer has moved with a press that began over the sprite
+   *  held (default 'left'), else 0. */
+  dragging(button?: MouseButton): number;
+}
 declare const allSprites: Group;
 // Collider-type constants — the same strings .collider already accepts, so
 // `s.collider = STATIC` and `s.collider = 'static'` are interchangeable.
