@@ -4940,6 +4940,11 @@
       const b = MOUSE_BTN_[(e && e.button) || 0];
       if (b && (!MOUSE[b] || MOUSE[b] < 0)) MOUSE[b] = 1;
     });
+    // A right-click on the canvas is a game's button, not the browser's.
+    // Without this the browser's own menu opened over the sketch on every
+    // right-click, so mouse.presses('right') was there but unusable in a
+    // game (shCode #127). Only the canvas: the rest of the page keeps its menu.
+    CANVAS_.addEventListener('contextmenu', (e) => { if (e && e.preventDefault) e.preventDefault(); });
     window.addEventListener('mouseup', (e) => {
       // Only a button that is down can come up. mouseup is on window, so a
       // click that started anywhere else in the frame also lands here, and
