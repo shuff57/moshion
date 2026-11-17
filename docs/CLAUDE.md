@@ -46,6 +46,7 @@ bun tests/textlayer.spec.mjs      # engine: textLayer(n), text() among the sprit
 bun tests/touch.spec.mjs          # engine: touch drives the mouse counters
 bun tests/focus.spec.mjs          # engine: losing focus releases held keys/buttons
 bun tests/clone-maxspeed.spec.mjs # engine: sprite.clone() and world.maxSpeed
+bun tests/jumping.spec.mjs        # engine: sprite.jump(ground), maxJumps, jumpPower, jumpsLeft, onGround
 bun tests/touch-controls.spec.mjs # games' own on-screen touch controls
 bun tests/portal.spec.mjs         # games/portal.js
 bun tests/ray-siege.spec.mjs      # games/ray-siege.js
