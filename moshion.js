@@ -3585,7 +3585,7 @@
   // textLayer(n): put text() among the sprites (shCode #101, 2026-11-11).
   // Text drawn in draw() is painted BEFORE render(), so it sits under every
   // sprite, and drawTop() puts it over all of them; nothing went in between.
-  // After textLayer(n), each text() called from draw() is remembered with
+  // After textLayer(n), each text() called from update() or draw() is remembered with
   // everything it needs (words, place, size, colour, alignment, camera on or
   // off) and painted by render() among the world's sprites: over every sprite
   // whose .layer is n or lower, under every sprite whose .layer is higher.
@@ -3594,12 +3594,12 @@
   // nothing (or null) goes back to the old way, painted at once. Like
   // textSize(), the setting lasts until it is changed.
   //
-  // It only queues while draw() runs. Called from drawTop(), a sprite's own
-  // .draw or setup(), text() still paints at once (render() is not coming, or
-  // is running now). A sketch that never calls textLayer() draws exactly what
+  // It queues while update() and draw() run (update() too since shCode
+  // #123/#126). Called from drawTop(), a sprite's own .draw or setup(), text()
+  // still paints at once (render() is not coming, or is running now). A sketch that never calls textLayer() draws exactly what
   // it drew before: same canvas calls, same order.
   let TEXT_LAYER_ = null;
-  let TEXT_QUEUE_ = null; // an array only while draw() runs
+  let TEXT_QUEUE_ = null; // an array only while update() and draw() run
   function textLayer(n) {
     if (n === undefined || n === null) { TEXT_LAYER_ = null; return; }
     if (typeof n !== 'number' || !Number.isFinite(n)) {
@@ -4755,28 +4755,35 @@
 
       FRAME_++;
 
-      updateFn(step);
-      // Per-sprite update override (Sprite, SPEC-surface #3): "before
-      // physics", matching where the reference API's own allSprites.update() runs
-      // relative to physicsUpdate (its pre-draw pass, ~8049-8057) — a sprite's
-      // custom update can move it by hand before this frame's physics step
-      // sees that position. autoUpdate = false skips a sprite entirely.
-      for (const s of ALL_) {
-        if (s._dead || !s.autoUpdate) continue;
-        if (typeof s.update === 'function') s.update();
-      }
-      _runTimers(); // every()/after(): after update, before physics
-      _settleJumps(); // jump counts see this frame's landings before the next jump
-      // world.autoStep (World, SPEC-surface #5): false means the sketch
-      // calls world.physicsUpdate() itself instead of this automatic step.
-      if (AUTO_STEP_) {
-        stepPhysics();
-        _updateContacts();
-        _updateOverlaps();
-      }
-      TEXT_QUEUE_ = []; // text() under textLayer(n) waits for render()
+      // text() under textLayer(n) is queued from here until render(): in
+      // update() as well as draw() (shCode #123/#126: a game written all in
+      // update() set textLayer(10) and its text still sat under every sprite,
+      // because only draw() queued). Timers, a sprite's own .update and
+      // collision callbacks run in between, so their text() is queued too.
+      TEXT_QUEUE_ = [];
       let queuedTexts;
-      try { drawFn(); } finally { queuedTexts = TEXT_QUEUE_; TEXT_QUEUE_ = null; }
+      try {
+        updateFn(step);
+        // Per-sprite update override (Sprite, SPEC-surface #3): "before
+        // physics", matching where the reference API's own allSprites.update() runs
+        // relative to physicsUpdate (its pre-draw pass, ~8049-8057) — a sprite's
+        // custom update can move it by hand before this frame's physics step
+        // sees that position. autoUpdate = false skips a sprite entirely.
+        for (const s of ALL_) {
+          if (s._dead || !s.autoUpdate) continue;
+          if (typeof s.update === 'function') s.update();
+        }
+        _runTimers(); // every()/after(): after update, before physics
+        _settleJumps(); // jump counts see this frame's landings before the next jump
+        // world.autoStep (World, SPEC-surface #5): false means the sketch
+        // calls world.physicsUpdate() itself instead of this automatic step.
+        if (AUTO_STEP_) {
+          stepPhysics();
+          _updateContacts();
+          _updateOverlaps();
+        }
+        drawFn();
+      } finally { queuedTexts = TEXT_QUEUE_; TEXT_QUEUE_ = null; }
       render(queuedTexts);
       _drawOverlays(); // showGrid()/showMouse(): over the world, under the HUD
       // drawTop(): the HUD hook. render() paints sprites AFTER the sketch's
