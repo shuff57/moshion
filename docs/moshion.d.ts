@@ -280,6 +280,31 @@ declare class Sprite {
    *  world.rayCast reports a sensor's box as part of its sprite. */
   addSensor(offsetX?: number, offsetY?: number, w?: number, h?: number): Sensor;
 
+  // ---- jumping -------------------------------------------------------------
+  /** Jump, if a jump is left: sets vel.y to jumpPower, upward. True when it
+   *  jumped, false when none were left. `ground` is what the sprite jumps off,
+   *  like colliding(ground): a sprite or a Group. Only landing on it gives the
+   *  jumps back (a crate or an enemy's head does not); the sprite remembers it.
+   *  With nothing, any solid sprite is ground. It need not be touching ground to
+   *  jump: with maxJumps 2 the second jump is in mid-air. Walking off a ledge
+   *  uses up the first jump. The ground check is a thin sensor under the feet,
+   *  made the first time any jump member is used (set them after the size), so
+   *  a wall beside the sprite never counts, nor does a collider 'none' sprite.
+   *  `if (kb.presses(' ')) { player.jump(platforms); }` */
+  jump(ground?: Sprite | Group): boolean;
+  /** The most jumps before landing again: 1 (the default) a normal jump, 2 a
+   *  double jump. Whole numbers, 0 or more. */
+  maxJumps: number;
+  /** How fast a jump starts, in pixels a frame, upward (the way gravity does
+   *  not pull). Default 8. */
+  jumpPower: number;
+  /** How many jumps are left before landing. Set it to give jumps back, even
+   *  in mid-air: `player.jumpsLeft = player.maxJumps`. */
+  jumpsLeft: number;
+  /** True while ground is under the sprite's feet: what was last given to
+   *  jump(ground), or any solid sprite. Never true while moving upward. */
+  onGround: boolean;
+
   // ---- physics -------------------------------------------------------------
   /** Linear damping — air resistance. 0 = none. */
   drag: number;

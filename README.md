@@ -65,6 +65,10 @@ hand-authored reference):
 - `Tiles` (a level built from rows of text and a legend of groups), `Walls`
   (static walls round the canvas edges), `sprite.addSensor()` (a detect-only
   box, e.g. a ground sensor)
+- Jumping: `player.jump(ground)` jumps if one is left and only landing on
+  `ground` (a sprite or group) gives the jumps back; `maxJumps` (2 is a
+  double jump), `jumpPower`, `jumpsLeft` and `onGround`, with a ground check a
+  wall beside the sprite cannot fool
 - `every(frames, fn)` / `after(frames, fn)` — frame timers
 - `world`, `camera` — gravity, hit-testing, viewport, ray casts
   (`world.rayCast(x1, y1, x2, y2)` with no callback returns the closest solid

@@ -1555,6 +1555,8 @@
           ? ((c._anis && c._anis[this._texture]) || c.ani)
           : new StillTexture(this._texture);
       }
+      // jumping: the settings travel, the count starts fresh (and its own sensor)
+      if (this._jumping) { c.maxJumps = this._jumping.max; c.jumpPower = this._jumping.power; if (this._jumping.ground) c._jumping.ground = this._jumping.ground; }
       // groups (the constructor already put it in allSprites)
       for (const g of this._groups) if (g !== allSprites) g.push(c);
       return c;
@@ -1753,6 +1755,107 @@
     // lesson code (e.g. 2.6.11, 2.6.13) — same full-destroy behavior.
     remove() { this.delete(); }
 
+    // ---- jumping: jump(ground), maxJumps, jumpPower, jumpsLeft, onGround ----
+    //
+    //   player.maxJumps = 2;            // a double jump (the default is 1)
+    //   if (kb.presses(' ')) {
+    //     player.jump(platforms);       // jumps if one is left; true when it jumped
+    //   }
+    //   player.jumpsLeft                // jumps left before landing; set it to give some back
+    //   player.jumpPower                // how fast a jump starts, px per frame (default 8)
+    //   player.onGround                 // true while ground is under its feet
+    //
+    // "Jump only on the ground" is `kb.presses(' ') && player.colliding(ground)`,
+    // but a double jump needs a counter, a reset on landing, and a ground check a
+    // wall cannot fool (colliding() is true against a wall's side too).
+    //
+    // jump(ground) names what the sprite jumps off, the way colliding(ground)
+    // does: a sprite or a Group. Only landing on it gives the jumps back, so a
+    // crate or an enemy's head does not. The sprite remembers it, so landings
+    // between key presses are judged the same way. jump() with nothing counts
+    // anything solid. It need not be touching ground to jump: with maxJumps 2
+    // the second jump is in mid-air.
+    //
+    // A sprite gets nothing until one of these is first used. Then it gets a
+    // thin sensor (addSensor) just under its feet, a little narrower than the
+    // sprite so a wall beside it does not count, on the side gravity pulls
+    // toward ('math' mode and upside-down gravity work). Collider 'none'
+    // sprites are never ground. Moving upward is never standing, so the frame
+    // after a jump cannot hand the jump straight back. Walking off a ledge uses
+    // up the first jump. _settleJumps() re-counts every jumping sprite once a
+    // frame (after update(), before physics), so a landing is noticed even on
+    // frames where the sketch never asks. The sensor is sized when it is made,
+    // so set these after the sprite's size.
+    //
+    // A sketch's own `class Hero extends Sprite { jump() {} }` wins, and a sketch
+    // that stores its own `sprite.onGround = true` gets a plain field.
+    _jumpState() {
+      if (this._jumping) return this._jumping;
+      const gy = world.gravity.y;
+      const down = gy > 0 ? 1 : gy < 0 ? -1 : (ORIGIN_ === 'math' ? -1 : 1);
+      const st = { max: 1, power: 8, used: 0, fresh: false, down, feet: null, ground: null, born: FRAME_ };
+      this._jumping = st;
+      if (this._dead) return st;
+      const w = Math.abs(this.w) || 1;
+      const h = Math.abs(this.h) || 1;
+      st.feet = this.addSensor(0, down * (h / 2 + 2), Math.max(2, w - Math.max(4, w * 0.2)), 4);
+      JUMPERS_.push(this);
+      return st;
+    }
+    _standing(st) {
+      if (this._dead || !st.feet) return false;
+      if (st.down * this.vel.y < -0.5) return false; // moving away from the ground
+      const under = st.ground || allSprites;
+      let found = false;
+      const solid = (other) => other && other.collider !== 'none' && !other._dead;
+      // A sensor made this frame has no contacts until the next physics step,
+      // so on that one frame ask the sprite's own contacts for something solid
+      // below its middle (else a sprite whose first use is jump() would refuse
+      // its first jump off the floor).
+      if (st.born === FRAME_) {
+        this.colliding(under, (_s, o) => { if (solid(o) && st.down * (o.y - this.y) > 0) found = true; });
+      } else {
+        st.feet.overlaps(under, (_f, o) => { if (solid(o)) found = true; });
+      }
+      return found;
+    }
+    _settleJump(st) {
+      if (this._standing(st)) { st.used = 0; st.fresh = false; }
+      else if (st.used === 0 && !st.fresh) st.used = 1; // walked off a ledge: the ground jump is gone
+    }
+    jump(ground) {
+      if (this._dead) return false;
+      const st = this._jumpState();
+      if (ground !== undefined && ground !== null) {
+        if (!(ground instanceof Sprite) && !(ground instanceof Group)) {
+          throw new TypeError('sprite.jump(ground): ground is the sprite or group it jumps off, like player.jump(ground), not '
+            + (typeof ground === 'string' ? JSON.stringify(ground) : typeof ground));
+        }
+        st.ground = ground;
+      }
+      this._settleJump(st);
+      if (st.used >= st.max) return false;
+      st.used++;
+      this.vel.y = -st.down * st.power;
+      return true;
+    }
+    get maxJumps() { return this._jumpState().max; }
+    set maxJumps(v) { this._jumpState().max = Math.floor(_jumpNumber(v, 'maxJumps')); }
+    get jumpPower() { return this._jumpState().power; }
+    set jumpPower(v) { this._jumpState().power = _jumpNumber(v, 'jumpPower'); }
+    get jumpsLeft() {
+      const st = this._jumpState();
+      this._settleJump(st);
+      return Math.max(0, st.max - st.used);
+    }
+    set jumpsLeft(v) {
+      const st = this._jumpState();
+      st.used = Math.max(0, st.max - Math.floor(_jumpNumber(v, 'jumpsLeft')));
+      st.fresh = true; // given back in mid-air: the ledge rule must not take one away again
+    }
+    get onGround() { return this._standing(this._jumpState()); }
+    set onGround(v) { Object.defineProperty(this, 'onGround', { value: v, writable: true, configurable: true, enumerable: true }); }
+
     // addSensor(offsetX, offsetY, w, h): a box riding on this sprite that
     // only DETECTS. It is an extra planck fixture marked as a sensor with no
     // density, so it pushes nothing, weighs nothing and does not change how
@@ -1900,6 +2003,20 @@
   // the other sprite), filled once per frame by _updateContacts() from
   // planck's contact list, using the same signed counter as colliding().
   const SENSORS_ = [];
+  // Every sprite that has used jump() / maxJumps / ...: _settleJumps() re-counts
+  // their jumps once a frame (see the jumping section on Sprite).
+  let JUMPERS_ = [];
+  function _jumpNumber(v, what) {
+    if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) {
+      throw new TypeError(`sprite.${what} must be a number, 0 or more, not ${JSON.stringify(v)}`);
+    }
+    return v;
+  }
+  function _settleJumps() {
+    if (!JUMPERS_.length) return;
+    JUMPERS_ = JUMPERS_.filter((s) => !s._dead);
+    for (const s of JUMPERS_) s._settleJump(s._jumping);
+  }
   class Sensor {
     constructor(sprite, fixture) {
       this.sprite = sprite;
@@ -4636,6 +4753,7 @@
         if (typeof s.update === 'function') s.update();
       }
       _runTimers(); // every()/after(): after update, before physics
+      _settleJumps(); // jump counts see this frame's landings before the next jump
       // world.autoStep (World, SPEC-surface #5): false means the sketch
       // calls world.physicsUpdate() itself instead of this automatic step.
       if (AUTO_STEP_) {
