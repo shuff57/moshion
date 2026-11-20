@@ -240,7 +240,7 @@ function draw() {
       title: "Angular velocity",
       body: `sprite.angularVelocity is the rotation speed in degrees per frame. Positive spins clockwise, negative spins counter-clockwise.
 
-You can read it to see how fast a sprite is spinning, or write it to give a sprite a spin kick — like a pendulum that gets pushed on a mouse click. The value is in degrees per frame, matching the facade's pixel-per-frame convention for linear velocity.`,
+You can read it to see how fast a sprite is spinning, or write it to give a sprite a spin kick — like a pendulum that gets pushed on a mouse click. The value is in degrees per frame, just as vel is in pixels per frame.`,
       code: `let rod, anchor;
 
 function setup() {

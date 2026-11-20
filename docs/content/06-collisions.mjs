@@ -104,7 +104,7 @@ function draw() {
       title: "Collisions with groups",
       body: `The collision functions work against a single sprite or a whole Group. player.colliding(enemies) returns a truthy number (a running frame count) while the player touches any sprite in the enemies group.
 
-colliding() reads real physics contacts from Box2D — it's not the same as the manual bounding-box math that overlaps() uses. Use colliding(ground) before a jump to confirm the player is standing on something solid.
+colliding() reads the physics engine's own record of what is touching, so it is true only when two solid sprites really push on each other. Use colliding(ground) before a jump to confirm the player is standing on something solid.
 
 If you need to know which sprite was hit, pass a callback, which works on all six questions: player.collides(enemies, (p, e) => e.delete()). Or iterate the group yourself and test one-by-one. When you delete sprites in response to a hit, loop over [...group] (a copy) so the shrinking group doesn't skip items.`,
       code: `let player, enemies;

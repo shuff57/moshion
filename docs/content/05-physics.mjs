@@ -68,7 +68,7 @@ function draw() {
 
 .friction resists sliding along a surface. 0 is ice — sprites slide forever. Higher values drag motion to a stop quickly.
 
-These are per-sprite properties. When two sprites touch, Box2D combines their values — bounciness uses the higher of the two, friction uses a geometric mean.`,
+These are per-sprite properties. When two sprites touch, the physics combines their values: the bounce is the bouncier of the two, and the friction lands somewhere between the two.`,
       code: `function setup() {
   new Canvas(400, 400);
   world.gravity.y = 10;

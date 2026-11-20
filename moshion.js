@@ -398,15 +398,19 @@
     },
   });
 
+  // A live vector like sprite.vel: world.gravity.y = 10 writes through, and a
+  // non-number is refused in words (it used to turn every falling sprite NaN).
+  let GRAVITY_VEC_ = null;
   Object.defineProperty(world, 'gravity', {
     get() {
-      const g = _world().getGravity();
-      return {
-        get x() { return g.x; },
-        get y() { return g.y; },
-        set x(v) { const c = _world().getGravity(); _world().setGravity(pl.Vec2(v, c.y)); },
-        set y(v) { const c = _world().getGravity(); _world().setGravity(pl.Vec2(c.x, v)); },
-      };
+      if (!GRAVITY_VEC_) {
+        GRAVITY_VEC_ = liveVec(
+          () => { const g = _world().getGravity(); return { x: g.x, y: g.y }; },
+          (x, y) => _world().setGravity(pl.Vec2(x, y)),
+          'world.gravity',
+        );
+      }
+      return GRAVITY_VEC_;
     },
     set(v) { const [x, y] = _vecParts(v, 'world.gravity'); _world().setGravity(pl.Vec2(x, y)); },
   });
@@ -864,59 +868,89 @@
     if (Array.isArray(v) && v.length >= 2 && Number.isFinite(v[0]) && Number.isFinite(v[1])) return [v[0], v[1]];
     if (v && typeof v === 'object' && Number.isFinite(v.x) && Number.isFinite(v.y)) return [v.x, v.y];
     throw new TypeError(`${where} must be a point with x and y, like createVector(3, 0), {x: 3, y: 0} or [3, 0], not ` +
-      (v === null ? 'null' : typeof v === 'object' ? JSON.stringify(v) : typeof v === 'string' ? JSON.stringify(v) : String(v)));
+      (Array.isArray(v) ? `[${v.map(_show).join(', ')}]`
+        : v && typeof v === 'object' ? `{x: ${_show(v.x)}, y: ${_show(v.y)}}` : _show(v)));
   }
 
-  // `name` is how a sketch writes it ('vel', 'pos'), for the error message.
+  // ---- numbers and points, checked in one place ----------------------------
+  // Every number a sketch writes into the engine (a position, a speed, a
+  // rotation, a size, gravity) goes through _num, so a typo such as
+  // `player.vel.x = speed` with speed never set is refused in plain words
+  // naming what was written, instead of putting NaN into the physics and
+  // making the sprite vanish with no error.
+  const _show = (v) => (typeof v === 'string' ? JSON.stringify(v) : String(v));
+  function _num(v, where) {
+    if (!Number.isFinite(v)) throw new TypeError(`${where} must be a number, like ${where} = 3, not ${_show(v)}`);
+    return v;
+  }
+  // A size may be Infinity (a floor that never ends; the collider keeps its
+  // last good size, see _buildFixture), but never NaN or a word.
+  function _size(v, where) {
+    if (typeof v !== 'number' || Number.isNaN(v)) throw new TypeError(`${where} must be a number, like ${where} = 40, not ${_show(v)}`);
+    return v;
+  }
+  // Vector maths, shared by createVector()'s vectors and a sprite's live
+  // pos/vel (and world.gravity), so the two cannot behave differently. `what`
+  // is the call as the sketch wrote it ('v.add()', 'sprite.vel.add()').
+  // A point is x, y or {x, y} or [x, y]; a missing number is 0, as in p5.
+  function _vNum(n, what, example) {
+    if (n === undefined || n === null) return 0;
+    if (!Number.isFinite(n)) throw new TypeError(`${what} needs numbers, like ${example}, not ${_show(n)}`);
+    return n;
+  }
+  function _vPoint(x, y, what) {
+    const ex = what.replace('()', '(3, 0)');
+    if (Array.isArray(x)) return [_vNum(x[0], what, ex), _vNum(x[1], what, ex)];
+    if (x && typeof x === 'object') return [_vNum(x.x, what, ex), _vNum(x.y, what, ex)];
+    return [_vNum(x, what, ex), _vNum(y, what, ex)];
+  }
+  function _vFactor(n, what) {
+    if (!Number.isFinite(n)) throw new TypeError(`${what} needs one number, like ${what.replace('()', '(2)')}, not ${_show(n)}`);
+    return n;
+  }
+  // Each returns the new [x, y] from the current point c.
+  const VEC_MATH_ = {
+    set: (c, x, y, w) => _vPoint(x, y, w),
+    add: (c, x, y, w) => { const [a, b] = _vPoint(x, y, w); return [c.x + a, c.y + b]; },
+    sub: (c, x, y, w) => { const [a, b] = _vPoint(x, y, w); return [c.x - a, c.y - b]; },
+    mult: (c, n, _, w) => { n = _vFactor(n, w); return [c.x * n, c.y * n]; },
+    div: (c, n, _, w) => {
+      n = _vFactor(n, w);
+      if (n === 0) throw new TypeError(`${w}: a vector cannot be divided by 0`);
+      return [c.x / n, c.y / n];
+    },
+    normalize: (c) => { const m = Math.hypot(c.x, c.y); return m ? [c.x / m, c.y / m] : [c.x, c.y]; },
+  };
+  function _vDist(c, o, what) {
+    if (!o || typeof o !== 'object') throw new TypeError(`${what} needs another point, like ${what.replace('()', '(enemy.pos)')}`);
+    const [ox, oy] = Array.isArray(o) ? o : [o.x, o.y];
+    return Math.hypot(c.x - ox, c.y - oy);
+  }
+
+  // `name` is how a sketch writes it ('sprite.vel', 'world.gravity'), for the error message.
   function liveVec(read, write, name) {
     // One axis at a time too: player.vel.x = speed with speed never set
     // would put NaN into the physics body and the sprite would vanish.
-    const axis = (k, n) => {
-      if (!Number.isFinite(n)) {
-        throw new TypeError(`${name}.${k} must be a number, like ${name}.${k} = 3, not ` +
-          (typeof n === 'string' ? JSON.stringify(n) : String(n)));
-      }
-      return n;
-    };
     const v = {
       get x() { return read().x; },
       get y() { return read().y; },
-      set x(n) { const c = read(); write(axis('x', n), c.y); },
-      set y(n) { const c = read(); write(c.x, axis('y', n)); },
+      set x(n) { const c = read(); write(_num(n, `${name}.x`), c.y); },
+      set y(n) { const c = read(); write(c.x, _num(n, `${name}.y`)); },
     };
     // Both axes in one write, for whole-vector assignment (so a velocity is
     // never judged half old, half new by the speed-cap note).
     Object.defineProperty(v, '_write', { value: write, enumerable: false });
-    // The Vector methods, so sprite.vel.set(0, 0), pos.add(...) and friends
-    // work on the live vector exactly as on createVector()'s. A sketch that
-    // assigned a Vector used to get one by accident (and lose physics); now it
-    // keeps both. Each change is one write; each returns the live vector.
-    // A missing number counts as 0, as in p5 (vel.add(2) adds 2 to x only);
-    // anything that would leave a non-number in the physics body (vel.add('a'),
-    // vel.div(0)) is refused in plain words instead of crashing inside planck.
-    const two = (x, y) => (x && typeof x === 'object' ? [x.x ?? 0, x.y ?? 0] : [x ?? 0, y ?? 0]);
-    const put = (call, a, b) => {
-      if (!Number.isFinite(a) || !Number.isFinite(b)) {
-        throw new TypeError(`${name}.${call}() needs numbers, like ${name}.${call === 'mult' || call === 'div' ? call + '(2)' : call + '(3, 0)'}; ` +
-          `it would have made x ${a} and y ${b}`);
-      }
-      write(a, b);
-      return v;
-    };
+    // The Vector methods (the same VEC_MATH_ as createVector()'s), so
+    // sprite.vel.set(0, 0), pos.add(...) and friends work on the live vector.
+    // Each change is one write; each returns the live vector.
     const methods = {
-      set(x, y) { const [a, b] = two(x, y); return put('set', a, b); },
       copy() { const c = read(); return new Vector(c.x, c.y); },
-      add(x, y) { const [a, b] = two(x, y); const c = read(); return put('add', c.x + a, c.y + b); },
-      sub(x, y) { const [a, b] = two(x, y); const c = read(); return put('sub', c.x - a, c.y - b); },
-      mult(n) { const c = read(); return put('mult', c.x * n, c.y * n); },
-      div(n) { const c = read(); return put('div', c.x / n, c.y / n); },
-      mag() { const c = read(); return Math.sqrt(c.x * c.x + c.y * c.y); },
-      dist(o) {
-        if (!o || typeof o !== 'object') throw new TypeError(`${name}.dist(other) needs another point, like ${name}.dist(enemy.pos)`);
-        const c = read(); return Math.sqrt((c.x - o.x) ** 2 + (c.y - o.y) ** 2);
-      },
-      normalize() { const c = read(); const m = Math.sqrt(c.x * c.x + c.y * c.y); if (m !== 0) write(c.x / m, c.y / m); return v; },
+      mag() { const c = read(); return Math.hypot(c.x, c.y); },
+      dist(o) { return _vDist(read(), o, `${name}.dist()`); },
     };
+    for (const k of Object.keys(VEC_MATH_)) {
+      methods[k] = function (a, b) { const [x, y] = VEC_MATH_[k](read(), a, b, `${name}.${k}()`); write(x, y); return v; };
+    }
     for (const [k, fn] of Object.entries(methods)) Object.defineProperty(v, k, { value: fn, enumerable: false });
     return v;
   }
@@ -1055,13 +1089,13 @@
     // size, so on a circle setting either one sets both.
     get w() { return this._w; }
     set w(v) {
-      this._w = v;
+      this._w = _size(v, 'sprite.w');
       if (this._shape === 'circle') this._h = v;
       this._buildFixture();
     }
     get h() { return this._h; }
     set h(v) {
-      this._h = v;
+      this._h = _size(v, 'sprite.h');
       if (this._shape === 'circle') this._w = v;
       this._buildFixture();
     }
@@ -1112,7 +1146,7 @@
     // rotationSpeed is the reference API's OWN name for this file's angularVelocity
     // (deg/frame) — a literal alias, both stay live (the reference implementation).
     get rotationSpeed() { return this.angularVelocity; }
-    set rotationSpeed(v) { this.angularVelocity = v; }
+    set rotationSpeed(v) { this.angularVelocity = _num(v, 'sprite.rotationSpeed'); }
     get gravityScale() { return this._body.getGravityScale(); }
     set gravityScale(v) { this._body.setGravityScale(v); }
     applyTorque(t) { this._body.applyTorque(t, true); }
@@ -1176,6 +1210,7 @@
     // a momentary zero-speed frame (atan2(0,0) would otherwise reset it).
     get speed() { return Math.hypot(this.vel.x, this.vel.y); }
     set speed(s) {
+      _num(s, 'sprite.speed');
       const rad = (this.direction * Math.PI) / 180;
       this.vel.x = Math.cos(rad) * s;
       this.vel.y = Math.sin(rad) * s;
@@ -1187,6 +1222,7 @@
       return this._direction;
     }
     set direction(deg) {
+      _num(deg, 'sprite.direction');
       const speed = this.speed;
       this._direction = deg;
       const rad = (deg * Math.PI) / 180;
@@ -1500,16 +1536,16 @@
     // shorthand size setter for circular sprites (group default + per-sprite,
     // e.g. `apples.diameter = 20`, `leftWheel.diameter = 20`).
     get diameter() { return this.w; }
-    set diameter(v) { this._w = v; this._h = v; this._shape = 'circle'; this._buildFixture(); }
+    set diameter(v) { _size(v, 'sprite.diameter'); this._w = v; this._h = v; this._shape = 'circle'; this._buildFixture(); }
 
     // Aliases for numbers the sprite already has. None of these is a new
     // capability — they exist because a student arriving from p5/the reference API
     // material types `.width` or `.velocity` before they type `.w` or `.vel`,
     // and an unknown property is a silent undefined, not an error.
     get width() { return this.w; }
-    set width(v) { this.w = v; }
+    set width(v) { this.w = _size(v, 'sprite.width'); }
     get height() { return this.h; }
-    set height(v) { this.h = v; }
+    set height(v) { this.h = _size(v, 'sprite.height'); }
     get hw() { return this.w / 2; }
     set hw(v) { this.w = v * 2; }
     get hh() { return this.h / 2; }
@@ -1519,11 +1555,11 @@
     get halfHeight() { return this.hh; }
     set halfHeight(v) { this.hh = v; }
     get d() { return this.diameter; }
-    set d(v) { this.diameter = v; }
+    set d(v) { this.diameter = _size(v, 'sprite.d'); }
     get r() { return this.diameter / 2; }
-    set r(v) { this.diameter = v * 2; }
+    set r(v) { this.diameter = _size(v, 'sprite.r') * 2; }
     get radius() { return this.r; }
-    set radius(v) { this.r = v; }
+    set radius(v) { this.r = _size(v, 'sprite.radius'); }
     // Assigning .velocity copies into the existing vector rather than
     // replacing it — sprite.vel is a live proxy onto the physics body, so
     // swapping the object out would disconnect it.
@@ -1792,9 +1828,9 @@
     set vel(v) { const [x, y] = _vecParts(v, 'sprite.vel'); this._vel._write(x, y); }
 
     get x() { return this.pos.x; }
-    set x(v) { this.pos.x = v; }
+    set x(v) { this.pos.x = _num(v, 'sprite.x'); }
     get y() { return this.pos.y; }
-    set y(v) { this.pos.y = v; }
+    set y(v) { this.pos.y = _num(v, 'sprite.y'); }
 
     // `sprite.position` is the reference API's own name for `sprite.pos` (verified
     // against the reference implementation) — plain alias, same live vector.
@@ -1802,12 +1838,13 @@
     set position(v) { this.pos = v; }
 
     get rotation() { return (this._body.getAngle() * 180) / Math.PI; }
-    set rotation(deg) { this._body.setAngle((deg * Math.PI) / 180); }
+    set rotation(deg) { this._body.setAngle((_num(deg, 'sprite.rotation') * Math.PI) / 180); }
 
     // angularVelocity — degrees per frame, matching the facade's px/frame unit
     // convention (2.3.19 pendulum kick, 2.3.21 car-ramp wheel drive).
     get angularVelocity() { return ((this._body.getAngularVelocity() * 180) / Math.PI) / FPS; }
     set angularVelocity(degPerFrame) {
+      _num(degPerFrame, 'sprite.angularVelocity');
       // rotationLock means "this sprite does not turn". Box2D's fixed-rotation
       // flag only stops TORQUE from spinning a body — an explicit angular
       // velocity write still turns it, so a locked sprite handed a spin would
@@ -4361,40 +4398,19 @@
   // tied to a sprite: assigning it to sprite.vel/pos COPIES its x and y into
   // the live, physics-backed vector (see _vecParts and liveVec), which carries
   // these same methods.
-  // A missing number counts as 0, as in p5 (v.add(2) adds 2 to x only, and
-  // v.set({x: 1}) sets y to 0); a word or a NaN is refused in plain words,
-  // so a vector never quietly holds something that is not a number.
-  function _vnum(n, call) {
-    if (n === undefined || n === null) return 0;
-    if (!Number.isFinite(n)) {
-      throw new TypeError(`${call} needs numbers, like createVector(3, 4).${call.split('(')[0].replace(/^v\./, '')}(1, 2), not ` +
-        (typeof n === 'string' ? JSON.stringify(n) : String(n)));
-    }
-    return n;
-  }
-  const _vpair = (x, y, call) => (x && typeof x === 'object' ? [_vnum(x.x, call), _vnum(x.y, call)] : [_vnum(x, call), _vnum(y, call)]);
+  // createVector()'s vectors: the same maths (VEC_MATH_) and the same checks
+  // as a sprite's live pos/vel, on a plain {x, y} that belongs to nobody.
   class Vector {
-    constructor(x, y) { this.x = x || 0; this.y = y || 0; }
-    set(x, y) { [this.x, this.y] = _vpair(x, y, 'v.set()'); return this; }
+    constructor(x, y) { this.x = _vNum(x, 'createVector()', 'createVector(3, 4)'); this.y = _vNum(y, 'createVector()', 'createVector(3, 4)'); }
     copy() { return new Vector(this.x, this.y); }
-    add(x, y) { const [a, b] = _vpair(x, y, 'v.add()'); this.x += a; this.y += b; return this; }
-    sub(x, y) { const [a, b] = _vpair(x, y, 'v.sub()'); this.x -= a; this.y -= b; return this; }
-    mult(n) { n = _vnum(n, 'v.mult()'); this.x *= n; this.y *= n; return this; }
-    div(n) {
-      n = _vnum(n, 'v.div()');
-      if (n === 0) throw new TypeError('v.div(0): a vector cannot be divided by 0');
-      this.x /= n; this.y /= n; return this;
-    }
-    mag() { return Math.sqrt(this.x * this.x + this.y * this.y); }
-    dist(v) {
-      if (!v || typeof v !== 'object') throw new TypeError('v.dist(other) needs another point, like v.dist(player.pos)');
-      const dx = this.x - v.x, dy = this.y - v.y; return Math.sqrt(dx * dx + dy * dy);
-    }
-    normalize() {
-      const m = this.mag();
-      if (m !== 0) { this.x /= m; this.y /= m; }
-      return this;
-    }
+    mag() { return Math.hypot(this.x, this.y); }
+    dist(o) { return _vDist(this, o, 'v.dist()'); }
+  }
+  for (const k of Object.keys(VEC_MATH_)) {
+    Object.defineProperty(Vector.prototype, k, {
+      value: function (a, b) { [this.x, this.y] = VEC_MATH_[k](this, a, b, `v.${k}()`); return this; },
+      writable: true, configurable: true,
+    });
   }
   function createVector(x, y) { return new Vector(x, y); }
 

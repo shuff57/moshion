@@ -226,6 +226,8 @@ v.add(x, y), v.sub(x, y), v.mult(n) and v.div(n) CHANGE v and also hand it back,
 
 Because add, sub, mult, div and normalize change the vector they are called on, call copy() first when you want to keep the original.
 
+Anywhere a point is wanted, it can be two numbers, a vector, {x: 3, y: 0} or [3, 0]: v.add([1, 2]) and v.set({x: 5}) work (a missing number is 0). Anything that is not a number, like v.add('a'), is refused with a message that says so.
+
 A sprite's sprite.pos and sprite.vel are vectors too, joined to the physics: player.vel.set(0, 0) stops the player and player.vel.add(0, -2) gives it a push up. Assigning a whole vector, player.vel = createVector(3, 0), copies its two numbers in, so the sprite keeps moving with the physics.`,
       code: `let v;
 

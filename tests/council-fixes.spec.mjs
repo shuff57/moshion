@@ -232,12 +232,33 @@ async function open(code) {
     s.vel.set(3, 1);
     const axisBad = [err(() => { s.vel.x = undefined; }), err(() => { s.pos.y = NaN; }), err(() => { s.x = 'left'; })];
     const axisAfter = [s.vel.x, s.vel.y, Number.isFinite(s.x), Number.isFinite(s.y)];
+    // Every number a sketch writes is checked, and the message names what it wrote.
+    let gu; const g0 = world.gravity.y;
+    const named = {
+      'world.gravity.y': err(() => { world.gravity.y = gu; }),
+      'sprite.rotation': err(() => { s.rotation = undefined; }),
+      'sprite.angularVelocity': err(() => { s.angularVelocity = 'fast'; }),
+      'sprite.rotationSpeed': err(() => { s.rotationSpeed = 'fast'; }),
+      'sprite.w': err(() => { s.w = undefined; }),
+      'sprite.h': err(() => { s.h = NaN; }),
+      'sprite.speed': err(() => { s.speed = undefined; }),
+      'sprite.direction': err(() => { s.direction = 'up'; }),
+      'sprite.x': err(() => { s.x = 'left'; }),
+    };
+    const gAfter = world.gravity.y;
+    world.gravity.x = 0; const gLive = typeof world.gravity.set === 'function';
+    // A point may be x, y or {x, y} or [x, y] everywhere.
+    s.vel.set([5, 6]); const arrSet = [s.vel.x, s.vel.y];
+    const arrAdd = createVector(1, 1).add([2, 3]); const arrAddXY = [arrAdd.x, arrAdd.y];
+    const ctor = [err(() => createVector('3', 4)), err(() => createVector(NaN, 4))];
+    const multNone = [err(() => createVector(3, 4).mult()), err(() => s.vel.mult())];
     const nanVel = err(() => { s.vel = { x: NaN, y: 0 }; });
     const nanPos = err(() => { s.pos = [Infinity, 0]; });
-    return { a, b, c, mag, unit, copyIsolated: s.vel.x !== 99, p, chain, keys: Object.keys(s.vel), addX, badAdd, badDiv, after, plainXY, nanVel, nanPos, vAfter: [s.vel.x, s.vel.y], halfXY, plainBad, axisBad, axisAfter };
+    const vAfter = [s.vel.x, s.vel.y];
+    return { a, b, c, mag, unit, copyIsolated: s.vel.x !== 99, p, chain, keys: Object.keys(s.vel), addX, badAdd, badDiv, after, plainXY, nanVel, nanPos, vAfter, halfXY, plainBad, axisBad, axisAfter, named, g0, gAfter, gLive, arrSet, arrAddXY, ctor, multNone };
   });
   check('C5g vel.add(2) adds to x only (a missing y is 0); vel.add("a") and vel.div(0) are refused in words and change nothing',
-    m.addX[0] === 3 && m.addX[1] === 1 && /needs numbers/.test(m.badAdd || '') && /needs numbers/.test(m.badDiv || '') &&
+    m.addX[0] === 3 && m.addX[1] === 1 && /needs numbers/.test(m.badAdd || '') && /divided by 0/.test(m.badDiv || '') &&
     m.after[0] === 3 && m.after[1] === 1, m);
   check('C5i one axis at a time is guarded too: vel.x = undefined, pos.y = NaN and sprite.x = a word are refused in words, nothing changes',
     m.axisBad.every((e) => /must be a number/.test(e || '')) && /^sprite\.vel\.x/.test(m.axisBad[0]) && /^sprite\.pos\.y/.test(m.axisBad[1]) &&
@@ -245,9 +266,17 @@ async function open(code) {
   check('C5j a plain vector: set({x: 1}) makes y 0; add("a"), div(0) and dist() with nothing are refused in words',
     m.halfXY[0] === 1 && m.halfXY[1] === 0 && /needs numbers/.test(m.plainBad[0] || '') && /divided by 0/.test(m.plainBad[1] || '') &&
     /needs another point/.test(m.plainBad[2] || ''), m);
+  check('C5k gravity, rotation, spin, size, speed and direction refuse a non-number in words naming what was written; gravity is unchanged',
+    Object.entries(m.named).every(([k, e]) => typeof e === 'string' && e.startsWith(k + ' must be a number')) && m.gAfter === m.g0 && m.gLive,
+    m.named);
+  check('C5l [x, y] is a point everywhere (vel.set([5, 6]), v.add([2, 3])); createVector refuses words and NaN; mult() with nothing is refused the same on both kinds',
+    m.arrSet[0] === 5 && m.arrSet[1] === 6 && m.arrAddXY[0] === 3 && m.arrAddXY[1] === 4 &&
+    m.ctor.every((e) => /createVector\(\) needs numbers/.test(e || '')) &&
+    /^v\.mult\(\) needs one number, like v\.mult\(2\)/.test(m.multNone[0] || '') && /^sprite\.vel\.mult\(\) needs one number, like sprite\.vel\.mult\(2\)/.test(m.multNone[1] || ''),
+    { arrSet: m.arrSet, arrAddXY: m.arrAddXY, ctor: m.ctor, multNone: m.multNone });
   check('C5h createVector(1, 1).add(2) is (3, 1); a NaN or Infinity assigned to vel or pos is refused in words and changes nothing',
     m.plainXY[0] === 3 && m.plainXY[1] === 1 && /must be a point/.test(m.nanVel || '') && /must be a point/.test(m.nanPos || '') &&
-    m.vAfter[0] === 3 && m.vAfter[1] === 1, m);
+    m.vAfter[0] === 5 && m.vAfter[1] === 6, m);
   check('C5f set/add/mult/mag/normalize/copy work on sprite.vel and sprite.pos, and stay live',
     m.a[0] === 2 && m.a[1] === 1 && m.b[0] === 3 && m.b[1] === 2 && m.c[0] === 6 && m.c[1] === 4 &&
     near(m.mag, 5) && near(m.unit, 1) && m.copyIsolated && near(m.p[0], 10) && near(m.p[1], 20) && m.chain &&

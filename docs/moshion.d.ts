@@ -1474,13 +1474,13 @@ declare class Vector {
   /** The y part. */
   y: number;
   /** Sets x and y (or copies another point); returns the same vector. */
-  set(x: number | Vec2, y?: number): Vector;
+  set(x: number | Vec2 | [number, number], y?: number): Vector;
   /** A new vector with the same x and y. */
   copy(): Vector;
   /** Adds another point (or x and y) to this one; returns the same vector. */
-  add(x: number | Vec2, y?: number): Vector;
+  add(x: number | Vec2 | [number, number], y?: number): Vector;
   /** Takes another point (or x and y) away from this one; returns the same vector. */
-  sub(x: number | Vec2, y?: number): Vector;
+  sub(x: number | Vec2 | [number, number], y?: number): Vector;
   /** Multiplies x and y by n; returns the same vector. */
   mult(n: number): Vector;
   /** Divides x and y by n; returns the same vector. */
