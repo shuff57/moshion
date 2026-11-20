@@ -373,7 +373,7 @@ declare class Sprite {
   rotationSpeed: number;
   /** Per-sprite multiplier on world gravity. 0 = weightless. */
   gravityScale: number;
-  /** @deprecated Another name for drag (Box2D has no rolling resistance): use drag instead. */
+  /** @deprecated Another name for drag: use drag instead. */
   rollingResistance: number;
   /** Twists the sprite with a turning force. */
   applyTorque(t: number): void;

@@ -118,8 +118,8 @@ async function open(code) {
   const w = warns.filter((x) => x.includes('group.remove('));
   check('C3a group.remove(sprite) still only takes it out of the group (it stays in allSprites)',
     out.len === 0 && out.cAlive && !out.dIn, out);
-  check('C3b ...and says ONCE that it is still on screen, naming sprite.remove()',
-    w.length === 1 && /still on screen/.test(w[0]) && /sprite\.remove\(\)/.test(w[0]), w);
+  check('C3b ...and says ONCE that it is still on screen, naming sprite.delete()',
+    w.length === 1 && /still on screen/.test(w[0]) && /sprite\.delete\(\)/.test(w[0]), w);
   await page.close();
 }
 {
@@ -140,12 +140,17 @@ async function open(code) {
       var f = new coins.Sprite(180, 100, 20, 20);
       coins.remove(f);
       coins.push(f);
+      // Moved to another group: nothing to warn about either.
+      var dead = new Group();
+      var g = new coins.Sprite(210, 100, 20, 20);
+      coins.remove(g);
+      dead.push(g);
     }
     function draw() { background('black'); }
   `);
   await waitFrames(frame, 5);
   const w = warns.filter((x) => x.includes('group.remove('));
-  check('C3c no note for a sprite already removed, removed straight after, put straight back, or remove() with nothing', w.length === 0, w);
+  check('C3c no note for a sprite already removed, removed straight after, put straight back, moved to another group, or remove() with nothing', w.length === 0, w);
   await page.close();
 }
 
@@ -258,10 +263,25 @@ async function open(code) {
     const multNone = [err(() => createVector(3, 4).mult()), err(() => s.vel.mult())];
     const distBad = [err(() => createVector(1, 1).dist({})), err(() => s.vel.dist({ x: 3 })), err(() => s.pos.dist('enemy'))];
     const distOk = [createVector(0, 0).dist([3, 4]), createVector(0, 0).dist({ x: 3, y: 4 })];
+    // The physics numbers too, on a sprite and as a group's setting (checked
+    // when the group is told, not when a member is made later).
+    let none;
+    const phys = {};
+    for (const k of ['gravityScale', 'drag', 'rotationDrag', 'friction', 'bounciness', 'density', 'mass']) {
+      phys['sprite.' + k] = err(() => { s[k] = none; });
+    }
+    phys['sprite.applyTorque(t): t'] = err(() => s.applyTorque(none));
+    phys['sprite.applyForce(fx, fy): fx'] = err(() => s.applyForce(none, 0));
+    phys['sprite.applyForceScaled(fx, fy): fy'] = err(() => s.applyForceScaled(0, 'up'));
+    const grp = new Group();
+    phys['group.gravityScale'] = err(() => { grp.gravityScale = none; });
+    phys['group.w'] = err(() => { grp.w = 'big'; });
+    phys['sprite.gravityScale_text'] = err(() => { s.gravityScale = '2'; });
+    const physAfter = [Number.isFinite(s.x), Number.isFinite(s.y), s.gravityScale, grp.gravityScale];
     const nanVel = err(() => { s.vel = { x: NaN, y: 0 }; });
     const nanPos = err(() => { s.pos = [Infinity, 0]; });
     const vAfter = [s.vel.x, s.vel.y];
-    return { a, b, c, mag, unit, copyIsolated: s.vel.x !== 99, p, chain, keys: Object.keys(s.vel), addX, badAdd, badDiv, after, plainXY, nanVel, nanPos, vAfter, halfXY, plainBad, axisBad, axisAfter, named, g0, gAfter, gLive, arrSet, arrAddXY, ctor, multNone, distBad, distOk };
+    return { a, b, c, mag, unit, copyIsolated: s.vel.x !== 99, p, chain, keys: Object.keys(s.vel), addX, badAdd, badDiv, after, plainXY, nanVel, nanPos, vAfter, halfXY, plainBad, axisBad, axisAfter, named, g0, gAfter, gLive, arrSet, arrAddXY, ctor, multNone, distBad, distOk, phys, physAfter };
   });
   check('C5g vel.add(2) adds to x only (a missing y is 0); vel.add("a") and vel.div(0) are refused in words and change nothing',
     m.addX[0] === 3 && m.addX[1] === 1 && /needs numbers/.test(m.badAdd || '') && /divided by 0/.test(m.badDiv || '') &&
@@ -283,6 +303,10 @@ async function open(code) {
   check('C5m dist() needs a point with an x and a y: {} , {x: 3} and a word are refused on both kinds; [3, 4] and {x: 3, y: 4} work',
     m.distBad.every((e) => /needs another point with an x and a y/.test(e || '')) && m.distOk[0] === 5 && m.distOk[1] === 5,
     { distBad: m.distBad, distOk: m.distOk });
+  check('C5n the physics numbers (gravityScale, drag, rotationDrag, friction, bounciness, density, mass, applyTorque, applyForce, applyForceScaled) and group settings refuse a non-number in words naming it; nothing changes',
+    Object.entries(m.phys).every(([k, e]) => typeof e === 'string' && e.startsWith(k.replace('_text', '') + ' must be a number')) &&
+    m.physAfter[0] && m.physAfter[1] && m.physAfter[2] === 1 && m.physAfter[3] === undefined,
+    { phys: m.phys, physAfter: m.physAfter });
   check('C5h createVector(1, 1).add(2) is (3, 1); a NaN or Infinity assigned to vel or pos is refused in words and changes nothing',
     m.plainXY[0] === 3 && m.plainXY[1] === 1 && /must be a point/.test(m.nanVel || '') && /must be a point/.test(m.nanPos || '') &&
     m.vAfter[0] === 5 && m.vAfter[1] === 6, m);

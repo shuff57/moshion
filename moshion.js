@@ -153,10 +153,12 @@
   const REMOVED_FROM_GROUP_ = [];
   function _noteGroupRemovals() {
     for (const [s, group] of REMOVED_FROM_GROUP_) {
-      // Destroyed after all, or put back in that group: nothing to say.
-      if (!s._dead && !group.includes(s)) {
+      // Destroyed after all, put back, or moved to another group of the
+      // sketch's (alive.remove(s); dead.push(s);): nothing to say.
+      const elsewhere = (s._groups || []).some((g) => g !== allSprites);
+      if (!s._dead && !group.includes(s) && !elsewhere) {
         _warnOnce('group.remove', 'group.remove(sprite) only takes the sprite out of the group; it is still on screen. ' +
-          'To get rid of it, use sprite.remove().');
+          'To get rid of it, use sprite.delete().');
         break;
       }
     }
@@ -1112,13 +1114,13 @@
     get body() { return this.collider; }
     set body(t) { this.collider = t; }
     get bounciness() { return this._bounciness; }
-    set bounciness(v) { this._bounciness = v; this._buildFixture(); }
+    set bounciness(v) { this._bounciness = _num(v, 'sprite.bounciness'); this._buildFixture(); }
     get friction() { return this._friction; }
-    set friction(v) { this._friction = v; this._buildFixture(); }
+    set friction(v) { this._friction = _num(v, 'sprite.friction'); this._buildFixture(); }
     // density (D2): fixture density in Box2D units — rebuilds the fixture,
     // same convention as bounciness/friction above.
     get density() { return this._density; }
-    set density(v) { this._density = v; this._buildFixture(); }
+    set density(v) { this._density = _num(v, 'sprite.density'); this._buildFixture(); }
 
     // real p5play Sprite surface: mass reads straight off the planck body;
     // setting it scales density so the resulting fixture mass matches
@@ -1127,6 +1129,7 @@
     // mass assignment on one is a no-op, matching real physics.
     get mass() { return this._body.getMass(); }
     set mass(m) {
+      _num(m, 'sprite.mass');
       const current = this._body.getMass();
       if (current > 0) this.density = this._density * (m / current);
     }
@@ -1138,9 +1141,9 @@
     // allowSleeping ~1603, physicsEnabled ~1622, physicsType ~1632); none of
     // these change any EXISTING getter, so no prior sketch is affected.
     get drag() { return this._body.getLinearDamping(); }
-    set drag(v) { this._body.setLinearDamping(v); }
+    set drag(v) { this._body.setLinearDamping(_num(v, 'sprite.drag')); }
     get rotationDrag() { return this._body.getAngularDamping(); }
-    set rotationDrag(v) { this._body.setAngularDamping(v); }
+    set rotationDrag(v) { this._body.setAngularDamping(_num(v, 'sprite.rotationDrag')); }
     get rotationLock() { return this._body.isFixedRotation(); }
     set rotationLock(v) {
       this._body.setFixedRotation(v);
@@ -1151,11 +1154,12 @@
     get rotationSpeed() { return this.angularVelocity; }
     set rotationSpeed(v) { this.angularVelocity = _num(v, 'sprite.rotationSpeed'); }
     get gravityScale() { return this._body.getGravityScale(); }
-    set gravityScale(v) { this._body.setGravityScale(v); }
-    applyTorque(t) { this._body.applyTorque(t, true); }
+    set gravityScale(v) { this._body.setGravityScale(_num(v, 'sprite.gravityScale')); }
+    applyTorque(t) { this._body.applyTorque(_num(t, 'sprite.applyTorque(t): t'), true); }
     // Force scaled by this sprite's own mass, so the same fx/fy accelerates
     // every sprite equally regardless of size (the reference implementation).
     applyForceScaled(fx, fy) {
+      _num(fx, 'sprite.applyForceScaled(fx, fy): fx'); _num(fy, 'sprite.applyForceScaled(fx, fy): fy');
       const m = this.mass;
       this._body.applyForceToCenter(pl.Vec2(fx * m, fy * m), true);
     }
@@ -1860,7 +1864,7 @@
     applyForce(fx, fy) {
       // raw Box2D Newtons, like the reference API's applyForce — the old px/frame²
       // conversion (x120) made forces 120x too strong.
-      this._body.applyForceToCenter(pl.Vec2(fx, fy), true);
+      this._body.applyForceToCenter(pl.Vec2(_num(fx, 'sprite.applyForce(fx, fy): fx'), _num(fy, 'sprite.applyForce(fx, fy): fy')), true);
     }
 
     _bounds() {
@@ -2292,7 +2296,7 @@
   const JUMP_HEIGHT_ = 120; // px a jump with jumpPower 1 rises, at any gravity
   function _jumpNumber(v, what) {
     if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) {
-      throw new TypeError(`sprite.${what} must be a number, 0 or more, not ${JSON.stringify(v)}`);
+      throw new TypeError(`sprite.${what} must be a number, 0 or more, like sprite.${what} = 2, not ${_show(v)}`);
     }
     return v;
   }
@@ -2702,11 +2706,16 @@
     'collider', 'body', 'physicsType', 'bounciness', 'friction', 'density',
     'drag', 'rotationDrag', 'rotationLock', 'gravityScale',
   ];
+  const GROUP_CHECK_ = {};
+  for (const k of ['w', 'h', 'width', 'height', 'diameter', 'd', 'r', 'radius']) GROUP_CHECK_[k] = _size;
+  for (const k of ['bounciness', 'friction', 'density', 'drag', 'rotationDrag', 'gravityScale']) GROUP_CHECK_[k] = _num;
   for (const prop of GROUP_CASCADE_) {
     Object.defineProperty(Group.prototype, prop, {
       configurable: true,
       get() { return this._defaults && this._defaults.has(prop) ? this._defaults.get(prop) : undefined; },
       set(v) {
+        // Checked here, when the group is told, not when a member is made later.
+        if (GROUP_CHECK_[prop]) GROUP_CHECK_[prop](v, `group.${prop}`);
         if (!this._defaults) Object.defineProperty(this, '_defaults', { value: new Map() });
         this._defaults.delete(prop); // re-insert, so members replay writes in the order they were made
         this._defaults.set(prop, v);
@@ -3170,7 +3179,7 @@
   function _hingeDegrees(v, name) {
     if (v === null || v === undefined) return null;
     if (typeof v !== 'number' || !isFinite(v)) {
-      throw new TypeError(`hinge.${name} must be a number of degrees, like ${name === 'lowerLimit' ? -45 : 90}, or null for no limit, not ${JSON.stringify(v)}`);
+      throw new TypeError(`hinge.${name} must be a number of degrees, like ${name === 'lowerLimit' ? -45 : 90}, or null for no limit, not ${_show(v)}`);
     }
     return v;
   }

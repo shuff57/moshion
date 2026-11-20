@@ -128,7 +128,7 @@ function draw() {
 
 One trap: removing sprites while iterating shifts the array and skips items. Iterate over a copy when you might remove entries: for (const s of [...group]). The spread makes a snapshot so the original can shrink safely.
 
-group.remove(sprite) pulls the sprite out of the group but leaves it in the world — it still draws and runs physics. sprite.delete() destroys the sprite entirely and unparents it from every group. These are different operations with different effects.`,
+group.remove(sprite) pulls the sprite out of the group but leaves it in the world — it still draws and runs physics. sprite.delete() destroys the sprite entirely and takes it out of every group. These are different operations with different effects.`,
       code: `let drops;
 
 function setup() {

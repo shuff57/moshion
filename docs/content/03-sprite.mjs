@@ -292,7 +292,7 @@ function draw() {
     {
       id: 'removing',
       title: "Removing and cleaning up sprites",
-      body: `sprite.delete() removes a sprite from the world. After deleting, it stops drawing, stops updating, and its physics body is gone. It also removes itself from every group it belongs to, including the implicit allSprites group. There is no undo — if you only want to hide a sprite, set .visible = false instead.
+      body: `sprite.delete() removes a sprite from the world. After deleting, it stops drawing, stops updating, and its physics body is gone. It also removes itself from every group it belongs to, including allSprites, the group every sprite is in. There is no undo — if you only want to hide a sprite, set .visible = false instead.
 
 Watch out for group.remove(sprite): it only takes the sprite out of that group. coins.remove(c) leaves the coin on screen, still drawing and still bumping into things, and the console says so the first time. To get rid of a coin, call it on the coin itself: c.delete() (c.remove() is the same).
 
