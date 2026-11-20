@@ -224,7 +224,9 @@ function draw() {
 
 v.add(x, y), v.sub(x, y), v.mult(n) and v.div(n) CHANGE v and also hand it back, so you can chain them. v.set(x, y) replaces both numbers. v.copy() makes a separate vector, so changing the copy leaves v alone. v.mag() is its length: createVector(3, 4).mag() is 5. v.normalize() shrinks it to length 1 while keeping its direction, and v.dist(other) is the distance to another point.
 
-Because add, sub, mult, div and normalize change the vector they are called on, call copy() first when you want to keep the original.`,
+Because add, sub, mult, div and normalize change the vector they are called on, call copy() first when you want to keep the original.
+
+A sprite's sprite.pos and sprite.vel are vectors too, joined to the physics: player.vel.set(0, 0) stops the player and player.vel.add(0, -2) gives it a push up. Assigning a whole vector, player.vel = createVector(3, 0), copies its two numbers in, so the sprite keeps moving with the physics.`,
       code: `let v;
 
 function setup() {
