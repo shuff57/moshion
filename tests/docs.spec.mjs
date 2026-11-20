@@ -162,6 +162,30 @@ async function openExample(title) {
   await ctx.close();
 }
 
+// ---------------------------------------------------------------------------
+// D5: pages are addressed by their permanent id (#sprite/removing); the tree
+// links use ids; an old numeric link (#sprite/0) still opens its page; an
+// unknown id falls back to the first page instead of a blank one.
+{
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+  const page = await ctx.newPage();
+  const title = async (hash) => {
+    await page.goto(srv.base + '/docs/index.html' + hash, { waitUntil: 'load' });
+    await page.waitForTimeout(300);
+    return { title: await page.textContent('#pageTitle'), hash: await page.evaluate(() => location.hash) };
+  };
+  const byId = await title('#sprite/removing');
+  const byNum = await title('#sprite/0');
+  const links = await page.$$eval('.page-link', (as) => as.map((a) => a.getAttribute('href')));
+  const unknown = await title('#sprite/no-such-page');
+  const sprite = DATA.find((s) => s.slug === 'sprite');
+  check('D5a #sprite/removing opens "Removing and cleaning up sprites"', byId.title === 'Removing and cleaning up sprites', byId);
+  check('D5b an old numeric link #sprite/0 still opens the first Sprite page', byNum.title === sprite.pages[0].title, byNum);
+  check('D5c the page tree links by id, not by number', links.length === sprite.pages.length && links.every((h, i) => h === '#sprite/' + sprite.pages[i].id), links);
+  check('D5d an unknown id lands on a real page', !!unknown.title && unknown.title.length > 0, unknown);
+  await ctx.close();
+}
+
 let ok = true;
 for (const [name, pass, detail] of results) {
   console.log((pass ? 'PASS' : 'FAIL') + '  ' + name + '  -> ' + detail);

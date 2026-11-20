@@ -132,12 +132,16 @@ async function open(code) {
       c.remove();
       coins.remove(c);
       coins.remove();
+      // Taken out, then destroyed in the same frame: nothing to warn about.
+      var e = new coins.Sprite(150, 100, 20, 20);
+      coins.remove(e);
+      e.remove();
     }
     function draw() { background('black'); }
   `);
   await waitFrames(frame, 5);
   const w = warns.filter((x) => x.includes('group.remove('));
-  check('C3c no note for a sprite already removed, or for remove() with nothing', w.length === 0, w);
+  check('C3c no note for a sprite already removed, removed straight after, or remove() with nothing', w.length === 0, w);
   await page.close();
 }
 
@@ -223,13 +227,24 @@ async function open(code) {
     const badDiv = err(() => s.vel.div(0));
     const after = [s.vel.x, s.vel.y];
     const plain = createVector(1, 1).add(2); const plainXY = [plain.x, plain.y];
+    const half = createVector(5, 5).set({ x: 1 }); const halfXY = [half.x, half.y];
+    const plainBad = [err(() => createVector(1, 1).add('a')), err(() => createVector(1, 1).div(0)), err(() => createVector(1, 1).dist())];
+    s.vel.set(3, 1);
+    const axisBad = [err(() => { s.vel.x = undefined; }), err(() => { s.pos.y = NaN; }), err(() => { s.x = 'left'; })];
+    const axisAfter = [s.vel.x, s.vel.y, Number.isFinite(s.x), Number.isFinite(s.y)];
     const nanVel = err(() => { s.vel = { x: NaN, y: 0 }; });
     const nanPos = err(() => { s.pos = [Infinity, 0]; });
-    return { a, b, c, mag, unit, copyIsolated: s.vel.x !== 99, p, chain, keys: Object.keys(s.vel), addX, badAdd, badDiv, after, plainXY, nanVel, nanPos, vAfter: [s.vel.x, s.vel.y] };
+    return { a, b, c, mag, unit, copyIsolated: s.vel.x !== 99, p, chain, keys: Object.keys(s.vel), addX, badAdd, badDiv, after, plainXY, nanVel, nanPos, vAfter: [s.vel.x, s.vel.y], halfXY, plainBad, axisBad, axisAfter };
   });
   check('C5g vel.add(2) adds to x only (a missing y is 0); vel.add("a") and vel.div(0) are refused in words and change nothing',
     m.addX[0] === 3 && m.addX[1] === 1 && /needs numbers/.test(m.badAdd || '') && /needs numbers/.test(m.badDiv || '') &&
     m.after[0] === 3 && m.after[1] === 1, m);
+  check('C5i one axis at a time is guarded too: vel.x = undefined, pos.y = NaN and sprite.x = a word are refused in words, nothing changes',
+    m.axisBad.every((e) => /must be a number/.test(e || '')) && /^sprite\.vel\.x/.test(m.axisBad[0]) && /^sprite\.pos\.y/.test(m.axisBad[1]) &&
+    m.axisAfter[0] === 3 && m.axisAfter[1] === 1 && m.axisAfter[2] && m.axisAfter[3], m);
+  check('C5j a plain vector: set({x: 1}) makes y 0; add("a"), div(0) and dist() with nothing are refused in words',
+    m.halfXY[0] === 1 && m.halfXY[1] === 0 && /needs numbers/.test(m.plainBad[0] || '') && /divided by 0/.test(m.plainBad[1] || '') &&
+    /needs another point/.test(m.plainBad[2] || ''), m);
   check('C5h createVector(1, 1).add(2) is (3, 1); a NaN or Infinity assigned to vel or pos is refused in words and changes nothing',
     m.plainXY[0] === 3 && m.plainXY[1] === 1 && /must be a point/.test(m.nanVel || '') && /must be a point/.test(m.nanPos || '') &&
     m.vAfter[0] === 3 && m.vAfter[1] === 1, m);

@@ -797,8 +797,10 @@ declare function masterVolume(v?: number): number;
 /** The physics world: gravity, which way the coordinates go, and questions like "what is here?". */
 interface World {
   /**
-   * Which way the coordinates go. Read it any time; set it once, at the top
-   * of setup(), before any sprite is made and before gravity is set.
+   * Which way the coordinates go: 'screen' (the default; (0, 0) is the
+   * top-left corner, y grows down) or 'math' ((0, 0) is the centre, y grows
+   * up). Read it any time; set it once, at the top of setup(), before any
+   * sprite is made and before gravity is set.
    *
    *   'screen' (the default): (0, 0) is the top-left corner of the canvas,
    *            x grows to the right, y grows DOWN. Like the browser canvas

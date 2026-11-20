@@ -148,6 +148,19 @@
   // A plain-words console note shown once per run for each `key`, for code
   // that works but very likely does not do what its writer meant.
   const WARNED_ONCE_ = new Set();
+  // Sprites taken out of a group with group.remove(s) this frame; checked
+  // after drawTop() by _noteGroupRemovals().
+  const REMOVED_FROM_GROUP_ = new Set();
+  function _noteGroupRemovals() {
+    for (const s of REMOVED_FROM_GROUP_) {
+      if (!s._dead) {
+        _warnOnce('group.remove', 'group.remove(sprite) only takes the sprite out of the group; it is still on screen. ' +
+          'To get rid of it, use sprite.remove().');
+        break;
+      }
+    }
+    REMOVED_FROM_GROUP_.clear();
+  }
   function _warnOnce(key, msg) {
     if (WARNED_ONCE_.has(key)) return;
     WARNED_ONCE_.add(key);
@@ -854,12 +867,22 @@
       (v === null ? 'null' : typeof v === 'object' ? JSON.stringify(v) : typeof v === 'string' ? JSON.stringify(v) : String(v)));
   }
 
-  function liveVec(read, write) {
+  // `name` is how a sketch writes it ('vel', 'pos'), for the error message.
+  function liveVec(read, write, name) {
+    // One axis at a time too: player.vel.x = speed with speed never set
+    // would put NaN into the physics body and the sprite would vanish.
+    const axis = (k, n) => {
+      if (!Number.isFinite(n)) {
+        throw new TypeError(`${name}.${k} must be a number, like ${name}.${k} = 3, not ` +
+          (typeof n === 'string' ? JSON.stringify(n) : String(n)));
+      }
+      return n;
+    };
     const v = {
       get x() { return read().x; },
       get y() { return read().y; },
-      set x(v) { const c = read(); write(v, c.y); },
-      set y(v) { const c = read(); write(c.x, v); },
+      set x(n) { const c = read(); write(axis('x', n), c.y); },
+      set y(n) { const c = read(); write(c.x, axis('y', n)); },
     };
     // Both axes in one write, for whole-vector assignment (so a velocity is
     // never judged half old, half new by the speed-cap note).
@@ -872,9 +895,9 @@
     // anything that would leave a non-number in the physics body (vel.add('a'),
     // vel.div(0)) is refused in plain words instead of crashing inside planck.
     const two = (x, y) => (x && typeof x === 'object' ? [x.x ?? 0, x.y ?? 0] : [x ?? 0, y ?? 0]);
-    const put = (name, a, b) => {
+    const put = (call, a, b) => {
       if (!Number.isFinite(a) || !Number.isFinite(b)) {
-        throw new TypeError(`.${name}() needs numbers, like vel.${name === 'mult' || name === 'div' ? name + '(2)' : name + '(3, 0)'}; ` +
+        throw new TypeError(`${name}.${call}() needs numbers, like ${name}.${call === 'mult' || call === 'div' ? call + '(2)' : call + '(3, 0)'}; ` +
           `it would have made x ${a} and y ${b}`);
       }
       write(a, b);
@@ -888,7 +911,10 @@
       mult(n) { const c = read(); return put('mult', c.x * n, c.y * n); },
       div(n) { const c = read(); return put('div', c.x / n, c.y / n); },
       mag() { const c = read(); return Math.sqrt(c.x * c.x + c.y * c.y); },
-      dist(o) { const c = read(); return Math.sqrt((c.x - o.x) ** 2 + (c.y - o.y) ** 2); },
+      dist(o) {
+        if (!o || typeof o !== 'object') throw new TypeError(`${name}.dist(other) needs another point, like ${name}.dist(enemy.pos)`);
+        const c = read(); return Math.sqrt((c.x - o.x) ** 2 + (c.y - o.y) ** 2);
+      },
       normalize() { const c = read(); const m = Math.sqrt(c.x * c.x + c.y * c.y); if (m !== 0) write(c.x / m, c.y / m); return v; },
     };
     for (const [k, fn] of Object.entries(methods)) Object.defineProperty(v, k, { value: fn, enumerable: false });
@@ -978,6 +1004,7 @@
       this._pos = liveVec(
         () => { const p = this._body.getPosition(); return { x: p.x * PXM, y: p.y * PXM }; },
         (x, y) => this._body.setPosition(pl.Vec2(x / PXM, y / PXM)),
+        'sprite.pos',
       );
       // planck (Box2D) clamps a body's per-step translation to 2 metres —
       // its anti-tunnelling safety, so a fast body can't skip through a
@@ -989,6 +1016,7 @@
       this._vel = liveVec(
         () => { const v = this._body.getLinearVelocity(); return { x: v.x * PXM / FPS, y: v.y * PXM / FPS }; },
         (x, y) => { noteSpeed_(x, y); this._body.setLinearVelocity(pl.Vec2(x * FPS / PXM, y * FPS / PXM)); },
+        'sprite.vel',
       );
 
       ALL_.push(this);
@@ -2485,10 +2513,9 @@
         const gi = s._groups.indexOf(this);
         if (gi >= 0) s._groups.splice(gi, 1);
       }
-      if (s instanceof Sprite && !s._dead) {
-        _warnOnce('group.remove', 'group.remove(sprite) only takes the sprite out of the group; it is still on screen. ' +
-          'To get rid of it, use sprite.remove().');
-      }
+      // Said at the END of the frame, and only if the sprite is still alive
+      // then: coins.remove(c); c.remove(); is fine and says nothing.
+      if (s instanceof Sprite && !s._dead) REMOVED_FROM_GROUP_.add(s);
     }
     // add(sprite) is push(sprite) under a different name — same membership
     // bookkeeping, same dedupe-against-the-array behavior.
@@ -4334,29 +4361,35 @@
   // tied to a sprite: assigning it to sprite.vel/pos COPIES its x and y into
   // the live, physics-backed vector (see _vecParts and liveVec), which carries
   // these same methods.
+  // A missing number counts as 0, as in p5 (v.add(2) adds 2 to x only, and
+  // v.set({x: 1}) sets y to 0); a word or a NaN is refused in plain words,
+  // so a vector never quietly holds something that is not a number.
+  function _vnum(n, call) {
+    if (n === undefined || n === null) return 0;
+    if (!Number.isFinite(n)) {
+      throw new TypeError(`${call} needs numbers, like createVector(3, 4).${call.split('(')[0].replace(/^v\./, '')}(1, 2), not ` +
+        (typeof n === 'string' ? JSON.stringify(n) : String(n)));
+    }
+    return n;
+  }
+  const _vpair = (x, y, call) => (x && typeof x === 'object' ? [_vnum(x.x, call), _vnum(x.y, call)] : [_vnum(x, call), _vnum(y, call)]);
   class Vector {
     constructor(x, y) { this.x = x || 0; this.y = y || 0; }
-    set(x, y) {
-      if (x && typeof x === 'object') { this.x = x.x; this.y = x.y; }
-      else { this.x = x || 0; this.y = y || 0; }
-      return this;
-    }
+    set(x, y) { [this.x, this.y] = _vpair(x, y, 'v.set()'); return this; }
     copy() { return new Vector(this.x, this.y); }
-    // A missing number counts as 0, as in p5: v.add(2) adds 2 to x only.
-    add(x, y) {
-      if (x && typeof x === 'object') { this.x += x.x ?? 0; this.y += x.y ?? 0; }
-      else { this.x += x ?? 0; this.y += y ?? 0; }
-      return this;
+    add(x, y) { const [a, b] = _vpair(x, y, 'v.add()'); this.x += a; this.y += b; return this; }
+    sub(x, y) { const [a, b] = _vpair(x, y, 'v.sub()'); this.x -= a; this.y -= b; return this; }
+    mult(n) { n = _vnum(n, 'v.mult()'); this.x *= n; this.y *= n; return this; }
+    div(n) {
+      n = _vnum(n, 'v.div()');
+      if (n === 0) throw new TypeError('v.div(0): a vector cannot be divided by 0');
+      this.x /= n; this.y /= n; return this;
     }
-    sub(x, y) {
-      if (x && typeof x === 'object') { this.x -= x.x ?? 0; this.y -= x.y ?? 0; }
-      else { this.x -= x ?? 0; this.y -= y ?? 0; }
-      return this;
-    }
-    mult(n) { this.x *= n; this.y *= n; return this; }
-    div(n) { this.x /= n; this.y /= n; return this; }
     mag() { return Math.sqrt(this.x * this.x + this.y * this.y); }
-    dist(v) { const dx = this.x - v.x, dy = this.y - v.y; return Math.sqrt(dx * dx + dy * dy); }
+    dist(v) {
+      if (!v || typeof v !== 'object') throw new TypeError('v.dist(other) needs another point, like v.dist(player.pos)');
+      const dx = this.x - v.x, dy = this.y - v.y; return Math.sqrt(dx * dx + dy * dy);
+    }
     normalize() {
       const m = this.mag();
       if (m !== 0) { this.x /= m; this.y /= m; }
@@ -5251,6 +5284,7 @@
       camera._active = false;
       drawTopFn();
       camera._active = camWasActive;
+      _noteGroupRemovals();
 
       // Counter sweep AFTER this frame's update/draw ran, not before —
       // keydown/mousedown fire asynchronously between rAF calls, so
