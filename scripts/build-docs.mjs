@@ -281,26 +281,76 @@ export function deletesWhileLooping(code) {
 // if / else / for / while body in { } (never one statement on its own), every
 // arrow function with a { } body, and an if/else instead of `a ? b : c`.
 
-/** The code with strings, template literals and comments blanked out (same
- *  length, so positions still line up), for the style checks below. */
+/** The code with strings, comments and regular expressions blanked out (same
+ *  length, so positions still line up), for the style checks below. The code
+ *  inside a template's ${ } is kept: it is code, and shorthand there counts. */
 export function codeOnly(code) {
-  let out = '';
-  let i = 0;
-  while (i < code.length) {
-    const c = code[i], n = code[i + 1];
-    if (c === '/' && n === '/') { const e = code.indexOf('\n', i); const j = e < 0 ? code.length : e; out += ' '.repeat(j - i); i = j; continue; }
-    if (c === '/' && n === '*') { const e = code.indexOf('*/', i + 2); const j = e < 0 ? code.length : e + 2; out += code.slice(i, j).replace(/[^\n]/g, ' '); i = j; continue; }
-    if (c === "'" || c === '"' || c === '`') {
-      let j = i + 1;
-      while (j < code.length && code[j] !== c) j += code[j] === '\\' ? 2 : 1;
-      out += c + code.slice(i + 1, j).replace(/[^\n]/g, ' ') + (j < code.length ? c : '');
-      i = j + 1;
-      continue;
+  const out = code.split('');
+  const blank = (a, b) => {
+    for (let k = a; k < b && k < out.length; k++) if (out[k] !== '\n') out[k] = ' ';
+  };
+  // After one of these, a / starts a regular expression; after a value it divides.
+  const regexMay = (i, prev) => prev === '' || /[(,=:[!&|?{};+\-*%<>~^]/.test(prev) ||
+    /(^|[^\w$])(return|typeof|case|in|of|else|do)\s*$/.test(code.slice(Math.max(0, i - 12), i));
+  function template(i) {
+    // i is just after the opening backtick; returns the index after the closing one.
+    let start = i;
+    while (i < code.length && code[i] !== '`') {
+      if (code[i] === '\\') { i += 2; continue; }
+      if (code[i] === '$' && code[i + 1] === '{') {
+        blank(start, i);
+        i = scan(i + 2, true) + 1;
+        start = i;
+        continue;
+      }
+      i++;
     }
-    out += c;
-    i++;
+    blank(start, i);
+    return i + 1;
   }
-  return out;
+  // Scans code from i. Inside a template's ${ }, stops at its closing }.
+  function scan(i, inExpr) {
+    let depth = 0;
+    let prev = '';
+    while (i < code.length) {
+      const c = code[i], n = code[i + 1];
+      if (c === '/' && n === '/') { const e = code.indexOf('\n', i); const j = e < 0 ? code.length : e; blank(i, j); i = j; continue; }
+      if (c === '/' && n === '*') { const e = code.indexOf('*/', i + 2); const j = e < 0 ? code.length : e + 2; blank(i, j); i = j; continue; }
+      if (c === '/' && regexMay(i, prev)) {
+        let j = i + 1, inClass = false;
+        while (j < code.length && code[j] !== '\n' && (code[j] !== '/' || inClass)) {
+          if (code[j] === '\\') { j += 2; continue; }
+          if (code[j] === '[') inClass = true;
+          else if (code[j] === ']') inClass = false;
+          j++;
+        }
+        blank(i + 1, j);
+        i = j + 1;
+        while (i < code.length && /[a-z]/.test(code[i])) i++;
+        prev = 'a';
+        continue;
+      }
+      if (c === "'" || c === '"') {
+        let j = i + 1;
+        while (j < code.length && code[j] !== c && code[j] !== '\n') j += code[j] === '\\' ? 2 : 1;
+        blank(i + 1, j);
+        i = j + 1;
+        prev = 'a';
+        continue;
+      }
+      if (c === '`') { i = template(i + 1); prev = 'a'; continue; }
+      if (c === '{') depth++;
+      else if (c === '}') {
+        if (inExpr && depth === 0) return i;
+        depth--;
+      }
+      if (!/\s/.test(c)) prev = c;
+      i++;
+    }
+    return i;
+  }
+  scan(0, false);
+  return out.join('');
 }
 
 /** Where an example uses shorthand: ['line 7: if without { }', ...]. */
@@ -318,6 +368,20 @@ export function shorthandIssues(code) {
   for (const m of src.matchAll(/\belse\b/g)) {
     const k = after(m.index + 4);
     if (src[k] !== '{' && !src.startsWith('if', k)) issues.push(`line ${lineOf(m.index)}: else without { }`);
+  }
+  for (const m of src.matchAll(/\bdo\b/g)) {
+    if (src[after(m.index + 2)] !== '{') issues.push(`line ${lineOf(m.index)}: do without { }`);
+  }
+  // One statement per line: a ; with more code after it on the same line (a for
+  // loop's own header is the one place two ;s share a line).
+  let parens = 0;
+  for (let i = 0; i < src.length; i++) {
+    if (src[i] === '(') parens++;
+    else if (src[i] === ')') parens--;
+    else if (src[i] === ';' && parens === 0) {
+      const e = src.indexOf('\n', i);
+      if (src.slice(i + 1, e < 0 ? src.length : e).trim()) issues.push(`line ${lineOf(i)}: more code after a ; on the same line; put each statement, and a closing }, on its own line`);
+    }
   }
   for (const m of src.matchAll(/=>/g)) {
     if (src[after(m.index + 2)] !== '{') issues.push(`line ${lineOf(m.index)}: an arrow function without a { } body`);
@@ -339,10 +403,6 @@ export function shorthandIssues(code) {
   return issues;
 }
 
-/** Every name in the typings, minus the old names: each needs a runnable
- *  example somewhere in the docs. A global counts when its name appears as a
- *  whole word in an example's code (not a comment or a string); a member when
- *  `.name`, `name(` or `{ name:` does. */
 // Names that must NOT have a runnable example, and why. Anything else in the
 // typings needs one.
 export const NO_RUNNABLE_EXAMPLE = {
@@ -350,25 +410,131 @@ export const NO_RUNNABLE_EXAMPLE = {
   start: 'the engine calls it by itself; a sketch that called it would start the game twice',
 };
 
+// Kinds of thing that share member names. A name used on one kind (a texture's
+// pause()) is not an example of the same name on another kind (a sound's
+// pause()). Inside a family the names are one feature: a Group's applyForce is
+// the Sprite call applied to every sprite in it, StillTexture is a still Ani.
+const FAMILY = {
+  Vec2: 'vector', Vector: 'vector', Camera: 'camera',
+  Ani: 'ani', StillTexture: 'ani', Anis: 'anis',
+  Sprite: 'sprite', Group: 'sprite', Tiles: 'sprite', Walls: 'walls',
+  Sensor: 'sensor', SpriteMouse: 'spritemouse',
+  JointOptions: 'joint', Joint: 'joint', HingeJoint: 'joint', DistanceJoint: 'joint', SliderJoint: 'joint',
+  WheelJoint: 'joint', GrabberJoint: 'joint', GlueJoint: 'joint',
+  Sound: 'sound', SoundClips: 'sound', World: 'world', RayHit: 'rayhit',
+  Kb: 'kb', Mouse: 'mouse', Canvas: 'canvas', FrameTimer: 'timer',
+};
+// ...except these, which do something different on a group (delete or remove
+// every sprite in it), so a group needs its own example of them.
+const GROUP_OWN = new Set(['delete', 'remove']);
+const familyOf = (type, name) => ((type === 'Group' || type === 'Tiles') && GROUP_OWN.has(name) ? 'group' : FAMILY[type] || type);
+
+// What kind of thing an expression in an example is, as far as a quick read
+// can tell; null when it cannot (a callback's parameter, say).
+function receiverFamily(chain, code) {
+  const parts = chain.split('.');
+  const last = parts[parts.length - 1];
+  if (parts.length > 1) {
+    if (last === 'mouse') return 'spritemouse';
+    if (last === 'texture' || last === 'ani') return 'ani';
+    if (last === 'anis') return 'anis';
+    if (['pos', 'vel', 'gravity', 'prevPos', 'canvasPos', 'centerOfMass', 'point', 'normal'].includes(last)) return 'vector';
+    if (last === 'joints' || last === 'groups') return null;
+    return null;
+  }
+  const known = { world: 'world', kb: 'kb', mouse: 'mouse', camera: 'camera', allSprites: 'group', walls: 'walls' };
+  if (known[last]) return known[last];
+  const esc = last.replace(/\$/g, '\\$');
+  const m = new RegExp(`(?:^|[^\\w$.])${esc}\\s*=\\s*(new\\s+([\\w.]+)\\s*\\(|loadSound\\s*\\(|createVector\\s*\\(|(?:after|every)\\s*\\(|world\\.rayCast\\s*\\(|[\\w$.]+\\.addSensor\\s*\\()`).exec(code);
+  if (!m) return null;
+  if (m[2]) {
+    const cls = m[2].split('.').pop();
+    if (/Joint$/.test(cls)) return 'joint';
+    if (cls === 'Group' || cls === 'Tiles') return 'group';
+    if (cls === 'Sprite') return 'sprite';
+    return FAMILY[cls] || null;
+  }
+  if (/^loadSound/.test(m[1])) return 'sound';
+  if (/^createVector/.test(m[1])) return 'vector';
+  if (/^(after|every)/.test(m[1])) return 'timer';
+  if (/^world\.rayCast/.test(m[1])) return 'rayhit';
+  return 'sensor';
+}
+
+/** Shorthand in a code snippet inside prose (a page's body, a typings comment):
+ *  a one-line arrow, a ternary, or an if / for / while whose body is not in { }.
+ *  A braced snippet on one line is fine in a sentence. */
+export function proseShorthand(text) {
+  const out = [];
+  for (const line of (text || '').split('\n')) {
+    const at = (k) => line.slice(Math.max(0, k - 30), k + 40).trim();
+    for (const m of line.matchAll(/=>\s*(\S)/g)) if (m[1] !== '{') out.push(`a one-line arrow function (give it a { } body): …${at(m.index)}…`);
+    for (const m of line.matchAll(/[\w)\]'"]\s\?\s[^?.:]{1,40}\s:\s/g)) out.push(`a ? b : c (say it as if / else): …${at(m.index)}…`);
+    for (const m of line.matchAll(/\b(if|while)\s*\(([^()]|\([^()]*\))*\)\s*(?![{\s]|$|is\b|it\b|and\b|or\b|the\b|you\b)[A-Za-z_$][\w$]*\s*[.(=+\-]/g)) out.push(`${m[1]} without { } (put the body in braces): …${at(m.index)}…`);
+  }
+  return out;
+}
+
+/** Every name in the typings, minus the old names and the exempt ones, that no
+ *  runnable example uses. A global counts when its name appears as a whole word
+ *  in an example's code (not a comment or a string). A member counts when
+ *  `.name` or `{ name: ... }` does, on something of its own kind: a name two
+ *  kinds share (pause on a texture and on a sound) needs an example of each. */
 export function namesWithoutExamples(sections, dtsText) {
   const { blocks, globals } = parseTypings(dtsText);
-  // Code only: a name in a comment or a string is not an example of it.
-  const code = sections.flatMap((s) => s.pages.map((p) => codeOnly(p.code || ''))).join('\n');
+  const codes = sections.flatMap((s) => s.pages.map((p) => codeOnly(p.code || '')));
+  const all = codes.join('\n');
   const esc = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const missing = new Set();
   for (const g of globals) {
     if (g.deprecated || NO_RUNNABLE_EXAMPLE[g.name]) continue;
-    if (!new RegExp(`(^|[^\\w$.])${esc(g.name)}($|[^\\w$])`).test(code)) missing.add(g.name);
+    if (!new RegExp(`(^|[^\\w$.])${esc(g.name)}($|[^\\w$])`).test(all)) missing.add(g.name);
   }
-  const seen = new Map();
+  // Which families each member name belongs to.
+  const families = new Map();
   for (const b of blocks) for (const m of b.members) {
     if (m.deprecated) continue;
-    const ok = new RegExp(`\\.${esc(m.name)}($|[^\\w$])|(^|[^\\w$.])${esc(m.name)}\\(|[{,]\\s*${esc(m.name)}\\s*:`, 'm').test(code);
-    seen.set(m.name, (seen.get(m.name) || { ok: false, where: b.name }));
-    if (ok) seen.get(m.name).ok = true;
+    if (!families.has(m.name)) families.set(m.name, new Set());
+    families.get(m.name).add(familyOf(b.name, m.name));
   }
-  for (const [name, v] of seen) if (!v.ok) missing.add(`${v.where}.${name}`);
-  return [...missing].sort();
+  // Which families each name is seen used on (null = could not tell).
+  const used = new Map();
+  for (const code of codes) {
+    // player.vel.x uses vel on player and x on player.vel.
+    for (const m of code.matchAll(/(?<![\w$.])[A-Za-z_$][\w$]*(?:\s*\.\s*[A-Za-z_$][\w$]*)+/g)) {
+      const parts = m[0].split('.').map((x) => x.trim());
+      for (let k = 1; k < parts.length; k++) {
+        if (!used.has(parts[k])) used.set(parts[k], new Set());
+        used.get(parts[k]).add(receiverFamily(parts.slice(0, k).join('.'), code));
+      }
+    }
+    // A call's result: foo().bar, or ).bar after a call or a group in brackets.
+    for (const m of code.matchAll(/[)\]]\s*\.\s*([A-Za-z_$][\w$]*)/g)) {
+      if (!used.has(m[1])) used.set(m[1], new Set());
+      used.get(m[1]).add(null);
+    }
+    for (const m of code.matchAll(/[{,]\s*([A-Za-z_$][\w$]*)\s*:/g)) {
+      if (!used.has(m[1])) used.set(m[1], new Set());
+      used.get(m[1]).add(null);
+    }
+  }
+  for (const b of blocks) for (const m of b.members) {
+    if (m.deprecated) continue;
+    const fam = familyOf(b.name, m.name);
+    const seen = used.get(m.name);
+    if (!seen) { missing.add(`${b.name}.${m.name}`); continue; }
+    // A name only one family has is covered by any use; a shared one by a use
+    // on its own family, or on something a quick read cannot type.
+    if (families.get(m.name).size === 1 || seen.has(fam) || seen.has(null) || (fam === 'sprite' && seen.has('group'))) continue;
+    missing.add(`${b.name}.${m.name}`);
+  }
+  // One entry per name and family is enough (Ani.pause and StillTexture.pause are one).
+  const out = new Map();
+  for (const n of missing) {
+    const [t, name] = n.includes('.') ? n.split('.') : [null, n];
+    out.set(t ? `${familyOf(t, name)}.${name}` : n, n);
+  }
+  return [...out.values()].sort();
 }
 
 export function validate(sections) {
@@ -395,6 +561,7 @@ export function validate(sections) {
       }
       if (p.code && GAME_LOGIC.test(drawBody)) errs.push(`${where}: the example reads keys or moves sprites in draw(); the rules of a game go in update()`);
       for (const issue of shorthandIssues(p.code || '')) errs.push(`${where}: ${issue}`);
+      for (const issue of proseShorthand(p.body)) errs.push(`${where}: the text has ${issue}`);
     }
   }
   return errs;

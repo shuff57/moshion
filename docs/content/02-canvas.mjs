@@ -37,7 +37,7 @@ A solid color takes a name ('black', 'tomato'), a hex string ('#222', '#ff00aa')
 
 That fade trick is how you get motion trails without tracking history yourself. The lower the alpha, the longer the trail.
 
-clear() wipes the whole canvas to see-through instead of painting a colour. Press the space bar in the example to clear away the trail. noLoop() stops the game loop for good: no more frames, so everything freezes where it is. The example calls it when the ball reaches the right edge.`,
+clear() wipes the whole canvas to see-through instead of painting a colour. Press the space bar in the example to clear away the trail. noLoop() stops the game loop for good: no more frames, so everything freezes where it is. The example calls it when you press the n key, so press n whenever you want to freeze the picture.`,
       code: `let p;
 let wipe = false;
 
@@ -49,10 +49,10 @@ function setup() {
 }
 
 function update() {
-  p.x = 20 + frameCount * 2;
+  p.x = 20 + (frameCount * 2) % 360;
   p.y = 200 + Math.sin(frameCount / 20) * 100;
   wipe = kb.presses(' ');
-  if (p.x > 380) {
+  if (kb.presses('n')) {
     noLoop(); // stop the game: no more frames
   }
 }
@@ -228,7 +228,7 @@ function draw() {
       title: "Math helpers: abs, sqrt, lerp, dist and friends",
       body: `These work the way they do in p5 and in plain math class. abs(n) drops a minus sign: abs(-4) is 4. sqrt(n) is the square root: sqrt(9) is 3. pow(base, exponent) raises to a power: pow(2, 3) is 8. ceil(n) rounds up, floor(n) rounds down, and int(n) is the same as floor(n), so int(3.7) is 3 and int(-3.7) is -4. max(...) and min(...) pick the biggest or smallest of the numbers you give them, or of one list: max(3, 9, 2) is 9.
 
-atan(v) is the angle whose tangent is v, in radians (in degrees after angleMode(DEGREES)). ellipse(x, y, w, h) draws an oval w wide and h tall, and with no h it is a circle w across.
+atan(v) is the angle whose tangent is v, in radians (in degrees after angleMode(DEGREES)).
 
 lerp(a, b, t) is the number a fraction t of the way from a to b: lerp(0, 10, 0.25) is 2.5. dist(x1, y1, x2, y2) is the straight-line distance between two points, and it also takes two things with an x and a y, so dist(a, b) works on two sprites: dist(0, 0, 3, 4) is 5.
 
@@ -255,16 +255,12 @@ function draw() {
   text('atan(1) = ' + nf(atan(1), 1, 3), 20, 300);
   text('nf(7, 2) = ' + nf(7, 2), 20, 330);
   text('seconds so far = ' + nf(millis() / 1000, 1, 1), 20, 360);
-
-  noFill();
-  stroke('gold');
-  ellipse(320, 100, 100, 50);
 }`,
     },
     {
       id: 'math-more',
       title: "More math: map, constrain, angles and PI",
-      body: `map(value, inStart, inStop, outStart, outStop) turns a number from one range into the matching number in another. map(5, 0, 10, 0, 100) is 50, because 5 is halfway through 0 to 10, and 50 is halfway through 0 to 100. The mouse's x is a number from 0 to the canvas width, so map() can turn it into a size or a colour.
+      body: `map(value, inStart, inStop, outStart, outStop) turns a number from one range into the matching number in another. map(5, 0, 10, 0, 100) is 50, because 5 is halfway through 0 to 10, and 50 is halfway through 0 to 100. mouse.x is a number from 0 to the canvas width, so map() can turn it into a size or a colour. (mouseX and mouseY are older names for mouse.x and mouse.y.)
 
 constrain(value, low, high) keeps a number inside a range: constrain(15, 0, 10) is 10 and constrain(-3, 0, 10) is 0.
 
@@ -282,14 +278,14 @@ function draw() {
   textSize(16);
 
   // map(): mouse x (0 to 400) becomes a circle size (10 to 100)
-  let size = map(mouseX, 0, 400, 10, 100);
+  let size = map(mouse.x, 0, 400, 10, 100);
   // constrain(): never smaller than 20 or bigger than 80
   size = constrain(size, 20, 80);
   circle(200, 120, size);
   text('circle size ' + Math.round(size), 20, 30);
 
   // atan2(): the angle from the middle to the mouse
-  let angle = atan2(mouseY - 200, mouseX - 200);
+  let angle = atan2(mouse.y - 200, mouse.x - 200);
   text('angle in radians ' + nf(angle, 1, 2), 20, 230);
   text('same angle in degrees ' + Math.round(degrees(angle)), 20, 260);
   text('radians(180) = ' + nf(radians(180), 1, 2), 20, 290);
@@ -302,7 +298,7 @@ function draw() {
       title: "Vectors: createVector",
       body: `A vector is a pair of numbers, x and y, with some maths built in. createVector(x, y) makes one (new Vector(x, y) does the same). It is handy for a position or a speed you want to add up.
 
-v.add(x, y), v.sub(x, y), v.mult(n) and v.div(n) CHANGE v and also hand it back, so you can chain them. v.set(x, y) replaces both numbers. v.copy() makes a separate vector, so changing the copy leaves v alone. v.mag() is its length: createVector(3, 4).mag() is 5. v.normalize() shrinks it to length 1 while keeping its direction, and v.dist(other) is the distance to another point.
+v.add(x, y), v.sub(x, y), v.mult(n) and v.div(n) CHANGE v and also hand it back, so you can chain them. v.set(x, y) replaces both numbers. v.copy() makes a separate vector, so changing the copy leaves v alone. v.mag() is its length: createVector(3, 4).mag() is 5. v.normalize() shrinks it to length 1 while keeping its direction, and v.dist(other) is the distance to another point: createVector(3, 4).dist(createVector(0, 0)) is 5.
 
 Because add, sub, mult, div and normalize change the vector they are called on, call copy() first when you want to keep the original.
 
@@ -312,7 +308,7 @@ A sprite's sprite.pos and sprite.vel are vectors too, joined to the physics: pla
       code: `let v;
 
 function setup() {
-  new Canvas(400, 200);
+  new Canvas(400, 260);
   v = createVector(3, 4);
 }
 
@@ -337,6 +333,11 @@ function draw() {
   let t = createVector(0, 0);
   t.set(7, 8);
   text('set to (' + t.x + ', ' + t.y + ')', 20, 180);
+
+  let start = createVector(1, 1);
+  start.add(2, 3);
+  text('add (2, 3) to (1, 1) = (' + start.x + ', ' + start.y + ')', 20, 205);
+  text('v.dist(t) = ' + nf(v.dist(t), 1, 2), 20, 230);
 }`,
     },
     {

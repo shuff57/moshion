@@ -18,13 +18,18 @@ removeItem(name) deletes a stored value.
 
 This is how you save high scores, level progress, or player preferences between sessions. Data persists even after the browser is closed.
 
-Every sketch on the same site shares ONE store, so a save called 'highScore' in your pong game and one in your maze game are the same save. Give your names a short prefix for the game, like storeItem('maze.highScore', 120), when two of your games should keep their own.`,
+Every sketch on the same site shares ONE store, so a save called 'highScore' in your pong game and one in your maze game are the same save. Give your names a short prefix for the game, like storeItem('maze.highScore', 120), when two of your games should keep their own.
+
+The example below follows its own advice. Its save is called 'demo.highScore', a name no real game of yours uses, so pressing r erases only the demo's save and never another game's. Press space to score, close and run it again, and the high score is still there.`,
       code: `let highScore = 0;
 let score = 0;
 
 function setup() {
   new Canvas(400, 400);
-  highScore = getItem('highScore') || 0;
+  highScore = getItem('demo.highScore');
+  if (highScore === null) {
+    highScore = 0;
+  }
 }
 
 function update() {
@@ -32,12 +37,12 @@ function update() {
     score++;
     if (score > highScore) {
       highScore = score;
-      storeItem('highScore', highScore);
+      storeItem('demo.highScore', highScore);
     }
   }
   if (kb.presses('r')) {
     score = 0;
-    removeItem('highScore');
+    removeItem('demo.highScore');
     highScore = 0;
   }
 }
@@ -57,37 +62,25 @@ function draw() {
     {
       id: 'clear-load-json',
       title: "Erasing and loading files: clearStorage and loadJSON",
-      body: `clearStorage() forgets everything stored with storeItem, by this sketch AND by every other sketch on the site, because they share one store. After it, getItem on any name you saved gives null. Saved pictures, sounds and fonts are kept: it only erases saves. For a Reset button, remove just your own names with removeItem('highScore') instead.
+      body: `clearStorage() forgets everything stored with storeItem, by this sketch AND by every other sketch on the site, because they share one store. After it, getItem on any name you saved gives null. Saved pictures, sounds and fonts are kept: it only erases saves. For a Reset button, remove just your own names with removeItem('maze.highScore') instead.
 
 loadJSON(path, callback) reads a JSON file and hands the data to your callback when it arrives: loadJSON('level1.json', (data) => { level = data; }). It also returns an object that fills in once the file has loaded. Outside preload() the callback form is the one to rely on, because a file takes a moment to arrive. Inside preload() ("Getting files ready: preload()" in Start here) the game waits for the file, so levels = loadJSON('levels.json') in preload() is filled in by setup(). A file that cannot load says so in the console.
 
-The example below loads a small JSON text with loadJSON and keeps one save with storeItem. Press space to count up, and press r to erase just that one save with removeItem, which leaves every other save alone. (To keep the example in one piece, the "file" is a short piece of JSON written inside the address. A real game would give the path of a .json file instead.)`,
-      code: `let info = { title: 'loading...', start: 0 };
-let clicks = 0;
+The example below loads a small piece of JSON with loadJSON and shows what came back. Until the file arrives the screen says loading, and then the callback fills in the title, the start level and the number of lives. To keep the example in one piece, the "file" is the JSON text itself, written after data:application/json, in the address. A real game would give the path of a .json file instead, like 'level1.json'. (Saving a value with storeItem is on the page "Saving and loading data".)`,
+      code: `let info = { title: 'loading...', level: 0, lives: 0 };
+let status = 'waiting for the file';
 
 function setup() {
   new Canvas(400, 200);
 
-  // the JSON text is written inside the address, instead of a file path
-  const json = encodeURIComponent(JSON.stringify({ title: 'Cave Run', start: 5 }));
-  loadJSON('data:application/json,' + json, (data) => {
-    info = data;
-    clicks = getItem('demoClicks');
-    if (clicks === null) {
-      clicks = info.start;
-    }
-  });
-}
+  // the JSON text, written out in one piece
+  const jsonText = '{"title": "Cave Run", "level": 5, "lives": 3}';
 
-function update() {
-  if (kb.presses(' ')) {
-    clicks++;
-    storeItem('demoClicks', clicks);
-  }
-  if (kb.presses('r')) {
-    removeItem('demoClicks');
-    clicks = info.start;
-  }
+  // loadJSON runs the callback once the data has arrived
+  loadJSON('data:application/json,' + jsonText, (data) => {
+    info = data;
+    status = 'the file has loaded';
+  });
 }
 
 function draw() {
@@ -97,11 +90,12 @@ function draw() {
 function drawTop() {
   fill('white');
   textSize(18);
-  text('Level file: ' + info.title, 14, 40);
-  text('Clicks: ' + clicks, 14, 70);
+  text('Title: ' + info.title, 14, 40);
+  text('Start level: ' + info.level, 14, 70);
+  text('Lives: ' + info.lives, 14, 100);
   fill('#888');
   textSize(12);
-  text('space = count    r = erase this save', 14, 110);
+  text(status, 14, 150);
 }`,
     },
     {
@@ -109,11 +103,14 @@ function drawTop() {
       title: "Saving your own pictures: saveTexture and deleteTexture",
       body: `saveTexture(name, dataUrl) keeps a small picture in the browser under a name, and from then on sprite.texture = name finds it. A data URL is a picture written out as text, starting with data:image/png. hasTexture(name) says whether a name exists right now, and deleteTexture(name) forgets one you saved. Built-in names cannot be deleted.
 
-The example saves a tiny four-colour picture as 'demoSquares' and shows it on a sprite. After about a second it deletes the picture again and removes the sprite, so running it leaves nothing behind. hasTexture() is false before the save and true after it, then false again once deleteTexture() has run. Pick an odd name like this for a demo: a saved name beats a built-in one, so saving 'coin' would replace the real coin.`,
+The example first asks hasTexture('docsDemoSquares') whether that name is free. If it is, it saves a tiny four-colour picture under it and shows it on a sprite. After about a second it deletes the picture again and removes the sprite, so running it leaves nothing behind. hasTexture() is false before the save and true after it, then false again once deleteTexture() has run.
+
+If the name is already taken, the example saves nothing and deletes nothing. It only says so on the screen. That is the rule for any demo: delete only a name you made yourself, because deleteTexture() cannot tell your demo's picture from a real one. Pick an odd name like this one. A saved name beats a built-in one, so saving 'coin' would replace the real coin.`,
       code: `let art;
+let artName = 'docsDemoSquares';
 let before;
-let during;
-let after = 'waiting...';
+let during = 'not saved';
+let after = 'not deleted yet';
 
 function setup() {
   new Canvas(400, 200);
@@ -121,21 +118,25 @@ function setup() {
 
   const dataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGO4o6GhseAOw68TcjYnogApvAYPvPI98QAAAABJRU5ErkJggg==';
 
-  before = hasTexture('demoSquares');
-  saveTexture('demoSquares', dataUrl);
-  during = hasTexture('demoSquares');
+  // only touch the name if nobody has used it yet
+  before = hasTexture(artName);
+  if (before === false) {
+    saveTexture(artName, dataUrl);
+    during = hasTexture(artName);
 
-  art = new Sprite(200, 70, 80, 80);
-  art.collider = 'none';
-  art.texture = 'demoSquares';
+    art = new Sprite(200, 70, 80, 80);
+    art.collider = 'none';
+    art.texture = artName;
+  }
 }
 
 function update() {
   // after about a second, clean up so nothing is left in your library
-  if (frameCount === 55) {
+  // (only when this demo made the picture itself)
+  if (frameCount === 55 && before === false) {
     art.remove();
-    deleteTexture('demoSquares');
-    after = hasTexture('demoSquares');
+    deleteTexture(artName);
+    after = hasTexture(artName);
   }
 }
 
@@ -146,9 +147,14 @@ function draw() {
 function drawTop() {
   fill('white');
   textSize(13);
-  text('before saving: ' + before, 14, 150);
-  text('after saving: ' + during, 14, 170);
-  text('after deleteTexture: ' + after, 14, 190);
+  if (before === true) {
+    text('The name ' + artName + ' is already taken.', 14, 150);
+    text('So this demo saves and deletes nothing.', 14, 170);
+  } else {
+    text('before saving: ' + before, 14, 150);
+    text('after saving: ' + during, 14, 170);
+    text('after deleteTexture: ' + after, 14, 190);
+  }
 }`,
     },
   ],

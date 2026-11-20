@@ -36,23 +36,19 @@ function draw() {
 
 The type works on circles too: new Sprite(x, y, 30, 'static') is a static ball. Capital letters are fine ('Static'), and so is the first letter alone ('s'). A misspelt type such as 'statik' stops the sketch with an error that lists the four real ones, instead of quietly making a dynamic sprite. sprite.body and sprite.physicsType are older names for the same setting.
 
-Instead of the words in quotes you can use constants: s.collider = STATIC is the same as s.collider = 'static'. DYNAMIC is 'dynamic' and KINEMATIC is 'kinematic'. STA, DYN and KIN are shorter spellings of the same three. They are only names for the same strings, so use whichever reads best to you.`,
+There are also constants for the words: STATIC, DYNAMIC and KINEMATIC are exactly the strings 'static', 'dynamic' and 'kinematic', so s.collider = STATIC is the same as s.collider = 'static'. STA, DYN and KIN are shorter spellings of the same three. The example uses the words in quotes, and the line of text at the top prints all six constants so you can see they are only those strings.`,
       code: `let elevator;
 
 function setup() {
   new Canvas(400, 400);
   world.gravity.y = 10;
 
-  new Sprite(200, 100, 40, 40, DYNAMIC);           // falls
-  new Sprite(200, 380, 400, 20, STATIC);           // static floor
-  new Sprite(100, 260, 80, 10, STA);               // short for STATIC
-  new Sprite(100, 100, 30, 30, DYN);               // short for DYNAMIC, lands on the platform
+  new Sprite(200, 100, 40, 40);                    // dynamic (default)
+  new Sprite(200, 380, 400, 20, 'static');         // static floor
+  new Sprite(100, 260, 80, 10, 'static');          // static platform
 
-  elevator = new Sprite(320, 260, 60, 10, KINEMATIC);
+  elevator = new Sprite(320, 260, 60, 10, 'kinematic');
   elevator.vel.y = -1;
-
-  const slider = new Sprite(250, 330, 50, 10, KIN); // short for KINEMATIC
-  slider.vel.x = 1;
 
   const hint = new Sprite(200, 30, 10, 10);
   hint.collider = 'none';
@@ -61,6 +57,12 @@ function setup() {
 
 function draw() {
   background('#222');
+}
+
+function drawTop() {
+  fill('white');
+  textSize(10);
+  text(STATIC + ' ' + DYNAMIC + ' ' + KINEMATIC + ' ' + STA + ' ' + DYN + ' ' + KIN, 14, 60);
 }`,
     },
     {
@@ -201,7 +203,7 @@ function draw() {
 
 .d is the diameter of a circle, how far it is across. .r and .radius are half of that, the distance from the middle to the edge. Set any of them and the other two follow.
 
-Setting a size changes the collider too, so the shape you see is the shape that bumps into things. The example prints one of each name, then grows the boxes every 60 frames.`,
+Setting a size changes the collider too, so the shape you see is the shape that bumps into things. The example prints one of each name for the box and the ball. Every 60 frames the box gets wider (.w) and taller (.hh) and the ball's radius (.r) grows. Every 120 frames .halfWidth, .halfHeight and .radius are set back to the starting sizes, so the shapes go back to how they began and then grow again.`,
       code: `let box, ball;
 
 function setup() {
@@ -330,14 +332,14 @@ moveTowards has three relatives that work the same way, and all four accept eith
 
 moveTowards(target, tracking) closes that fraction of the remaining gap each call. moveAway(target, repel) is its mirror: it opens the gap by the same fraction. Both set position directly, so they ignore physics — the sprite arrives no matter what is in the way.
 
-attractTo(target, force) and repelFrom(target, force) work through physics instead, applying a real force in newtons toward or away from the point. The sprite accelerates, keeps its momentum, and bounces off whatever it hits on the way. Use these when the pull should feel like gravity or magnetism rather than a leash.
+attractTo(target, force) works through physics instead, applying a real force in newtons toward the point. The sprite accelerates, keeps its momentum, and bounces off whatever it hits on the way. Use it when the pull should feel like gravity or magnetism rather than a leash. Its mirror, repelFrom, has its own page next.
 
 rotateTowards(target, tracking) turns to face a point over several frames by setting a spin speed — unlike rotateTo, which steps or snaps the angle directly. Like rotateTo, it always turns the short way round.
 
 Passing mouse itself (not mouse.x and mouse.y) is worth doing: the sprite then ignores the cursor until it has actually moved over the canvas, instead of lunging at the top-left corner on the first frame.
 
-Two more helpers answer "how far must I turn?". sprite.angleToFace(target) is the turn needed to face the target, in degrees, positive or negative, the short way round. sprite.rotationToFace(target) is the absolute rotation that would face it, ready to assign to .rotation. The example prints distanceTo and angleTo, and the red arrow-shaped sprite faces the yellow one with rotationToFace.`,
-      code: `let hunter, prey, magnet, pusher, pointer;
+The example prints distanceTo and angleTo: the gold sprite runs from the cursor, and the red one chases it and turns to face it.`,
+      code: `let hunter, prey, magnet;
 
 function setup() {
   new Canvas(400, 400);
@@ -353,14 +355,6 @@ function setup() {
 
   magnet = new Sprite(200, 300, 20);
   magnet.color = 'deepskyblue';
-
-  pusher = new Sprite(340, 300, 20);
-  pusher.color = 'orchid';
-  pusher.drag = 2;
-
-  pointer = new Sprite(60, 300, 50, 16);
-  pointer.color = 'tomato';
-  pointer.collider = 'none';
 }
 
 function update() {
@@ -371,12 +365,6 @@ function update() {
 
   // the blue one is pulled by physics, so it overshoots and swings back
   magnet.attractTo(mouse, 30);
-
-  // the purple one is pushed away from the cursor by physics
-  pusher.repelFrom(mouse, 10);
-
-  // the arrow turns to face the prey
-  pointer.rotation = pointer.rotationToFace(prey);
 }
 
 function draw() {
@@ -389,7 +377,69 @@ function drawTop() {
   text('move the mouse', 14, 22);
   text('distance to prey: ' + hunter.distanceTo(prey).toFixed(0), 14, 42);
   text('angle to prey: ' + hunter.angleTo(prey).toFixed(0), 14, 62);
-  text('turn still needed: ' + pointer.angleToFace(prey).toFixed(0), 14, 82);
+}`,
+    },
+    {
+      id: 'repel-and-face',
+      title: "Pushing away and turning to face",
+      body: `repelFrom(target, force) is the mirror of attractTo. It works through physics, applying a real force in newtons away from the point, so the sprite accelerates, keeps its momentum and bounces off whatever it hits. Pass mouse itself and the sprite ignores the cursor until it has moved over the canvas.
+
+Two helpers answer "how far must I turn?". sprite.angleToFace(target) is the turn needed to face the target, in degrees, positive or negative, the short way round. sprite.rotationToFace(target) is the absolute rotation that would face it, ready to assign to .rotation.
+
+In the example the purple ball is pushed away from your cursor with repelFrom, and drag slows it down again. The red arrow snaps to face the gold dot with rotationToFace. The blue arrow turns a tenth of the way each frame with angleToFace, so it trails behind, and the text prints how many degrees it still has to turn.`,
+      code: `let pusher, snapper, easer, dot;
+
+function setup() {
+  new Canvas(400, 400);
+  world.gravity.y = 0;
+
+  dot = new Sprite(200, 120, 16);
+  dot.color = 'gold';
+  dot.collider = 'none';
+
+  pusher = new Sprite(200, 300, 20);
+  pusher.color = 'orchid';
+  pusher.drag = 2;
+
+  snapper = new Sprite(60, 200, 50, 16);
+  snapper.color = 'tomato';
+  snapper.collider = 'none';
+
+  easer = new Sprite(340, 200, 50, 16);
+  easer.color = 'deepskyblue';
+  easer.collider = 'none';
+}
+
+function update() {
+  // the gold dot circles around the middle
+  dot.x = 200 + Math.cos(frameCount / 40) * 120;
+  dot.y = 200 + Math.sin(frameCount / 40) * 120;
+
+  // the purple one is pushed away from the cursor by physics
+  pusher.repelFrom(mouse, 10);
+  if (pusher.x < 0 || pusher.x > 400 || pusher.y < 0 || pusher.y > 400) {
+    pusher.x = 200;
+    pusher.y = 300;
+    pusher.vel.x = 0;
+    pusher.vel.y = 0;
+  }
+
+  // the red arrow snaps to face the dot
+  snapper.rotation = snapper.rotationToFace(dot);
+
+  // the blue arrow turns a tenth of the turn it still needs, every frame
+  easer.rotation += easer.angleToFace(dot) * 0.1;
+}
+
+function draw() {
+  background('#222');
+}
+
+function drawTop() {
+  fill('white');
+  textSize(13);
+  text('move the mouse close to the purple ball', 14, 22);
+  text('blue arrow still has to turn: ' + easer.angleToFace(dot).toFixed(0), 14, 42);
 }`,
     },
     {
@@ -455,7 +505,7 @@ Watch out for group.remove(sprite): it only takes the sprite out of that group. 
 
 When you delete sprites while looping through a Group, iterate a copy with [...group]. Otherwise the array shrinks under your feet and you'll skip items.
 
-Three read-only helpers describe a sprite's place in the game. sprite.removed is true once the sprite has been deleted, so code that still holds on to it can check before using it. sprite.groups is a list of every group the sprite is in (allSprites is always one of them). sprite.joints is a list of every joint attached to it. Both lists are copies, so changing them does nothing to the sprite. The example prints all three for the newest bullet.`,
+Two read-only helpers describe a sprite's place in the game. sprite.removed is true once the sprite has been deleted, so code that still holds on to it can check before using it. sprite.groups is a list of every group the sprite is in (allSprites is always one of them). It is a copy, so changing it does nothing to the sprite. The example prints both: groups for the newest bullet, and removed for the first bullet.`,
       code: `let bullets, newest, oldest;
 
 function setup() {
@@ -490,10 +540,9 @@ function draw() {
   text('Live bullets: ' + bullets.length, 14, 24);
   if (newest !== undefined) {
     text('newest is in ' + newest.groups.length + ' groups', 14, 44);
-    text('newest has ' + newest.joints.length + ' joints', 14, 64);
   }
   if (oldest !== undefined) {
-    text('first bullet removed: ' + oldest.removed, 14, 84);
+    text('first bullet removed: ' + oldest.removed, 14, 64);
   }
 }`,
     },
@@ -502,13 +551,13 @@ function draw() {
       title: "Sprite switches: screenSpace, visualOnly, autoUpdate",
       body: `Some sprite settings are on/off switches for how a sprite takes part in the game.
 
-sprite.screenSpace = true pins a sprite to the screen instead of the world. It ignores the camera and draws after everything else, which is what you want for a score badge or a health bar. sprite.canvasPos is the sprite's position in screen pixels with the camera taken out, so you can see where it really is on the canvas. It is read-only.
+sprite.screenSpace = true pins a sprite to the screen instead of the world. It ignores the camera and draws after everything else, which is what you want for a score badge or a health bar. sprite.canvasPos is the sprite's position in screen pixels with the camera taken out, so you can see where it really is on the canvas. It is read-only. For a sprite that is not pinned, canvasPos changes whenever the camera moves.
 
-sprite.visualOnly = true leaves the sprite drawn but takes it out of the physics. Nothing bumps into it, and gravity does not pull it. Set it back to false and it returns to the simulation.
+sprite.visualOnly = true leaves the sprite drawn but takes it out of the physics. Nothing bumps into it, and gravity does not pull it. Set it back to false and it returns to the simulation. It is the same switch as sprite.physicsEnabled read the other way round: visualOnly = true means physicsEnabled = false.
 
 sprite.autoUpdate = false stops that sprite's own update() function from running each frame. The sprite still draws and still moves with whatever speed it has.
 
-The example uses all three. Press the mouse to flip each switch and read the labels.`,
+In the example the camera follows the red worker, so the world scrolls past while the gold badge stays in its corner. The text prints the purple ghost's canvasPos, which changes as the camera moves. Press the mouse to flip visualOnly on the ghost and autoUpdate on the worker, and read the labels.`,
       code: `let badge, ghost, worker;
 
 function setup() {
@@ -519,15 +568,19 @@ function setup() {
   badge.color = 'gold';
   badge.screenSpace = true;
 
-  new Sprite(200, 390, 400, 20, 'static');
+  new Sprite(300, 390, 800, 20, 'static');
+  for (let x = 0; x <= 800; x += 100) {
+    const post = new Sprite(x, 350, 8, 40, 'static');
+    post.color = 'gray';
+  }
 
-  ghost = new Sprite(120, 100, 40, 40);
+  ghost = new Sprite(250, 100, 40, 40);
   ghost.color = 'orchid';
   ghost.visualOnly = true;
 
-  worker = new Sprite(280, 200, 30, 30, 'kinematic');
+  worker = new Sprite(300, 200, 30, 30, 'kinematic');
   worker.color = 'tomato';
-  worker.vel.x = 1;
+  worker.vel.x = 1.5;
   worker.update = function () {
     this.rotation += 5;
   };
@@ -536,15 +589,12 @@ function setup() {
 function update() {
   if (mouse.presses()) {
     ghost.visualOnly = !ghost.visualOnly;
-    if (worker.autoUpdate === true) {
-      worker.autoUpdate = false;
-    } else {
-      worker.autoUpdate = true;
-    }
+    worker.autoUpdate = !worker.autoUpdate;
   }
-  if (worker.x > 360 || worker.x < 40) {
+  if (worker.x > 450 || worker.x < 150) {
     worker.vel.x = -worker.vel.x;
   }
+  camera.x = worker.x; // the world scrolls, the badge does not
 }
 
 function draw() {
@@ -556,7 +606,7 @@ function drawTop() {
   textSize(13);
   text('ghost.visualOnly: ' + ghost.visualOnly, 14, 22);
   text('worker.autoUpdate: ' + worker.autoUpdate, 14, 42);
-  text('badge canvasPos: ' + badge.canvasPos.x + ', ' + badge.canvasPos.y, 14, 62);
+  text('ghost canvasPos: ' + ghost.canvasPos.x.toFixed(0) + ', ' + ghost.canvasPos.y.toFixed(0), 14, 62);
   text('click to flip the switches', 14, 382);
 }`,
     },

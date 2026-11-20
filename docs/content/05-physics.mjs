@@ -72,26 +72,37 @@ function draw() {
 
 .friction resists sliding along a surface. 0 is ice — sprites slide forever. Higher values drag motion to a stop quickly.
 
-These are per-sprite properties. When two sprites touch, the physics combines their values: the bounce is the bouncier of the two, and the friction lands somewhere between the two.`,
+These are per-sprite properties. When two sprites touch, the physics combines their values: the bounce is the bouncier of the two, and the friction lands somewhere between the two.
+
+In the example, all three boxes are dropped with the same sideways speed. The red one bounces, the grey one lands and drags to a stop, and the blue one has no friction so it slides on across the floor.`,
       code: `function setup() {
   new Canvas(400, 400);
   world.gravity.y = 10;
+  new Walls();
 
   const floor = new Sprite(200, 380, 400, 20, 'static');
-  floor.friction = 0.3;
+  floor.friction = 1;
 
-  const bouncy = new Sprite(120, 80, 30);
-  bouncy.bounciness = 0.9;
-  bouncy.color = 'tomato';
-
-  const dead = new Sprite(200, 80, 30);
+  const dead = new Sprite(40, 250, 30, 30);
   dead.bounciness = 0;
+  dead.friction = 1;
   dead.color = 'slategray';
 
-  const slippery = new Sprite(280, 80, 30);
+  const bouncy = new Sprite(140, 250, 30, 30);
+  bouncy.bounciness = 0.9;
+  bouncy.friction = 1;
+  bouncy.color = 'tomato';
+
+  const slippery = new Sprite(240, 250, 30, 30);
   slippery.friction = 0;
   slippery.bounciness = 0.4;
   slippery.color = 'deepskyblue';
+
+  // the same sideways speed for all three, and no spinning
+  for (const box of [dead, bouncy, slippery]) {
+    box.vel.x = 3;
+    box.rotationLock = true;
+  }
 }
 
 function draw() {
@@ -161,24 +172,43 @@ function drawTop() {
 
 .density is the more direct knob underneath .mass — mass is density times the sprite's area, so a bigger sprite at the same density weighs more. New sprites default to a density of 1.
 
-You'll reach for .mass far more often than .density — it's the number that actually means something ("this rock should be twice as heavy as that crate").`,
-      code: `function setup() {
+You'll reach for .mass far more often than .density — it's the number that actually means something ("this rock should be twice as heavy as that crate").
+
+Gravity pulls every mass down equally, so a light sprite and a heavy one fall together. Mass shows when you push them. In the example, press the space bar to give both the same shove: the light feather shoots away and the heavy rock hardly moves.`,
+      code: `let feather, rock;
+
+function setup() {
   new Canvas(400, 400);
   world.gravity.y = 10;
 
   new Sprite(200, 380, 400, 20, 'static');
 
-  const feather = new Sprite(120, 80, 30);
+  feather = new Sprite(60, 355, 30);
   feather.color = 'lightyellow';
   feather.mass = 0.2;
 
-  const rock = new Sprite(280, 80, 30);
+  rock = new Sprite(60, 300, 30);
   rock.color = 'gray';
   rock.mass = 5;
 }
 
+function update() {
+  if (kb.presses(' ')) {
+    // the same push for both
+    feather.applyForce(40, 0);
+    rock.applyForce(40, 0);
+  }
+}
+
 function draw() {
   background('#222');
+}
+
+function drawTop() {
+  fill('white');
+  textSize(14);
+  text('space: push both', 10, 20);
+  text('feather mass ' + feather.mass + ', rock mass ' + rock.mass, 10, 40);
 }`,
     },
     {
@@ -317,10 +347,11 @@ function drawTop() {
       title: "Which sprites are at a point?",
       body: `world.getSpritesAt(x, y) gives back an array of every sprite that is at a point, with the one drawn on top first. It is the question "what is under my mouse?" when several sprites are stacked on top of each other. (world.getSpriteAt(x, y) gives back just the top one.) An empty array, [], means nothing is there.
 
-You can add a radius as a third number, to ask about everything within that distance, and a group as a fourth number to look only at that group's sprites.
+You can add a radius as a third number, to ask about everything within that distance, and a group as a fourth argument to look only at that group's sprites.
 
 In the example, the three overlapping boxes turn white while the mouse is over them, and the number tells you how many were found.`,
       code: `let boxes;
+let found = [];
 
 function setup() {
   new Canvas(400, 300);
@@ -337,7 +368,7 @@ function setup() {
 
 function update() {
   boxes.color = 'slategray';
-  const found = world.getSpritesAt(mouse.x, mouse.y);
+  found = world.getSpritesAt(mouse.x, mouse.y);
   for (const box of found) {
     box.color = 'white';
   }
@@ -348,7 +379,6 @@ function draw() {
 }
 
 function drawTop() {
-  const found = world.getSpritesAt(mouse.x, mouse.y);
   fill('white');
   textSize(16);
   text('sprites under the mouse: ' + found.length, 10, 24);
@@ -407,66 +437,94 @@ function draw() {
     },
     {
       id: 'mass-and-sleep',
-      title: "Density, sleeping and other physics switches",
-      body: `sprite.density is how much a sprite weighs for its size. A big sprite and a small one with the same density differ only by area. sprite.resetMass() works the mass out again from the size and the density; call it after you change density or size and want the mass to match. sprite.centerOfMass is the point the sprite balances on, in pixels, as a vector with .x and .y.
+      title: "Density, sleeping and the centre of mass",
+      body: `sprite.density is how much a sprite weighs for its size. A big sprite and a small one with the same density differ only by area. sprite.resetMass() works the mass out again from the size and the density; call it after you change density or size and want the mass to match.
 
-sprite.isSuperFast = true makes a fast sprite check its path between frames so it cannot skip through a thin wall. Switch it on for bullets.
+sprite.centerOfMass is the world position of the sprite's centre, as a vector with .x and .y in pixels. It is the point physics pushes and turns the sprite around. For these round and square sprites it is the middle.
 
 Resting sprites go to sleep to save work. sprite.sleeping is true while a sprite is asleep. sprite.allowSleeping = false keeps one awake all the time.
 
-sprite.physicsEnabled = false leaves a sprite drawn but out of the physics: nothing pushes it and it pushes nothing. Set it back to true to bring it back.
-
-sprite.surfaceSpeed turns a static sprite into a conveyor belt: things standing on it are carried along at that many pixels per frame.
-
-sprite.jumpPower is how high player.jump() goes: 1 is about 120 pixels, 2 is twice as high.
-
-In the example, the heavy ball has a high density and the light one a low one. The crate on the belt is carried right. Press the space bar to jump, press P to switch the physics of the grey ball off and on, and read the numbers on screen.`,
-      code: `let heavy, light, belt, crate, bullet, jumper, ghost, ground;
+In the example, the heavy ball has a high density and the light one a low one, and their masses are written on screen. A red dot is drawn at the heavy ball's centerOfMass. The crate settles and falls asleep, and the blue box never does because of allowSleeping = false.`,
+      code: `let heavy, light, crate, awake;
 
 function setup() {
-  new Canvas(400, 400);
+  new Canvas(400, 300);
   world.gravity.y = 10;
+  new Sprite(200, 290, 400, 20, 'static');
 
-  ground = new Sprite(200, 390, 400, 20, 'static');
-
-  belt = new Sprite(260, 372, 140, 16, 'static');
-  belt.color = 'slategray';
-  belt.surfaceSpeed = 2;       // carries things to the right
-
-  crate = new Sprite(220, 340, 30, 30);
-  crate.color = 'orange';
-
-  heavy = new Sprite(40, 340, 40);
+  heavy = new Sprite(80, 100, 50);
   heavy.color = 'dimgray';
   heavy.density = 5;
   heavy.resetMass();           // work the mass out again
 
-  light = new Sprite(100, 340, 40);
+  light = new Sprite(160, 100, 50);
   light.color = 'lightyellow';
   light.density = 0.2;
   light.resetMass();
 
-  bullet = new Sprite(20, 150, 8);
+  crate = new Sprite(250, 100, 30, 30);
+  crate.color = 'orange';
+
+  awake = new Sprite(330, 100, 30, 30);
+  awake.color = 'deepskyblue';
+  awake.allowSleeping = false; // never falls asleep
+}
+
+function draw() {
+  background('#222');
+  // a dot at the heavy ball's centre of mass
+  noStroke();
+  fill('red');
+  circle(heavy.centerOfMass.x, heavy.centerOfMass.y, 8);
+}
+
+function drawTop() {
+  fill('white');
+  textSize(13);
+  text('heavy mass ' + round(heavy.mass) + ', light mass ' + round(light.mass), 10, 20);
+  text('crate asleep: ' + crate.sleeping, 10, 40);
+  text('blue box asleep: ' + awake.sleeping, 10, 60);
+}`,
+    },
+    {
+      id: 'fast-and-moving-ground',
+      title: "Very fast sprites and moving ground",
+      body: `sprite.isSuperFast = true makes a fast sprite check its path between frames so it cannot skip through a thin wall. Switch it on for bullets.
+
+sprite.surfaceSpeed turns a static sprite into a conveyor belt: things standing on it are carried along at that many pixels per frame. The belt only grips what has friction, so give both the belt and the thing on it a friction above 0.
+
+sprite.physicsEnabled = false leaves a sprite drawn but out of the physics: nothing pushes it, gravity does not pull it and it pushes nothing. Set it back to true to bring it back.
+
+In the example, the red bullet is super fast and stops at the thin wall. The orange crate is carried right by the belt. The grey ball hangs in the air because its physicsEnabled is false: press P to switch it on and it drops, press P again to freeze it where it is.`,
+      code: `let bullet, crate, ghost;
+
+function setup() {
+  new Canvas(400, 300);
+  world.gravity.y = 10;
+  new Sprite(200, 290, 400, 20, 'static');
+
+  bullet = new Sprite(20, 60, 8);
   bullet.color = 'tomato';
   bullet.isSuperFast = true;   // never skips through thin walls
   bullet.gravityScale = 0;
   bullet.vel.x = 30;
-  new Sprite(390, 150, 6, 100, 'static');
+  new Sprite(380, 60, 4, 100, 'static');
 
-  jumper = new Sprite(370, 300, 24, 36);
-  jumper.color = 'deepskyblue';
-  jumper.rotationLock = true;
-  jumper.jumpPower = 1.5;        // a higher jump than normal
-  jumper.allowSleeping = false;  // never falls asleep
+  crate = new Sprite(60, 240, 30, 30);
+  crate.color = 'orange';
+  crate.friction = 1;
 
-  ghost = new Sprite(150, 250, 30);
+  const belt = new Sprite(120, 272, 160, 16, 'static');
+  belt.color = 'slategray';
+  belt.surfaceSpeed = 2;       // carries things to the right
+  belt.friction = 1;           // the belt needs grip to carry anything
+
+  ghost = new Sprite(300, 150, 30);
   ghost.color = 'gray';
+  ghost.physicsEnabled = false; // hangs in the air until P is pressed
 }
 
 function update() {
-  if (kb.presses(' ')) {
-    jumper.jump(ground);
-  }
   if (kb.presses('p')) {
     ghost.physicsEnabled = !ghost.physicsEnabled;
   }
@@ -479,11 +537,8 @@ function draw() {
 function drawTop() {
   fill('white');
   textSize(13);
-  text('space: jump   p: ghost physics on/off', 10, 20);
-  text('heavy mass ' + round(heavy.mass) + ', light mass ' + round(light.mass), 10, 40);
-  text('crate asleep: ' + crate.sleeping, 10, 60);
-  text('crate centre of mass x: ' + round(crate.centerOfMass.x), 10, 80);
-  text('ghost physics: ' + ghost.physicsEnabled, 10, 100);
+  text('p: grey ball physics on/off', 10, 20);
+  text('ghost physics: ' + ghost.physicsEnabled, 10, 40);
 }`,
     },
   ],

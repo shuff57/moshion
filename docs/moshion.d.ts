@@ -874,7 +874,7 @@ interface World {
    */
   /** With no callback: the closest SOLID sprite on the line (sensors and
    *  collider 'none' are looked through), or null.
-   *  `if (world.rayCast(p.x, p.y, p.x, p.y + 30)) onGround = true;` */
+   *  `if (world.rayCast(p.x, p.y, p.x, p.y + 30)) { onGround = true; }` */
   rayCast(x1: number, y1: number, x2: number, y2: number): RayHit | null;
   rayCast(from: Vec2, to: Vec2): RayHit | null;
   rayCast(

@@ -21,7 +21,9 @@ The six questions follow one pattern. The -s word is the first frame, the -ing w
 collides(b), colliding(b), collided(b) — the physical bodies touching.
 overlaps(b), overlapping(b), overlapped(b) — the shapes overlapping, whatever the colliders.
 
-overlaps() is the one exception: it is true on every frame the two overlap, not only the first. For the first frame only, ask overlapping(b) === 1.`,
+overlaps() is the one exception: it is true on every frame the two overlap, not only the first. For the first frame only, ask overlapping(b) === 1.
+
+In the example, press the right arrow to walk the blue box right. It passes through the gold zone, which turns lime while they overlap, and then stops at the grey wall, because the two of them collide.`,
       code: `let player, wall, zone;
 
 function setup() {
@@ -31,12 +33,12 @@ function setup() {
   player = new Sprite(80, 200, 30, 30);
   player.color = 'deepskyblue';
 
-  wall = new Sprite(220, 200, 20, 200, 'static');
-  wall.color = 'slategray';
-
-  zone = new Sprite(340, 200, 60, 60);
+  zone = new Sprite(160, 200, 60, 60);
   zone.collider = 'none';
   zone.color = 'gold';
+
+  wall = new Sprite(300, 200, 20, 200, 'static');
+  wall.color = 'slategray';
 }
 
 function update() {
@@ -177,10 +179,11 @@ A sensor fixes that. sprite.addSensor(offsetX, offsetY, w, h) adds a box that ri
 
 The offsets are measured from the sprite's centre. For a player 40 tall, the feet are 20 below the centre, so a strip 4 tall at offset 21 sits just under them. Make it a little narrower than the player so it doesn't touch a wall beside them.
 
-A sensor has three questions: feet.overlaps(walls) (true or false), feet.overlapping(walls) (how many frames it has been touching) and feet.overlapped(walls) (true on the frame it stops touching: the moment the player leaves the ground). Each takes a callback too, like a sprite's: feet.overlaps(walls, (sensor, wall) => { ... }). feet.remove() takes it off again; deleting the sprite does that too.
+A sensor has three questions: feet.overlaps(walls) (true or false), feet.overlapping(walls) (how many frames it has been touching) and feet.overlapped(walls) (true on the frame it stops touching: the moment the player leaves the ground). Each takes a callback too, like a sprite's: feet.overlaps(walls, (sensor, wall) => { ... }). In the example, the number of frames on the ground (feet.overlapping) and the number of times you left it (feet.overlapped) are written at the top. feet.remove() takes it off again; deleting the sprite does that too.
 
 Another way to ask "is something under me?" is a ray: world.rayCast(player.x, player.y + 21, player.x, player.y + 27) looks along that short line and gives back what it hits first, or null if nothing is there. It looks straight through sensors and collider 'none' sprites, so a coin under your feet does not count as ground.`,
       code: `let player, walls, feet;
+let leaves = 0;
 
 function setup() {
   new Canvas(400, 300);
@@ -216,10 +219,23 @@ function update() {
   } else {
     player.color = 'orange';
   }
+
+  // overlapped is true on the one frame the feet leave the walls
+  if (feet.overlapped(walls)) {
+    leaves++;
+  }
 }
 
 function draw() {
   background('#222');
+}
+
+function drawTop() {
+  fill('white');
+  textSize(14);
+  // overlapping counts the frames the feet have been touching
+  text('frames on the ground: ' + feet.overlapping(walls), 10, 20);
+  text('times left the ground: ' + leaves, 10, 40);
 }`,
     },
     {
@@ -227,7 +243,7 @@ function draw() {
       title: "Ray casting",
       body: `world.rayCast(x1, y1, x2, y2, callback) casts a ray from one point to another and calls your callback for every physics shape the ray touches. The callback receives (sprite, point, normal, fraction): sprite is the Sprite that was hit (or null), point is the hit position in world pixels, normal is the surface normal (a unit vector pointing away from the surface), and fraction is how far along the ray the hit happened, from 0 to 1.
 
-What you return from the callback controls how the ray continues. Return the fraction you were handed (or a smaller number) to clip the ray there — the standard pattern for finding the single closest hit. Return 0 to stop at the first hit. Return 1 to keep going past every hit (all objects on the line). Return -1 to ignore a fixture — useful for skipping sensor sprites, which rayCast does report: filter them with if (sprite && sprite.collider === "none") { return -1; }.
+What you return from the callback controls how the ray continues. Return the fraction you were handed (or a smaller number) to clip the ray there — the standard pattern for finding the single closest hit. Return 0 to stop at the first hit. Return 1 to keep going past every hit (all objects on the line). Return -1 to ignore a hit and keep looking — useful for skipping sprites whose collider is 'none', which rayCast does report: if (sprite && sprite.collider === 'none') { return -1; }. (A sensor made with addSensor() is reported as the sprite it rides on, so that test does not skip it.)
 
 Ray casting is how you build hitscan weapons, line-of-sight checks, aim previews, and anchor-point picking: cast a ray toward a target and read where and what it first touches.
 
@@ -259,7 +275,7 @@ function update() {
     let hit;
     world.rayCast(player.x, player.y, mouse.x, mouse.y, function (sprite, point, normal, fraction) {
       if (sprite && sprite.collider === "none") {
-        return -1; // skip sensors
+        return -1; // skip sprites whose collider is 'none'
       }
       hit = { sprite, point, normal, fraction };
       return fraction; // clip at each hit to find the closest
@@ -351,7 +367,7 @@ a.collides(b) is true on the first frame two solid sprites touch, and false afte
 
 a.overlapped(b) is true on the frame two overlapping sprites stop overlapping: the moment a player walks out of a zone. It works with a collider of 'none' too.
 
-In the example, press the arrow keys to move the blue box. The count at the top goes up when the box lands on the ball (collides) and when it walks out of the gold zone (overlapped). The ball changes colour while the box is leaving it (collided).`,
+In the example, press the arrow keys to move the blue box. The count at the top goes up when the box lands on the ball (collides) and when it walks out of the gold zone (overlapped). The ball turns white on the frame the box leaves it (collided is true for that one frame only), and the code sets it back to red while they touch (colliding), so it stays white until the box lands on it again.`,
       code: `let player, ball, zone;
 let landings = 0;
 let exits = 0;
@@ -361,7 +377,7 @@ function setup() {
   world.gravity.y = 10;
   new Sprite(200, 290, 400, 20, 'static');
 
-  ball = new Sprite(120, 260, 40, 40, 'static');
+  ball = new Sprite(120, 260, 40, 'static');
   ball.color = 'tomato';
 
   zone = new Sprite(300, 200, 100, 160);

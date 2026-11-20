@@ -57,10 +57,15 @@ function draw() {
 
 kb.holds('key') fires exactly once, the frame the hold crosses kb.holdThreshold (12 frames by default — about a fifth of a second at 60fps). kb.holding('key') is the frame count while held past that threshold (0 before it). kb.held('key') fires exactly once, the frame the key comes back up after having been held past the threshold — use it to tell a quick tap apart from a held press.
 
-mouse has the same four: mouse.holds(), mouse.holding(), mouse.held(), mouse.holdThreshold.
+kb.released('key') fires on the frame the key comes back up, however long it was held. Compare it with kb.held(): released() fires for a quick tap too, while held() fires only after a long hold. (kb.releases() and kb.pressed() are older names for it.)
 
-You can change kb.holdThreshold. kb.holdThreshold = 30 makes a hold count only after half a second.`,
+mouse has the same four hold verbs: mouse.holds(), mouse.holding(), mouse.held(), mouse.holdThreshold. They have their own page, "Holding a mouse button".
+
+You can change kb.holdThreshold. kb.holdThreshold = 30 makes a hold count only after half a second.
+
+In the example, hold space for a charge. The last two lines show what the key did when you let go: released() answers for every release, held() only for a long one.`,
       code: `let charge = 0;
+let lastRelease = 'nothing yet';
 
 function setup() {
   new Canvas(400, 200);
@@ -77,6 +82,14 @@ function update() {
   if (kb.held(' ')) {
     console.log('released a full charge:', charge);
   }
+
+  // released() fires on every release, a tap or a long hold
+  if (kb.released(' ')) {
+    lastRelease = 'the key came up';
+  }
+  if (kb.held(' ')) {
+    lastRelease = 'the key came up after a long hold';
+  }
 }
 
 function draw() {
@@ -85,6 +98,7 @@ function draw() {
   textSize(16);
   text('hold space — charge: ' + charge, 14, 24);
   text('a hold counts after ' + kb.holdThreshold + ' frames', 14, 48);
+  text('last release: ' + lastRelease, 14, 72);
 }`,
     },
     {
@@ -147,7 +161,9 @@ To tell the buttons apart, give the button's name: mouse.presses('right') is the
 
 mouse.x and mouse.y are world coordinates — they already include the camera, so comparing them to a sprite's x and y always works. mouse.canvasPos is the same cursor measured in screen pixels instead. Use it for anything pinned to the screen rather than the world, like a HUD button: once the camera scrolls, mouse.x is somewhere out in the level while canvasPos is still where the cursor looks like it is.
 
-Combine mouse position with world.getSpriteAt(x, y) to build click-to-select or drag interactions.`,
+Combine mouse position with world.getSpriteAt(x, y) to build click-to-select or drag interactions.
+
+The example shows the position three ways (mouse.x and mouse.y, mouse.pos and mouse.canvasPos) and counts how many frames the left and right buttons have been held with mouse.left and mouse.right. With a camera that has not moved, the world position and canvasPos match. Hold each button and watch its number climb.`,
       code: `let dot;
 
 function setup() {
@@ -174,6 +190,10 @@ function draw() {
   fill('white');
   textSize(14);
   text('x: ' + Math.round(mouse.x) + '  y: ' + Math.round(mouse.y), 14, 22);
+  text('pos: ' + Math.round(mouse.pos.x) + ', ' + Math.round(mouse.pos.y), 14, 44);
+  text('canvasPos: ' + Math.round(mouse.canvasPos.x) + ', ' + Math.round(mouse.canvasPos.y), 14, 66);
+  text('left button held for: ' + mouse.left + ' frames', 14, 88);
+  text('right button held for: ' + mouse.right + ' frames', 14, 110);
 }`,
     },
     {
@@ -185,9 +205,13 @@ button.mouse.hovering() is true while the pointer is over the sprite. button.mou
 
 button.mouse.presses() is true on the frame a click starts on the sprite. button.mouse.pressing() stays true while the button is held down, even if the pointer slides off the sprite, which is just what dragging needs. button.mouse.released() is true on the frame you let go. Like mouse.presses(), each can take 'left', 'center' or 'right'.
 
+button.mouse.dragging() counts the frames the pointer has moved while a press that began on the sprite is held, and is 0 when there is no such drag. Use it to carry a sprite along with the pointer.
+
 To hide the pointer, for a game with its own crosshair sprite, write mouse.visible = false. mouse.visible = true brings it back. mouse.pressing() (no sprite) is true while any mouse button is down anywhere.`,
       code: `let button, crosshair;
 let hoverCount = 0;
+let releaseCount = 0;
+let dragFrames = 0;
 
 function setup() {
   new Canvas(400, 300);
@@ -223,6 +247,14 @@ function update() {
     button.text = 'Clicked!';
   }
 
+  // released() is true once, on the frame you let go of the button
+  if (button.mouse.released()) {
+    releaseCount += 1;
+  }
+
+  // dragging() counts the frames the pointer moved while pressing the button
+  dragFrames = button.mouse.dragging();
+
   // hovers() is true once, on the frame the pointer arrives
   if (button.mouse.hovers()) {
     hoverCount += 1;
@@ -242,6 +274,54 @@ function drawTop() {
   fill('white');
   textSize(14);
   text('times the pointer arrived: ' + hoverCount, 14, 24);
+  text('times you let go on the button: ' + releaseCount, 14, 44);
+  text('frames dragging from the button: ' + dragFrames, 14, 64);
+}`,
+    },
+    {
+      id: 'holding-the-mouse',
+      title: "Holding a mouse button",
+      body: `The mouse has the same four hold verbs as the keyboard ("Holding a key"), and each takes a button name: 'left', 'center' or 'right'. With nothing in the brackets they answer for any button.
+
+mouse.holds() fires exactly once, the frame the button has been held for mouse.holdThreshold frames (12 by default, about a fifth of a second). mouse.holding() is the number of frames the button has been held past that threshold, and is 0 before it. mouse.held() fires exactly once, the frame the button comes back up after a long hold. A quick click never fires held(), which is how you tell a click from a press-and-hold.
+
+You can change mouse.holdThreshold. mouse.holdThreshold = 30 makes a hold count only after half a second.
+
+The example grows a circle while you hold the left button and shows each answer. Let go after a long hold and the circle stays as big as it got. A quick click does nothing, because the hold never started.`,
+      code: `let ball;
+let message = 'press and hold the left button';
+
+function setup() {
+  new Canvas(400, 300);
+  world.gravity.y = 0;
+  mouse.holdThreshold = 30; // a hold counts after 30 frames
+  ball = new Sprite(200, 150, 30);
+  ball.color = 'tomato';
+  ball.collider = 'none';
+}
+
+function update() {
+  if (mouse.holds('left')) {
+    message = 'the hold just started';
+  }
+  if (mouse.holding('left') > 0) {
+    ball.diameter = 30 + mouse.holding('left');
+  }
+  if (mouse.held('left')) {
+    message = 'let go after a long hold';
+  }
+}
+
+function draw() {
+  background('#222');
+}
+
+function drawTop() {
+  fill('white');
+  textSize(14);
+  text(message, 14, 24);
+  text('holding: ' + mouse.holding('left') + ' frames', 14, 44);
+  text('a hold counts after ' + mouse.holdThreshold + ' frames', 14, 64);
 }`,
     },
     {
@@ -288,6 +368,8 @@ mouse.drags() is true on the first frame of a drag, mouse.dragging() counts the 
 
 mouse.scrollDelta has an x and a y for how far the wheel moved since the last frame, and is 0 when it did not move. mouse.cursor changes the shape of the pointer over the canvas, with a CSS cursor name: mouse.cursor = 'pointer' gives a pointing hand, and mouse.cursor = 'none' hides it. (mouse.visible = false also hides it; see "The mouse and a sprite".)
 
+mouse.drag is the raw counter behind those three. mouse.drag('left') gives its number for a button, and mouse.drag.left, mouse.drag.center and mouse.drag.right read each one directly. It counts up while the pointer moves with the button held, and is negative for one frame when the drag ends. Most games use dragging() instead.
+
 mouse.center counts how many frames the middle button has been held (mouse.left and mouse.right do the same for their buttons), and is 0 when it is up.
 
 mouse.pressed(button) and mouse.releases(button) are old names, like the kb ones: use presses() and released().
@@ -316,7 +398,7 @@ function update() {
   // the wheel makes the ball bigger or smaller
   if (mouse.scrollDelta.y !== 0) {
     ball.diameter = ball.diameter - mouse.scrollDelta.y / 10;
-    ball.diameter = Math.max(20, Math.min(150, ball.diameter));
+    ball.diameter = constrain(ball.diameter, 20, 150);
   }
 
   // the three drag questions
@@ -338,6 +420,7 @@ function drawTop() {
   textSize(14);
   text(message, 14, 24);
   text('frames dragging: ' + dragFrames, 14, 44);
+  text('mouse.drag(): ' + mouse.drag('left') + '  mouse.drag.right: ' + mouse.drag.right, 14, 104);
   text('middle button held for: ' + mouse.center + ' frames', 14, 64);
   text('ball size: ' + Math.round(ball.diameter), 14, 84);
 }`,

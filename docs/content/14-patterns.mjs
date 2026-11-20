@@ -103,6 +103,7 @@ function setup() {
   player.color = 'deepskyblue';
   player.rotationLock = true;
   player.maxJumps = 2;
+  player.jumpPower = 1.3; // a little higher than a normal jump
 
   platforms = new Group();
   platforms.collider = 'static';
@@ -269,7 +270,7 @@ function setup() {
   pipes.collider = 'none';
 
   spawner = every(45, () => {
-    const p = new pipes.Sprite(420, 40 + Math.random() * 220, 30, 80);
+    const p = new pipes.Sprite(420, random(40, 260), 30, 80);
     p.vel.x = -3;
   });
 

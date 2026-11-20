@@ -81,13 +81,17 @@ If something went wrong, sound.error holds a message and the sound stays silent.
 
 sound.ready is a promise that finishes when the file has loaded, so sound.ready.then(...) runs your code at that moment. masterVolume() with nothing in it tells you the master level, and masterVolume(0.5) sets it.
 
-In the example, press space to play the coin and m to mute or unmute everything with masterVolume(). The screen shows each status value. sound.playing is only true for the moment the coin is ringing, so press space and watch it.`,
+sound.stop() cuts off every copy of the sound that is playing, including a loop. sound.pause() does the same thing: the web cannot resume a stopped sound, so pause() is only another name for stop(), and play() or loop() afterwards starts it again from the beginning.
+
+In the example, press space to play the coin and m to mute or unmute everything with masterVolume(). Press l to start the music loop, s to stop it with sound.stop() and p to pause it with sound.pause(). The screen shows each status value. sound.playing is only true for the moment the coin is ringing, so press space and watch it. For the music it stays true until you stop it.`,
       code: `let coin;
+let song;
 let readyMessage = 'waiting for the file...';
 
 function setup() {
   new Canvas(400, 300);
 
+  song = loadSound('music');
   coin = loadSound('coin');
   // ready finishes when the file has downloaded
   coin.ready.then(() => {
@@ -98,6 +102,15 @@ function setup() {
 function update() {
   if (kb.presses(' ')) {
     coin.play();
+  }
+  if (kb.presses('l')) {
+    song.loop();
+  }
+  if (kb.presses('s')) {
+    song.stop();
+  }
+  if (kb.presses('p')) {
+    song.pause();
   }
   if (kb.presses('m')) {
     if (masterVolume() > 0) {
@@ -123,9 +136,10 @@ function drawTop() {
   text('error: ' + coin.error, 14, 160);
   text('ready: ' + readyMessage, 14, 186);
   text('masterVolume: ' + masterVolume(), 14, 212);
+  text('music playing: ' + song.playing, 14, 238);
   fill('#888');
   textSize(12);
-  text('space = play    m = mute / unmute', 14, 260);
+  text('space = coin   m = mute   l = loop music   s = stop   p = pause', 14, 275);
 }`,
     },
   ],

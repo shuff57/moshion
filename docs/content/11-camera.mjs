@@ -51,8 +51,12 @@ function draw() {
       title: "camera.off() and camera.on()",
       body: `camera.off() makes everything you draw after it ignore the camera, so it stays put on the screen. camera.on() puts the camera back, and the world scrolls again. Use off() before drawing a score or a health bar and on() when you are done. A sprite with screenSpace = true does the same thing for itself.
 
-In the example the camera follows the player along a row of posts. The grey bar is drawn between camera.off() and camera.on(), so it stays in the corner. The grid of dots is drawn after camera.on(), so it scrolls past as the player moves.`,
+camera.isActive tells you which way it is set right now: true while the camera is on (the default), false between camera.off() and camera.on().
+
+In the example the camera follows the player along a row of posts. The grey bar is drawn between camera.off() and camera.on(), so it stays in the corner. The row of gold dots is drawn after camera.on(), so it scrolls past as the player moves. The two lines under the bar print camera.isActive as it was read while drawing the bar and while drawing the dots.`,
       code: `let player;
+let hudActive = true;
+let worldActive = false;
 
 function setup() {
   new Canvas(400, 300);
@@ -85,12 +89,21 @@ function draw() {
   fill('white');
   textSize(14);
   text('x: ' + Math.round(player.x), 20, 28);
+  hudActive = camera.isActive; // false: the camera is off here
   camera.on();
+  worldActive = camera.isActive; // true: the camera is back on
 
   fill('gold');
   for (let x = 0; x < 2000; x += 100) {
     circle(x, 60, 12);
   }
+}
+
+function drawTop() {
+  fill('white');
+  textSize(13);
+  text('camera.isActive while drawing the bar: ' + hudActive, 10, 106);
+  text('camera.isActive while drawing the dots: ' + worldActive, 10, 126);
 }`,
     },
   ],

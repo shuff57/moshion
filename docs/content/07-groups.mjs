@@ -207,7 +207,7 @@ function setup() {
 
 function update() {
   if (frameCount % 10 === 0) {
-    new drops.Sprite(Math.random() * 400, 0);
+    new drops.Sprite(random(0, 400), 0);
   }
   for (const d of [...drops]) {
     d.y += 3;
@@ -247,7 +247,7 @@ function setup() {
 
 function update() {
   if (frameCount % 10 === 0) {
-    new drops.Sprite(Math.random() * 400, 0);
+    new drops.Sprite(random(0, 400), 0);
   }
   for (const d of drops) {
     d.y += 3;
@@ -305,34 +305,54 @@ Each sprite gets its own copy of the value on spawn, so changing one enemy's hp 
 
 This is how you keep gameplay data attached to the right sprite. Tag sprites with custom fields like .hp, .score, .kind, or anything else your game needs, and read them back off the individual sprite during collisions.
 
+In the example, walk the white player into the red enemies with the arrow keys. Each touch takes 1 off that enemy's hp, and e.text = e.hp writes the number on it. Back away and touch it again for another hit. At 0 the enemy is deleted.
+
 Pick names the sprite doesn't already use. A sprite has built-in properties, and a field with the same name drives the built-in one instead of making a new field: speed sets its velocity (and reads back 0 on a static sprite), life deletes it after that many frames, direction turns it, and text draws a label on it. The same goes for color, scale, mass, x, y, w, h, d, r, width, height, visible and removed. Use names like hp, moveSpeed, heading or label. This matters most in a class that extends Sprite, where this.speed = 5 looks like your own field and isn't.`,
       code: `let player, enemies;
 
 function setup() {
   new Canvas(400, 400);
   world.gravity.y = 0;
-  player = new Sprite(200, 200, 20);
+  player = new Sprite(150, 340, 20);
   player.color = 'white';
 
   enemies = new Group();
   enemies.color = 'tomato';
-  enemies.diameter = 20;
+  enemies.diameter = 36;
+  enemies.collider = 'none';
+  enemies.textColor = 'white';
   enemies.hp = 3;
 
   for (let i = 0; i < 4; i++) {
-    new enemies.Sprite(80 + i * 70, 80);
+    new enemies.Sprite(50 + i * 100, 100);
   }
 }
 
 function update() {
-  if (player.overlaps(enemies)) {
-    for (const e of [...enemies]) { // a copy: deleting changes the group
-      if (player.overlaps(e)) {
-        e.hp -= 1;
-        if (e.hp <= 0) {
-          e.delete();
-        }
-      }
+  // arrow keys move the player into the enemies
+  if (kb.pressing('left')) {
+    player.vel.x = -3;
+  } else if (kb.pressing('right')) {
+    player.vel.x = 3;
+  } else {
+    player.vel.x = 0;
+  }
+  if (kb.pressing('up')) {
+    player.vel.y = -3;
+  } else if (kb.pressing('down')) {
+    player.vel.y = 3;
+  } else {
+    player.vel.y = 0;
+  }
+
+  for (const e of [...enemies]) { // a copy: deleting changes the group
+    // overlapping(e) === 1 is the first frame of a touch: one hit per touch
+    if (player.overlapping(e) === 1) {
+      e.hp -= 1;
+    }
+    e.text = e.hp; // each enemy shows its own hp
+    if (e.hp <= 0) {
+      e.delete();
     }
   }
 }

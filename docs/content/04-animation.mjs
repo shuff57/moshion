@@ -171,7 +171,7 @@ Animated ones to try: coinSpin (and coinSilverSpin, coinBronzeSpin), starTwinkle
 
 Every animation loops unless you set sprite.texture.loop = false, which plays it once and stops on the last picture. Two are made to play once: heartLose (a heart flashes, then shows half) and boom (an explosion that grows and fades). Show them for one loop, then change the picture or remove the sprite. heartLose shows 6 pictures for 10 frames each, so after(60, () => { heart.texture = 'heartHalf'; }). boom shows 6 pictures for 6 frames each, so after(36, () => { blast.remove(); }).
 
-The example below puts a few names on sprites in a row, and writes each name under its picture with text(). It also asks sprite.texture.toString() for the name of the picture a sprite is showing, and hasTexture(name) whether a name exists.`,
+The example below puts a few names on sprites in a row, and writes each name under its picture with text(). It also asks hasTexture(name) whether a name exists.`,
       code: `let names = ['coin', 'gem', 'heart', 'slime', 'coinSpin', 'torchFlicker'];
 
 function setup() {

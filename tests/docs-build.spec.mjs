@@ -7,7 +7,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ROOT } from './harness.mjs';
-import { build, parseTypings, buildReference, shortDoc, validate, fnBody, deletesWhileLooping, shorthandIssues, namesWithoutExamples } from '../scripts/build-docs.mjs';
+import { build, parseTypings, buildReference, shortDoc, validate, fnBody, deletesWhileLooping, shorthandIssues, namesWithoutExamples, proseShorthand } from '../scripts/build-docs.mjs';
 
 const results = [];
 function check(name, pass, detail = '') {
@@ -78,7 +78,7 @@ check('D18 shorthand is refused: a body without { }, a one-line arrow, a ternary
   sh('if (a) {\n  b();\n} else c();').join() === 'else without { }' &&
   sh('let f = (n) => n * 2;').join() === 'an arrow function without a { } body' &&
   sh('let x = a ? 1 : 2;').join() === 'a ? b : c; write it as if / else' &&
-  sh('if (a) { b(); }').join() === 'statements on the same line as { ; put each on its own line',
+  sh('if (a) { b(); }').includes('statements on the same line as { ; put each on its own line'),
   sh('let x = a ? 1 : 2;'));
 check('D19 proper code passes: braces, else if, do-while, ?. and ??, and shorthand inside strings or comments',
   sh('if (a) {\n  b();\n} else if (c) {\n  d();\n} else {\n  e();\n}\ndo {\n  n++;\n} while (n < 3);\nlet f = (n) => {\n  return n;\n};\nlet y = s?.x ?? 0;\ntext(\'a ? b : c\', 1, 1); // if (a) b();\nlet o = { x: 1 };').length === 0,
@@ -91,6 +91,29 @@ check('D20 a name is covered only by code, never by a comment or a string; depre
   names("ellipse(1); // noLoop()\ntext('s.w', 1, 1);", tinyDts).sort().join() === 'Sprite.w,noLoop' &&
   names('ellipse(1);\nnoLoop();\nlet q = s.w;', tinyDts).length === 0,
   names("ellipse(1); // noLoop()\ntext('s.w', 1, 1);", tinyDts));
+
+check('D21 shorthand hidden inside a template\'s ${ }, a second statement on a line, and do without { } are refused',
+  sh('let s = `${a ? 1 : 2}`;').join() === 'a ? b : c; write it as if / else' &&
+  sh('let t = `${xs.map((n) => n * 2)}`;').join() === 'an arrow function without a { } body' &&
+  sh('let a = 1; let b = 2;').length === 1 &&
+  sh('if (a) {\n  b(); }').length === 1 &&
+  sh('do n++; while (n < 3);').includes('do without { }'),
+  sh('let s = `${a ? 1 : 2}`;'));
+check('D22 a regular expression is not code: /it\'s/ does not open a string, /=>/ is not an arrow, a / b / c still divides',
+  sh("let r = /it's/;\nif (a) b();").join() === 'if without { }' &&
+  sh('let r = /=>/;').length === 0 && sh('let q = a / b / c;').length === 0,
+  sh("let r = /it's/;\nif (a) b();"));
+check('D23 prose snippets are checked too; a braced one-liner in a sentence is fine',
+  proseShorthand('call cull(0, s => s.y = 0) to wrap').length === 1 &&
+  proseShorthand('pan is x < 0 ? -1 : 1 here').length === 1 &&
+  proseShorthand('like if (hit) score++ every time').length === 1 &&
+  proseShorthand('cull(0, (s) => { s.y = 0; }) and if (hit) { score++; }, or if (it is wet) you slip').length === 0,
+  proseShorthand('cull(0, (s) => { s.y = 0; }) and if (hit) { score++; }, or if (it is wet) you slip'));
+const kinds = 'declare class Ani {\n  /** a */\n  pause(): void;\n}\ndeclare class Sound {\n  /** b */\n  pause(): void;\n}\ndeclare function loadSound(u: string): Sound;';
+check('D24 a name two kinds share needs an example on each kind: a texture\'s pause() is not a sound\'s',
+  names("let s = loadSound('coin');\nlet t = player.texture;\nplayer.texture.pause();", kinds).join() === 'Sound.pause' &&
+  names("let s = loadSound('coin');\nplayer.texture.pause();\ns.pause();", kinds).length === 0,
+  names("let s = loadSound('coin');\nplayer.texture.pause();", kinds));
 
 let failed = 0;
 for (const [name, pass, detail] of results) {
