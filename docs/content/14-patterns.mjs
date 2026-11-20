@@ -120,6 +120,10 @@ function update() {
   }
 }
 
+function draw() {
+  background('#222');
+}
+
 function drawTop() {
   fill('white');
   text('Jumps left: ' + player.jumpsLeft, 12, 24);

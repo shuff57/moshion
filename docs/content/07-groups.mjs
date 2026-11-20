@@ -257,7 +257,7 @@ function setup() {
 
 function update() {
   if (player.overlaps(enemies)) {
-    for (const e of enemies) {
+    for (const e of [...enemies]) { // a copy: deleting changes the group
       if (player.overlaps(e)) { e.hp -= 1; if (e.hp <= 0) e.delete(); }
     }
   }

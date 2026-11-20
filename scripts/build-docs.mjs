@@ -248,6 +248,14 @@ export function validate(sections) {
       ids.add(p.id);
       if (!p.title || !p.body) errs.push(`${where}: a page needs a title and a body`);
       if (s.slug !== 'reference' && /\bpages? \d/i.test(p.body)) errs.push(`${where}: names another page by number; name it by its title instead`);
+      if (p.code && /new\s+(?:\w+\.)?Sprite\b|\btext\(/.test(p.code) && !/\bbackground\(|\bclear\(\)/.test(p.code)) {
+        errs.push(`${where}: the example never clears the canvas; start draw() with background(...) so moving things do not smear`);
+      }
+      for (const m of (p.code || '').matchAll(/for\s*\(\s*(?:const|let|var)\s+(\w+)\s+of\s+([\w.]+)\s*\)\s*\{([\s\S]*?)\n\s*\}/g)) {
+        if (new RegExp(`\\b${m[1]}\\.(delete|remove)\\(`).test(m[3])) {
+          errs.push(`${where}: deletes while looping over ${m[2]} itself; loop over a copy, [...${m[2]}], so no sprite is skipped`);
+        }
+      }
       const draw = p.code && /function draw\(\)\s*\{([\s\S]*?)\n\}/.exec(p.code);
       if (draw && GAME_LOGIC.test(draw[1])) errs.push(`${where}: the example reads keys or moves sprites in draw(); the rules of a game go in update()`);
     }

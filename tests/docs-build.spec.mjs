@@ -7,7 +7,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ROOT } from './harness.mjs';
-import { build, parseTypings, buildReference, shortDoc } from '../scripts/build-docs.mjs';
+import { build, parseTypings, buildReference, shortDoc, validate } from '../scripts/build-docs.mjs';
 
 const results = [];
 function check(name, pass, detail = '') {
@@ -47,6 +47,15 @@ check('D11 world.origin names both of its values and ends on a whole sentence',
   /\.$/.test(line('world.origin')) && !/,\./.test(line('world.origin')), line('world.origin'));
 check('D12 camera.off() keeps the quoted words inside its sentence', /^Draw in screen space from here on — for HUDs and overlays\. In math mode "screen space" is still centred/.test(line('camera.off()')), line('camera.off()'));
 check('D13 the collider kinds stay a list', /'dynamic' moves, falls, gets pushed \(the default\); 'static' never moves/.test(line('sprite.collider')), line('sprite.collider'));
+
+// The example rules catch what they are for (a page that breaks one is refused).
+const probe = (code) => validate([{ slug: 'x', title: 'X', pages: [{ id: 'p', title: 'P', body: 'b', code }] }]);
+check('D14 an example that moves sprites but never clears the canvas is refused',
+  probe('function setup() { new Canvas(400, 300); new Sprite(10, 10); }').some((e) => /never clears the canvas/.test(e)) &&
+  probe('function setup() { new Canvas(400, 300); new Sprite(10, 10); }\nfunction draw() { background(0); }').length === 0);
+check('D15 deleting while looping over the group itself is refused; over a copy it is fine',
+  probe('function update() {\n  for (const e of enemies) {\n    e.delete();\n  }\n}\nfunction draw() { background(0); }').some((e) => /loop over a copy/.test(e)) &&
+  probe('function update() {\n  for (const e of [...enemies]) {\n    e.delete();\n  }\n}\nfunction draw() { background(0); }').length === 0);
 
 let failed = 0;
 for (const [name, pass, detail] of results) {
