@@ -10,10 +10,17 @@ hand-authored JavaScript facade over [planck.js][] (a pure-JS/TS port of
 Box2D). There is no build step, no bundler and no linter configured. The only
 tooling is the Playwright spec suite under `tests/`.
 
-- `moshion.js` (~4,100 lines) — the entire engine. Edit directly; do not split
+- `moshion.js` (~5,400 lines) — the entire engine. Edit directly; do not split
   without discussion.
-- `docs/moshion.d.ts` (~1,000 lines) — public API types. Keep in sync with
-  runtime behavior in `moshion.js`.
+- `docs/moshion.d.ts` (~1,200 lines) — public API types. Keep in sync with
+  runtime behavior in `moshion.js`. Every name's doc comment is also its line in
+  the docs' generated API reference, so write it for a beginner.
+- `docs/content/*.mjs` — THE docs, one file per section, every page with a
+  permanent `id` (never rename one). `node scripts/build-docs.mjs` turns them,
+  plus a reference generated from `docs/moshion.d.ts`, into
+  `docs/data/moshion-docs.js`, which the docs site and shCode (through its
+  `npm run sync:moshion`) both read. Never edit `docs/data/` by hand;
+  `node scripts/build-docs.mjs --check` fails when it is stale.
 - `planck.min.js` — vendored planck.js v1.5.0 (MIT). Do not edit.
 - `runner.html` — sandbox host used by the app's preview iframes
   (`/moshion/runner.html`; the sketch rides the postMessage bridge, with
@@ -22,7 +29,7 @@ tooling is the Playwright spec suite under `tests/`.
   live editor. Both embed `runner.html` in a sandboxed iframe.
 - `games/*.js` — the six demo sketches the homepage loads by `fetch`.
 - `tests/*.spec.mjs` — browser specs driving the real surface (see Commands).
-- `textures/` — the `sprite.texture = 'name'` catalog: 40 PNGs plus a
+- `textures/` — the `sprite.texture = 'name'` catalog: 105 PNGs plus a
   generated `textures.json` / `textures.js`. **Generated, not hand-edited.**
   Regenerate with `python scripts/make-textures.py`; adding a texture means
   adding a name -> tile index there, never dropping a PNG in by hand.
@@ -209,8 +216,11 @@ any change once a sprite exists, gravity is non-zero or a frame has run.
   untransformed at render time and has `getTransform()` (the shCode node
   harness's stub has none, so it never culls there).
 - **`group.remove(sprite)` only unparents** — the sprite keeps existing,
-  drawing, and running physics. `sprite.delete()` (alias `remove()`) is full
-  destruction: destroys the body and unparents from every group.
+  drawing, and running physics, and the console warns once (`_warnOnce`)
+  because a beginner writing `coins.remove(c)` means destroy. `sprite.delete()`
+  (alias `remove()`) is full destruction: destroys the body and unparents from
+  every group. `kb.pressed`/`mouse.pressed` warn once the same way (they are
+  up-edge aliases of `released()`, as in p5play).
 - **`sprite.image` heuristic:** a string with no `.` is an emoji placeholder
   (`'🧍'`), anything else is an image URL. Mutually exclusive with an active
   `ani`.

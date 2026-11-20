@@ -21,7 +21,8 @@ The whole API is a handful of globals: `Sprite`, `Group`, `world`, `camera`,
 
 ## Runtime layout
 
-- `moshion.js` — the entire engine (~2,800 lines, hand-authored, no build step).
+- `moshion.js` — the entire engine (~5,400 lines, hand-authored, no build step).
+- `docs/content/` — the docs, one file per section; `node scripts/build-docs.mjs` builds `docs/data/moshion-docs.js` from them and `docs/moshion.d.ts`.
 - `planck.min.js` — planck.js v1.5.0 (Box2D port), MIT.
 - `runner.html` — sandbox host: loads planck + moSHion, injects a student sketch
   from `?code=<base64url>`, pipes console/errors back to the parent app.
