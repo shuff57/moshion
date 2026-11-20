@@ -1345,7 +1345,7 @@ declare function storeItem(name: string, val: any): void;
 declare function getItem(name: string): any;
 /** Forgets the value saved under a name. */
 declare function removeItem(name: string): void;
-/** Forgets every saved value. */
+/** Forgets every value saved with storeItem, by every sketch on the site; saved pictures, sounds and fonts are kept. */
 declare function clearStorage(): void;
 
 // ---- drawing primitives ---------------------------------------------------

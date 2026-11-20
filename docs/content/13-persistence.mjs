@@ -57,7 +57,7 @@ function draw() {
     {
       id: 'clear-load-json',
       title: "Erasing and loading files: clearStorage and loadJSON",
-      body: `clearStorage() forgets everything stored with storeItem, by this sketch AND by every other sketch on the site, because they share one store. After it, getItem on any name gives null. Saved pictures, sounds and fonts are kept: it only erases saves. For a Reset button, remove just your own names with removeItem('highScore') instead.
+      body: `clearStorage() forgets everything stored with storeItem, by this sketch AND by every other sketch on the site, because they share one store. After it, getItem on any name you saved gives null. Saved pictures, sounds and fonts are kept: it only erases saves. For a Reset button, remove just your own names with removeItem('highScore') instead.
 
 loadJSON(path, callback) reads a JSON file and hands the data to your callback when it arrives: loadJSON('level1.json', (data) => { level = data; }). It also returns an object that fills in once the file has loaded. Outside preload() the callback form is the one to rely on, because a file takes a moment to arrive. Inside preload() ("Getting files ready: preload()" in Start here) the game waits for the file, so levels = loadJSON('levels.json') in preload() is filled in by setup(). A file that cannot load says so in the console.`,
     },
