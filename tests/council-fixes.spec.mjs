@@ -306,10 +306,11 @@ async function open(code) {
     const ctorOk = [new Sprite(), new Sprite(50, 50), new Sprite(50, 50, 30), new Sprite(50, 50, Infinity, 10, 'static')].every((t) => Number.isFinite(t.x));
     const ctorCount = allSprites.length - before;
     const forceMsg = err(() => s.applyForce(undefined, 0));
+    const colliderFirst = err(() => new Sprite(100, 100, 'static'));
     const nanVel = err(() => { s.vel = { x: NaN, y: 0 }; });
     const nanPos = err(() => { s.pos = [Infinity, 0]; });
     const vAfter = [s.vel.x, s.vel.y];
-    return { a, b, c, mag, unit, copyIsolated: s.vel.x !== 99, p, chain, keys: Object.keys(s.vel), addX, badAdd, badDiv, after, plainXY, nanVel, nanPos, vAfter, halfXY, plainBad, axisBad, axisAfter, named, g0, gAfter, gLive, arrSet, arrAddXY, ctor, multNone, distBad, distOk, phys, physAfter, ctorBad, ctorOk, ctorCount, forceMsg };
+    return { a, b, c, mag, unit, copyIsolated: s.vel.x !== 99, p, chain, keys: Object.keys(s.vel), addX, badAdd, badDiv, after, plainXY, nanVel, nanPos, vAfter, halfXY, plainBad, axisBad, axisAfter, named, g0, gAfter, gLive, arrSet, arrAddXY, ctor, multNone, distBad, distOk, phys, physAfter, ctorBad, ctorOk, ctorCount, forceMsg, colliderFirst };
   });
   check('C5g vel.add(2) adds to x only (a missing y is 0); vel.add("a") and vel.div(0) are refused in words and change nothing',
     m.addX[0] === 3 && m.addX[1] === 1 && /needs numbers/.test(m.badAdd || '') && /divided by 0/.test(m.badDiv || '') &&
@@ -339,6 +340,7 @@ async function open(code) {
     m.ctorBad.every((e) => /^new Sprite\(x, y, w, h, collider\): [xywh] must be a number, like new Sprite\(200, 150, 40, 40\)/.test(e || '')) &&
     m.ctorOk && m.ctorCount === 4,
     { ctorBad: m.ctorBad, ctorOk: m.ctorOk, ctorCount: m.ctorCount });
+  check('C5q new Sprite(100, 100, "static") says the collider name goes after the size', /goes after the size: new Sprite\(200, 150, 40, 40, "static"\)/.test(m.colliderFirst || ''), m.colliderFirst);
   check('C5p the force message gives a line a student can copy', /like sprite\.applyForce\(5, 0\)/.test(m.forceMsg || ''), m.forceMsg);
   check('C5h createVector(1, 1).add(2) is (3, 1); a NaN or Infinity assigned to vel or pos is refused in words and changes nothing',
     m.plainXY[0] === 3 && m.plainXY[1] === 1 && /must be a point/.test(m.nanVel || '') && /must be a point/.test(m.nanPos || '') &&

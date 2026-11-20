@@ -984,6 +984,10 @@
       // body exists, so new Sprite(x, 100) with x never set says so instead
       // of making a sprite that is nowhere.
       const ex = 'new Sprite(200, 150, 40, 40)';
+      if (typeof w === 'string' && /^(static|dynamic|kinematic|none)$/i.test(w)) {
+        throw new TypeError(`${sig}: w must be a number. A collider name like ${_show(w)} goes after the size: ` +
+          `new Sprite(200, 150, 40, 40, ${_show(w)})`);
+      }
       _num(x, `${sig}: x`, ex);
       _num(y, `${sig}: y`, ex);
       if (w !== undefined) _size(w, `${sig}: w`, ex);
