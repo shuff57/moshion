@@ -30,9 +30,11 @@ tests are the Playwright spec suite under `tests/`.
   live editor. Both embed `runner.html` in a sandboxed iframe.
 - `games/*.js` — the six demo sketches the homepage loads by `fetch`.
 - `tests/*.spec.mjs` — browser specs driving the real surface (see Commands).
-- `textures/` — the `sprite.texture = 'name'` catalog: 105 PNGs plus a
+- `textures/` — the `sprite.texture = 'name'` catalog: 126 PNGs plus a
   generated `textures.json` / `textures.js`. **Generated, not hand-edited.**
-  Regenerate with `python scripts/make-textures.py`; adding a texture means
+  Regenerate with `python scripts/make-textures.py` (then, on a fresh checkout,
+  `make-anim-sheets.py` and `make-textures.py` again: the 21 animated sheets
+  start from the tiles the first pass cuts out); adding a texture means
   adding a name -> tile index there, never dropping a PNG in by hand.
   Third-party CC0 art (Kenney) -- see LICENSE.md section 5, not section 1.
   `scripts/check-textures.mjs` gates the pipeline, including that `runner.html`

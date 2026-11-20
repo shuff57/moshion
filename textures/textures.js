@@ -9,13 +9,18 @@ window.MOSHION_TEXTURES = {
     "characters": [
       "player",
       "playerBeige",
+      "playerBeigeJump",
       "playerBeigeWalk",
       "playerBlue",
+      "playerBlueJump",
       "playerBlueWalk",
+      "playerJump",
       "playerPink",
+      "playerPinkJump",
       "playerPinkWalk",
       "playerWalk",
       "playerYellow",
+      "playerYellowJump",
       "playerYellowWalk",
       "runner",
       "runnerJump"
@@ -23,18 +28,28 @@ window.MOSHION_TEXTURES = {
     "pickups": [
       "coin",
       "coinBronze",
+      "coinBronzeSpin",
       "coinSilver",
+      "coinSilverSpin",
+      "coinSpin",
       "gem",
       "gemGreen",
+      "gemGreenSparkle",
       "gemOrange",
+      "gemOrangeSparkle",
+      "gemSparkle",
       "gemYellow",
+      "gemYellowSparkle",
       "heart",
+      "heartBlink",
       "heartHalf",
+      "heartLose",
       "key",
       "keyBlue",
       "keyGreen",
       "keyOrange",
-      "star"
+      "star",
+      "starTwinkle"
     ],
     "blocks": [
       "block",
@@ -46,7 +61,8 @@ window.MOSHION_TEXTURES = {
       "exitSign",
       "mushroom",
       "mushroomBrown",
-      "torch"
+      "torch",
+      "torchFlicker"
     ],
     "creatures": [
       "bat",
@@ -89,8 +105,12 @@ window.MOSHION_TEXTURES = {
       "apple",
       "flag",
       "flagBlue",
+      "flagBlueWave",
       "flagGreen",
+      "flagGreenWave",
       "flagRed",
+      "flagRedWave",
+      "flagWave",
       "lever",
       "lock",
       "lockGreen",
@@ -100,6 +120,7 @@ window.MOSHION_TEXTURES = {
     ],
     "battle": [
       "blaster",
+      "boom",
       "burst",
       "burstBlue",
       "burstGreen",
@@ -782,6 +803,174 @@ window.MOSHION_TEXTURES = {
       "w": 24,
       "h": 24,
       "group": "characters"
+    },
+    "coinSpin": {
+      "file": "coinSpin.png",
+      "w": 126,
+      "h": 21,
+      "group": "pickups",
+      "frames": 6,
+      "frameDelay": 9
+    },
+    "coinSilverSpin": {
+      "file": "coinSilverSpin.png",
+      "w": 126,
+      "h": 21,
+      "group": "pickups",
+      "frames": 6,
+      "frameDelay": 9
+    },
+    "coinBronzeSpin": {
+      "file": "coinBronzeSpin.png",
+      "w": 126,
+      "h": 21,
+      "group": "pickups",
+      "frames": 6,
+      "frameDelay": 9
+    },
+    "heartBlink": {
+      "file": "heartBlink.png",
+      "w": 42,
+      "h": 21,
+      "group": "pickups",
+      "frames": 2,
+      "frameDelay": 20
+    },
+    "heartLose": {
+      "file": "heartLose.png",
+      "w": 126,
+      "h": 21,
+      "group": "pickups",
+      "frames": 6,
+      "frameDelay": 10
+    },
+    "gemSparkle": {
+      "file": "gemSparkle.png",
+      "w": 168,
+      "h": 21,
+      "group": "pickups",
+      "frames": 8,
+      "frameDelay": 9
+    },
+    "gemGreenSparkle": {
+      "file": "gemGreenSparkle.png",
+      "w": 168,
+      "h": 21,
+      "group": "pickups",
+      "frames": 8,
+      "frameDelay": 9
+    },
+    "gemYellowSparkle": {
+      "file": "gemYellowSparkle.png",
+      "w": 168,
+      "h": 21,
+      "group": "pickups",
+      "frames": 8,
+      "frameDelay": 9
+    },
+    "gemOrangeSparkle": {
+      "file": "gemOrangeSparkle.png",
+      "w": 168,
+      "h": 21,
+      "group": "pickups",
+      "frames": 8,
+      "frameDelay": 9
+    },
+    "starTwinkle": {
+      "file": "starTwinkle.png",
+      "w": 126,
+      "h": 21,
+      "group": "pickups",
+      "frames": 6,
+      "frameDelay": 12
+    },
+    "playerJump": {
+      "file": "playerJump.png",
+      "w": 126,
+      "h": 21,
+      "group": "characters",
+      "frames": 6,
+      "frameDelay": 9
+    },
+    "playerBlueJump": {
+      "file": "playerBlueJump.png",
+      "w": 126,
+      "h": 21,
+      "group": "characters",
+      "frames": 6,
+      "frameDelay": 9
+    },
+    "playerPinkJump": {
+      "file": "playerPinkJump.png",
+      "w": 126,
+      "h": 21,
+      "group": "characters",
+      "frames": 6,
+      "frameDelay": 9
+    },
+    "playerYellowJump": {
+      "file": "playerYellowJump.png",
+      "w": 126,
+      "h": 21,
+      "group": "characters",
+      "frames": 6,
+      "frameDelay": 9
+    },
+    "playerBeigeJump": {
+      "file": "playerBeigeJump.png",
+      "w": 126,
+      "h": 21,
+      "group": "characters",
+      "frames": 6,
+      "frameDelay": 9
+    },
+    "flagWave": {
+      "file": "flagWave.png",
+      "w": 84,
+      "h": 21,
+      "group": "things",
+      "frames": 4,
+      "frameDelay": 12
+    },
+    "flagGreenWave": {
+      "file": "flagGreenWave.png",
+      "w": 84,
+      "h": 21,
+      "group": "things",
+      "frames": 4,
+      "frameDelay": 12
+    },
+    "flagRedWave": {
+      "file": "flagRedWave.png",
+      "w": 84,
+      "h": 21,
+      "group": "things",
+      "frames": 4,
+      "frameDelay": 12
+    },
+    "flagBlueWave": {
+      "file": "flagBlueWave.png",
+      "w": 84,
+      "h": 21,
+      "group": "things",
+      "frames": 4,
+      "frameDelay": 12
+    },
+    "torchFlicker": {
+      "file": "torchFlicker.png",
+      "w": 84,
+      "h": 21,
+      "group": "blocks",
+      "frames": 4,
+      "frameDelay": 11
+    },
+    "boom": {
+      "file": "boom.png",
+      "w": 126,
+      "h": 21,
+      "group": "battle",
+      "frames": 6,
+      "frameDelay": 6
     }
   }
 };

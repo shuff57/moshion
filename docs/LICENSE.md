@@ -135,3 +135,12 @@ They sit in the `textures/` catalog beside the Kenney crops but are not
 covered by section 5; `make-textures.py` lists them separately as `ORIGINAL`.
 The `*Walk`, `*Fly`, `*Swim` and `*Crawl` strips are Kenney tiles placed
 side by side, still exact crops with nothing redrawn.
+
+The 21 animated sheets drawn by `scripts/make-anim-sheets.py` (`coinSpin`,
+`heartBlink`, `heartLose`, the `*Sparkle` gems, `starTwinkle`, the `*Jump`
+players, the `*Wave` flags, `torchFlicker`, `boom`) are different: each one
+starts from a Kenney tile that `make-textures.py` cut out and MOVES it
+(squash and stretch, a narrower copy for a coin's edge, a white flash, a
+column-by-column wave). No other image is read. CC0 allows changing the art,
+so they stay under section 5's CC0, but they are not exact crops;
+`make-textures.py` lists them in `ORIGINAL` with their frame counts.

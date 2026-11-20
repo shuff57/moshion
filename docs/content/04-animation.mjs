@@ -130,29 +130,33 @@ function draw() {
     {
       id: 'texture-catalog',
       title: "Every texture name",
-      body: `moSHion ships 105 pixel-art textures. Every name below works the same way: sprite.texture = 'coin', sprite.texture = 'slime'.
+      body: `moSHion ships 126 pixel-art textures. Every name below works the same way: sprite.texture = 'coin', sprite.texture = 'slime'.
 
-94 are stills; 11 are animated sprite sheets that simply play when you assign the name (see below). The terrain, things, battle, numbers and candy groups are newer: ground to build levels from, flags and switches, swords and shields, the digits 0-9 for a score or a die, and candy.
+94 are stills; 32 are animated sprite sheets that simply play when you assign the name (see below). The terrain, things, battle, numbers and candy groups are newer: ground to build levels from, flags and switches, swords and shields, the digits 0-9 for a score or a die, and candy.
 
 The names, by group —
 
-characters: player, playerBlue, playerPink, playerYellow, playerBeige, runnerJump, playerWalk, playerBlueWalk, playerPinkWalk, playerYellowWalk, playerBeigeWalk, runner
+characters: player, playerBeige, playerBeigeJump, playerBeigeWalk, playerBlue, playerBlueJump, playerBlueWalk, playerJump, playerPink, playerPinkJump, playerPinkWalk, playerWalk, playerYellow, playerYellowJump, playerYellowWalk, runner, runnerJump
 
-pickups: coin, coinSilver, coinBronze, star, heart, heartHalf, gem, gemGreen, gemYellow, gemOrange, key, keyGreen, keyBlue, keyOrange
+pickups: coin, coinBronze, coinBronzeSpin, coinSilver, coinSilverSpin, coinSpin, gem, gemGreen, gemGreenSparkle, gemOrange, gemOrangeSparkle, gemSparkle, gemYellow, gemYellowSparkle, heart, heartBlink, heartHalf, heartLose, key, keyBlue, keyGreen, keyOrange, star, starTwinkle
 
-blocks: crate, crateX, block, door, torch, bomb, mushroom, mushroomBrown, cactus, exitSign
+blocks: block, bomb, cactus, crate, crateX, door, exitSign, mushroom, mushroomBrown, torch, torchFlicker
 
-creatures: slime, slimeBlue, bee, bat, ghost, fish, fishPink, bird, snail, ladybug, worm, frog, monster, batFly, beeFly, fishSwim, ladybugWalk, snailCrawl
+creatures: bat, batFly, bee, beeFly, bird, fish, fishPink, fishSwim, frog, ghost, ladybug, ladybugWalk, monster, slime, slimeBlue, snail, snailCrawl, worm
 
-terrain: grass, sand, snow, stone, brick, brickTan, water, waterDeep, lava, lavaDeep, ice, spikes, tree, bush, rock
+terrain: brick, brickTan, bush, grass, ice, lava, lavaDeep, rock, sand, snow, spikes, stone, tree, water, waterDeep
 
-things: flag, flagGreen, flagRed, flagBlue, sign, signArrow, lock, lockGreen, spring, lever, apple
+things: apple, flag, flagBlue, flagBlueWave, flagGreen, flagGreenWave, flagRed, flagRedWave, flagWave, lever, lock, lockGreen, sign, signArrow, spring
 
-battle: sword, swordGold, shield, shieldSilver, shieldGold, blaster, burst, burstGreen, burstOrange, burstBlue
+battle: blaster, boom, burst, burstBlue, burstGreen, burstOrange, shield, shieldGold, shieldSilver, sword, swordGold
 
 numbers: num0, num1, num2, num3, num4, num5, num6, num7, num8, num9
 
-candy: candyOrange, candyGreen, candyYellow, swirl, swirlMint`,
+candy: candyGreen, candyOrange, candyYellow, swirl, swirlMint
+
+Animated ones to try: coinSpin (and coinSilverSpin, coinBronzeSpin), starTwinkle, gemSparkle (and gemGreenSparkle, gemYellowSparkle, gemOrangeSparkle), heartBlink, playerJump (one per player colour, like playerBlueJump), flagWave (one per flag colour), torchFlicker and boom.
+
+Every animation loops unless you set sprite.texture.loop = false, which plays it once and stops on the last picture. Two are made to play once: heartLose (a heart flashes, then shows half) and boom (an explosion that grows and fades). Show them for one loop, then change the picture or remove the sprite. heartLose shows 6 pictures for 10 frames each, so after(60, () => heart.texture = 'heartHalf'). boom shows 6 pictures for 6 frames each, so after(36, () => blast.remove()).`,
     },
     {
       id: 'patterns',
