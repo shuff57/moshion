@@ -20,7 +20,7 @@ Key names are lowercase strings: 'left', 'right', 'up', 'down', 'a', 'w', 'enter
 
 Two players on one keyboard need the opposite: W must move only one of them. Name the arrow itself and it answers for the arrow only: 'arrowUp', 'arrowDown', 'arrowLeft' and 'arrowRight' for one player, 'w', 'a', 's' and 'd' for the other.
 
-There are shorthand properties too: kb.space, kb.enter, kb.shift, kb.arrowUp and friends give the same number kb.pressing() would.
+There are shorthand properties too: kb.space, kb.enter, kb.shift, kb.arrowUp and friends are true or false, the same answer kb.pressing() would give.
 
 Arrow keys and space bar are automatically prevented from scrolling the page.`,
       code: `let player;
@@ -47,7 +47,7 @@ function draw() {
     {
       id: 'holding-a-key',
       title: "Holding a key",
-      body: `kb.pressing('key') isn't just true/false — it's the number of frames the key has been held (0 when idle), so it's still truthy in an if-check but also useful as a charge-up timer.
+      body: `kb.pressing('key') is true or false: is the key down right now? To time how long it has been held, for a charge-up shot, use the hold verbs below.
 
 kb.holds('key') fires exactly once, the frame the hold crosses kb.holdThreshold (12 frames by default — about a fifth of a second at 60fps). kb.holding('key') is the frame count while held past that threshold (0 before it). kb.held('key') fires exactly once, the frame the key comes back up after having been held past the threshold — use it to tell a quick tap apart from a held press.
 

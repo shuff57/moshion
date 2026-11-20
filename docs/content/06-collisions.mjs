@@ -57,7 +57,7 @@ function draw() {
       title: "Overlap callbacks",
       body: `sprite.overlaps(other) returns true if the two sprites intersect (bounding-box math for rectangles, real circle-distance math for two circles). Pass a Group and it returns true if any member overlaps.
 
-You can also pass a callback as the second argument: sprite.overlaps(group, (self, other) => { ... }). The callback fires once per overlapping pair, after the method has finished its own iteration — so it's safe to delete() sprites inside the callback.
+You can also pass a callback as the second argument: sprite.overlaps(group, (self, other) => { ... }). The callback fires once per overlapping pair, while the group is being checked. The check goes through a copy of the group, so it's safe to delete() sprites inside the callback.
 
 This is the cleanest way to collect pickups: player.overlaps(coins, (p, coin) => { score++; coin.delete(); }).`,
       code: `let player, coins;
