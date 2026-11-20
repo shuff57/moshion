@@ -120,12 +120,12 @@ declare class Sprite {
   constructor(x: number, y: number, d: number, collider: Collider);
   constructor(x: number, y: number, w: number, h: number, collider: Collider);
 
-  /** Where the sprite is (its centre). `player.pos = createVector(100, 50)` or `[100, 50]` moves it there. */
-  pos: Vec2;
+  /** Where the sprite is (its centre), live: `player.pos = createVector(100, 50)` or `[100, 50]` moves it there, and Vector methods such as `player.pos.set(100, 50)` work on it too. */
+  pos: Vector;
   /** How fast it moves, in pixels per frame. `player.vel.x = 3`, or `player.vel = createVector(3, 0)` to set both. */
-  vel: Vec2;
+  vel: Vector;
   /** @deprecated Another name for pos: use pos instead. */
-  position: Vec2;
+  position: Vector;
   /** The x of the sprite's centre, in pixels. */
   x: number;
   /** The y of the sprite's centre, in pixels. */
@@ -476,7 +476,7 @@ declare class Sprite {
   /** Another name for r: half the diameter. */
   radius: number;
   /** @deprecated Another name for vel: use vel instead. */
-  velocity: Vec2;
+  velocity: Vector;
 }
 
 /** The four collider types (see Sprite.collider). */

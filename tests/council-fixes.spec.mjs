@@ -205,6 +205,24 @@ async function open(code) {
     plain(r.badNum) && plain(r.badStr) && plain(r.badObj) && plain(r.badGrav) &&
     /^sprite\.vel/.test(r.badNum) && /^sprite\.pos/.test(r.badStr) && /^world\.gravity/.test(r.badGrav),
     { badNum: r.badNum, badStr: r.badStr, badObj: r.badObj, badGrav: r.badGrav });
+  // The Vector methods work on the live vector too (lesson 6.5.4 calls
+  // player.vel.set(0, 0) after player.vel = createVector(0, 0)).
+  const m = await frame.evaluate(() => {
+    const s = new Sprite(50, 50, 10, 10);
+    s.vel.set(2, 1); const a = [s.vel.x, s.vel.y];
+    s.vel.add(1, 1); const b = [s.vel.x, s.vel.y];
+    s.vel.mult(2); const c = [s.vel.x, s.vel.y];
+    s.vel.set({ x: 3, y: 4 }); const mag = s.vel.mag();
+    s.vel.normalize(); const unit = s.vel.mag();
+    const copy = s.vel.copy(); copy.x = 99;
+    s.pos.set(10, 20); const p = [s.x, s.y];
+    const chain = s.vel.set(0, 0) === s.vel;
+    return { a, b, c, mag, unit, copyIsolated: s.vel.x !== 99, p, chain, keys: Object.keys(s.vel) };
+  });
+  check('C5f set/add/mult/mag/normalize/copy work on sprite.vel and sprite.pos, and stay live',
+    m.a[0] === 2 && m.a[1] === 1 && m.b[0] === 3 && m.b[1] === 2 && m.c[0] === 6 && m.c[1] === 4 &&
+    near(m.mag, 5) && near(m.unit, 1) && m.copyIsolated && near(m.p[0], 10) && near(m.p[1], 20) && m.chain &&
+    m.keys.join() === 'x,y', m);
   const errs = [...errors, ...(await frameErrors(page))];
   check('C5e no runtime errors', errs.length === 0, errs);
   await page.close();

@@ -862,6 +862,23 @@
     // Both axes in one write, for whole-vector assignment (so a velocity is
     // never judged half old, half new by the speed-cap note).
     Object.defineProperty(v, '_write', { value: write, enumerable: false });
+    // The Vector methods, so sprite.vel.set(0, 0), pos.add(...) and friends
+    // work on the live vector exactly as on createVector()'s. A sketch that
+    // assigned a Vector used to get one by accident (and lose physics); now it
+    // keeps both. Each change is one write; each returns the live vector.
+    const two = (x, y) => (x && typeof x === 'object' ? [x.x, x.y] : [x, y]);
+    const methods = {
+      set(x, y) { const [a, b] = two(x, y); write(a || 0, b || 0); return v; },
+      copy() { const c = read(); return new Vector(c.x, c.y); },
+      add(x, y) { const [a, b] = two(x, y); const c = read(); write(c.x + a, c.y + b); return v; },
+      sub(x, y) { const [a, b] = two(x, y); const c = read(); write(c.x - a, c.y - b); return v; },
+      mult(n) { const c = read(); write(c.x * n, c.y * n); return v; },
+      div(n) { const c = read(); write(c.x / n, c.y / n); return v; },
+      mag() { const c = read(); return Math.sqrt(c.x * c.x + c.y * c.y); },
+      dist(o) { const c = read(); return Math.sqrt((c.x - o.x) ** 2 + (c.y - o.y) ** 2); },
+      normalize() { const c = read(); const m = Math.sqrt(c.x * c.x + c.y * c.y); if (m !== 0) write(c.x / m, c.y / m); return v; },
+    };
+    for (const [k, fn] of Object.entries(methods)) Object.defineProperty(v, k, { value: fn, enumerable: false });
     return v;
   }
 
