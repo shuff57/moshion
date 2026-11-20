@@ -66,7 +66,7 @@ function draw() {
 
 .rotation is in degrees. 90 is a quarter turn, 180 is a half turn, 360 is a full turn.
 
-.scale uniformly grows or shrinks how the sprite is drawn. The physics body stays the size you created it at, so very large scale values can look strange when the sprite collides.`,
+.scale grows or shrinks how the sprite is drawn: sprite.scale = 2 doubles it both ways, and sprite.scale.x and sprite.scale.y stretch one way at a time. The physics body stays the size you created it at, so very large scale values can look strange when the sprite collides.`,
       code: `let box, spinner;
 
 function setup() {

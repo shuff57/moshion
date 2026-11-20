@@ -7,7 +7,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ROOT } from './harness.mjs';
-import { build, parseTypings, buildReference, shortDoc, validate } from '../scripts/build-docs.mjs';
+import { build, parseTypings, buildReference, shortDoc, validate, fnBody, deletesWhileLooping } from '../scripts/build-docs.mjs';
 
 const results = [];
 function check(name, pass, detail = '') {
@@ -57,6 +57,17 @@ check('D14 an example that moves sprites but never clears the canvas is refused'
 check('D15 deleting while looping over the group itself is refused; over a copy it is fine',
   probe('function update() {\n  for (const e of enemies) {\n    e.delete();\n  }\n}\nfunction draw() { background(0); }').some((e) => /loop over a copy/.test(e)) &&
   probe('function update() {\n  for (const e of [...enemies]) {\n    e.delete();\n  }\n}\nfunction draw() { background(0); }').length === 0);
+
+// fnBody counts braces in code only: a brace in a string, a template or a
+// comment does not end draw() early.
+const tricky = "function draw() {\n  text('}', 10, 10); // }\n  text(\"{\", 1, 1); /* } */ text(`${'}'}`, 2, 2);\n  background(0);\n}\nfunction update() {}";
+check('D16 fnBody is not fooled by braces in strings, templates or comments', /background\(0\)/.test(fnBody(tricky, 'draw')) && !/update/.test(fnBody(tricky, 'draw')),
+  fnBody(tricky, 'draw'));
+
+check('D17 the delete-in-loop rule sees a delete after a nested block, and a loop with no braces; a copy is fine',
+  deletesWhileLooping('for (const e of enemies) {\n  if (e.hp > 0) {\n    e.hp--;\n  }\n  e.delete();\n}').join() === 'enemies' &&
+  deletesWhileLooping('for (const d of drops) d.delete();').join() === 'drops' &&
+  deletesWhileLooping('for (const d of [...drops]) d.delete();').length === 0);
 
 let failed = 0;
 for (const [name, pass, detail] of results) {

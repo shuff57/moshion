@@ -189,7 +189,7 @@ function draw() {
 
 mouse.drags() is true on the first frame of a drag, mouse.dragging() counts the frames the pointer has been moving with a button held, and mouse.dragged() is true on the frame the drag ends. Each takes a button name: 'left', 'center' or 'right'.
 
-mouse.scrollDelta has an x and a y for how far the wheel moved since the last frame, and is 0 when it did not move. mouse.cursor changes the shape of the pointer over the canvas, with a CSS cursor name: mouse.cursor = 'pointer' gives a pointing hand, and mouse.cursor = 'none' hides it. mouse.visible = false hides the pointer too, and mouse.visible = true brings back the one you had before.
+mouse.scrollDelta has an x and a y for how far the wheel moved since the last frame, and is 0 when it did not move. mouse.cursor changes the shape of the pointer over the canvas, with a CSS cursor name: mouse.cursor = 'pointer' gives a pointing hand, and mouse.cursor = 'none' hides it. (mouse.visible = false also hides it; see "The mouse and a sprite".)
 
 mouse.pressed(button) and mouse.releases(button) are old names, like the kb ones: use presses() and released().`,
     },

@@ -22,14 +22,15 @@ function setup() {
   for (let x = 200; x < 2000; x += 300) {
     new Sprite(x, 300, 60, 10, 'static');
   }
-  player = new Sprite(200, 300, 30, 30);
+  player = new Sprite(200, 250, 30, 30); // above the first platform, not inside it
   player.color = 'deepskyblue';
 }
 
 function update() {
   if (kb.pressing('left'))       player.vel.x = -5;
   else if (kb.pressing('right')) player.vel.x = 5;
-  if (kb.presses(' ')) player.vel.y = -8;
+  else                           player.vel.x = 0;
+  if (kb.presses(' ')) player.jump(); // jumps only when standing on something
 
   camera.x += (player.x - camera.x) * 0.1;
   camera.y += (player.y - camera.y) * 0.1;

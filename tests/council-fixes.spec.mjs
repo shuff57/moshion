@@ -118,6 +118,25 @@ async function open(code) {
   await page.close();
 }
 
+// ---- C8: clearStorage() erases sketch saves, never saved art, sounds or fonts
+{
+  const { page, frame } = await open(`
+    var out;
+    function setup() {
+      new Canvas(200, 200);
+      storeItem('highScore', 9);
+      saveTexture('hero', 'data:image/png;base64,iVBORw0KGgo=');
+      clearStorage();
+      out = { score: getItem('highScore'), hero: hasTexture('hero') };
+    }
+    function draw() { background('black'); }
+  `);
+  await waitFrames(frame, 3);
+  const out = await frame.evaluate(() => out);
+  check('C8 clearStorage() forgets storeItem saves but keeps a saved texture', out.score === null && out.hero === true, out);
+  await page.close();
+}
+
 // ---- C3: group.remove(sprite) only unparents, and warns once
 {
   const { page, frame, warns } = await open(`

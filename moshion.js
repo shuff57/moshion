@@ -4921,12 +4921,24 @@
     delete _bridge()[name];
     _postStore({ op: 'remove', key: String(name) });
   }
+  // clearStorage() erases what sketches saved with storeItem, and only that:
+  // saved pictures, sounds and fonts (and their editor data) are the
+  // student's art, kept under these prefixes, and a Reset button in one game
+  // must never wipe them. The host's own store is told the same ('clear'
+  // keeps these prefixes there too).
+  const LIBRARY_PREFIXES_ = ['texture:', 'texmeta:', 'sound:', 'sndmeta:', 'font:', 'fontmeta:'];
+  const _isLibraryKey = (k) => LIBRARY_PREFIXES_.some((p) => k.startsWith(p));
   function clearStorage() {
     const ls = _ls();
-    if (ls) { ls.clear(); return; }
+    if (ls) {
+      const keys = [];
+      for (let i = 0; i < ls.length; i++) keys.push(ls.key(i));
+      for (const k of keys) if (!_isLibraryKey(k)) ls.removeItem(k);
+      return;
+    }
     const store = _bridge();
-    for (const k of Object.keys(store)) delete store[k];
-    _postStore({ op: 'clear' });
+    for (const k of Object.keys(store)) if (!_isLibraryKey(k)) delete store[k];
+    _postStore({ op: 'clear', keep: LIBRARY_PREFIXES_ });
   }
 
   // ---- main loop --------------------------------------------------------
