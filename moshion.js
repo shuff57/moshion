@@ -145,6 +145,15 @@
     return KEY_ALIASES_[k] || k;
   }
 
+  // A plain-words console note shown once per run for each `key`, for code
+  // that works but very likely does not do what its writer meant.
+  const WARNED_ONCE_ = new Set();
+  function _warnOnce(key, msg) {
+    if (WARNED_ONCE_.has(key)) return;
+    WARNED_ONCE_.add(key);
+    console.warn(msg);
+  }
+
   const kb = {
     holdThreshold: 12,
     // Boolean, matching the course (5.1.5/6.3.3: "returns true every frame
@@ -162,7 +171,14 @@
     // frame the key comes back UP, not the frame it goes down. Matched here
     // exactly even though several reading lessons (6.5.11 etc.) read like
     // they expect a down-edge trigger — see build report for the disagreement.
-    pressed: (k) => kb.released(k),
+    // Kept (saved programs depend on it), but the first call each run says
+    // so in the console, because `if (kb.pressed('space'))` nearly always
+    // means presses().
+    pressed: (k) => {
+      _warnOnce('kb.pressed', 'kb.pressed() is true when the key comes back UP. ' +
+        'To act the moment it goes down, use kb.presses().');
+      return kb.released(k);
+    },
     // The reference API's releases() is a literal alias of released() (verified
     // against the reference implementation: `releases(inp) { return
     // this.released(inp); }`) — both are already true for exactly one frame
@@ -199,7 +215,12 @@
     holding: (b) => { const v = MOUSE[_btnSlot(b)]; return v >= mouse.holdThreshold ? v : 0; },
     held: (b) => MOUSE[_btnSlot(b)] === -2,
     released: (b) => MOUSE[_btnSlot(b)] <= -1,
-    pressed: (b) => mouse.released(b),
+    // The same up-edge alias as kb.pressed() above, with the same one-time note.
+    pressed: (b) => {
+      _warnOnce('mouse.pressed', 'mouse.pressed() is true when the button comes back UP. ' +
+        'To act the moment it goes down, use mouse.presses().');
+      return mouse.released(b);
+    },
     // Same alias relationship as kb.releases() above (the reference implementation).
     releases: (b) => mouse.released(b),
     // True once the browser has reported the cursor inside the canvas and
@@ -374,7 +395,7 @@
         set y(v) { const c = _world().getGravity(); _world().setGravity(pl.Vec2(c.x, v)); },
       };
     },
-    set(v) { _world().setGravity(pl.Vec2(v.x, v.y)); },
+    set(v) { const [x, y] = _vecParts(v, 'world.gravity'); _world().setGravity(pl.Vec2(x, y)); },
   });
 
   // camera.off() / camera.on() switch drawing between world space and screen
@@ -485,6 +506,60 @@
     if (a.length === 2) return `rgba(${n(a[0])},${n(a[0])},${n(a[0])},${al(a[1])})`;
     if (a.length === 3) return `rgb(${n(a[0])},${n(a[1])},${n(a[2])})`;
     return `rgba(${n(a[0])},${n(a[1])},${n(a[2])},${al(a[3])})`;
+  }
+
+  // rgba() and randomColor(): colours as one CSS string, which is what
+  // fill(), stroke(), background() and .color already take. Building an rgba
+  // string by hand is a lot of concatenation for a beginner:
+  //   sprite.color = 'rgba(' + r + ', ' + g + ', ' + b + ', ' + a + ')';
+  // Moved here from shCode's own extras file (2026-11-20), same behaviour.
+  function _rgbaChannel(n) {
+    const v = Math.round(Number(n));
+    if (!isFinite(v)) return 0;
+    return Math.max(0, Math.min(255, v));
+  }
+  function _rgbaAlpha(n) {
+    const v = Number(n);
+    if (!isFinite(v)) return 1;
+    return Math.max(0, Math.min(1, v));
+  }
+
+  // rgba(r, g, b, a) -> 'rgba(r, g, b, a)'
+  // rgba([r, g, b], a) also works. Channels are rounded and clamped to 0-255;
+  // alpha is clamped to 0-1 and defaults to 1. Accepts expressions, so
+  // rgba(255, 99, 71, random(0.2, 0.8)) is one call.
+  function rgba(r, g, b, a) {
+    if (Array.isArray(r)) {
+      const triple = r;
+      // rgba([r, g, b], a): the alpha arrives in the second parameter, which is
+      // about to be overwritten by the green channel, so take it first.
+      const alphaArg = a !== undefined ? a : (typeof g === 'number' ? g : triple[3]);
+      r = triple[0];
+      g = triple[1];
+      b = triple[2];
+      a = alphaArg;
+    }
+    if (a === undefined) a = 1;
+    return 'rgba(' + _rgbaChannel(r) + ', ' + _rgbaChannel(g) + ', ' + _rgbaChannel(b) + ', ' + _rgbaAlpha(a) + ')';
+  }
+
+  // randomColor()            -> random rgb, fully opaque
+  // randomColor(a)           -> random rgb at alpha a
+  // randomColor(minA, maxA)  -> random rgb, random alpha in the range
+  // Rolls the engine's own seeded random(), so randomSeed() repeats it.
+  function randomColor(minA, maxA) {
+    if (minA === undefined) minA = 1;
+    if (maxA === undefined) maxA = minA;
+    let lo = _rgbaAlpha(minA);
+    let hi = _rgbaAlpha(maxA);
+    if (hi < lo) { const t = lo; lo = hi; hi = t; }
+    const a = lo === hi ? lo : lo + random() * (hi - lo);
+    return rgba(
+      Math.floor(random() * 256),
+      Math.floor(random() * 256),
+      Math.floor(random() * 256),
+      a,
+    );
   }
 
   function background(...args) {
@@ -766,13 +841,28 @@
     throw new TypeError(`sprite.shape must be 'circle' or 'rect', not ${JSON.stringify(v)}`);
   }
 
+  // `sprite.vel = createVector(3, 0)`, `sprite.pos = {x, y}`, `[x, y]`: the
+  // numbers to copy INTO a live vector. Assigning used to swap the live proxy
+  // for the plain object, so the sprite stopped answering to physics with no
+  // error. Anything without two numbers is refused in plain words.
+  function _vecParts(v, where) {
+    if (Array.isArray(v) && v.length >= 2 && typeof v[0] === 'number' && typeof v[1] === 'number') return [v[0], v[1]];
+    if (v && typeof v === 'object' && typeof v.x === 'number' && typeof v.y === 'number') return [v.x, v.y];
+    throw new TypeError(`${where} must be a point with x and y, like createVector(3, 0), {x: 3, y: 0} or [3, 0], not ` +
+      (v === null ? 'null' : typeof v === 'object' ? JSON.stringify(v) : typeof v === 'string' ? JSON.stringify(v) : String(v)));
+  }
+
   function liveVec(read, write) {
-    return {
+    const v = {
       get x() { return read().x; },
       get y() { return read().y; },
       set x(v) { const c = read(); write(v, c.y); },
       set y(v) { const c = read(); write(c.x, v); },
     };
+    // Both axes in one write, for whole-vector assignment (so a velocity is
+    // never judged half old, half new by the speed-cap note).
+    Object.defineProperty(v, '_write', { value: write, enumerable: false });
+    return v;
   }
 
   const WARNED_ANIS_ = new Set();
@@ -855,7 +945,7 @@
       this._buildFixture();
       if (wantsNone) this.collider = 'none';
 
-      this.pos = liveVec(
+      this._pos = liveVec(
         () => { const p = this._body.getPosition(); return { x: p.x * PXM, y: p.y * PXM }; },
         (x, y) => this._body.setPosition(pl.Vec2(x / PXM, y / PXM)),
       );
@@ -866,7 +956,7 @@
       // The ceiling is `world.maxSpeed` (one global, default 60, opt-in to
       // raise -- see its definition for the cost); setting a speed past it
       // warns once per run, naming that knob, instead of failing silently.
-      this.vel = liveVec(
+      this._vel = liveVec(
         () => { const v = this._body.getLinearVelocity(); return { x: v.x * PXM / FPS, y: v.y * PXM / FPS }; },
         (x, y) => { noteSpeed_(x, y); this._body.setLinearVelocity(pl.Vec2(x * FPS / PXM, y * FPS / PXM)); },
       );
@@ -1380,7 +1470,7 @@
     // replacing it — sprite.vel is a live proxy onto the physics body, so
     // swapping the object out would disconnect it.
     get velocity() { return this.vel; }
-    set velocity(v) { this.vel.x = v.x; this.vel.y = v.y; }
+    set velocity(v) { this.vel = v; }
 
     // still art — mutually exclusive with an active `ani` (2.4.3d).
     // Accepts: an emoji / short text (a string that is not a URL), an image URL,
@@ -1634,6 +1724,15 @@
       return c;
     }
 
+    // pos and vel are live vectors onto the physics body (see liveVec).
+    // Assigning a whole vector copies its x and y in, so
+    // `player.vel = createVector(3, 0)` moves the sprite; it used to replace
+    // the live vector with the plain object and disconnect it from physics.
+    get pos() { return this._pos; }
+    set pos(v) { const [x, y] = _vecParts(v, 'sprite.pos'); this._pos._write(x, y); }
+    get vel() { return this._vel; }
+    set vel(v) { const [x, y] = _vecParts(v, 'sprite.vel'); this._vel._write(x, y); }
+
     get x() { return this.pos.x; }
     set x(v) { this.pos.x = v; }
     get y() { return this.pos.y; }
@@ -1642,7 +1741,7 @@
     // `sprite.position` is the reference API's own name for `sprite.pos` (verified
     // against the reference implementation) — plain alias, same live vector.
     get position() { return this.pos; }
-    set position(v) { this.pos.x = v.x; this.pos.y = v.y; }
+    set position(v) { this.pos = v; }
 
     get rotation() { return (this._body.getAngle() * 180) / Math.PI; }
     set rotation(deg) { this._body.setAngle((deg * Math.PI) / 180); }
@@ -2061,7 +2160,9 @@
       // scaled with the sprite's art (real p5play draws sprite text
       // axis-aligned; six lessons use this for HP/score labels that
       // shouldn't spin with the sprite).
-      if (this.text) {
+      // The number 0 is a label too (a score, a countdown); null, undefined
+      // and '' draw nothing.
+      if (this.text || this.text === 0) {
         CTX_.save();
         CTX_.globalAlpha = this.opacity;
         CTX_.translate(this.x, this.y);
@@ -2286,7 +2387,10 @@
       }
       Object.defineProperty(this, 'Sprite', { value: GroupSprite, enumerable: false });
     }
-    newSprite(x, y, w, h) { const s = new Sprite(x, y, w, h); this.push(s); return s; }
+    // group.newSprite(...) is `new group.Sprite(...)` under another name: the
+    // same factory, so it gets every group default (colour, collider, size,
+    // made-up fields). It used to build a plain Sprite and only push it.
+    newSprite(...args) { return new this.Sprite(...args); }
 
     // texture: same cascade-and-remember behaviour as `image`, by catalog name.
     get texture() { return this._groupTexture == null ? null : this._groupTexture; }
@@ -2342,12 +2446,18 @@
     // (2.3.3/2.3.7: "group.remove(sprite) only unparents; there is no
     // sprite.remove() on Group" — a real, documented distinction this
     // engine previously got wrong by destroying on group.remove()).
+    // Because `coins.remove(c)` reads like "get rid of c", the first such
+    // call each run that leaves a live sprite behind says so in the console.
     remove(s) {
       const i = this.indexOf(s);
       if (i >= 0) this.splice(i, 1);
       if (s && s._groups) {
         const gi = s._groups.indexOf(this);
         if (gi >= 0) s._groups.splice(gi, 1);
+      }
+      if (s instanceof Sprite && !s._dead) {
+        _warnOnce('group.remove', 'group.remove(sprite) only takes the sprite out of the group; it is still on screen. ' +
+          'To get rid of it, use sprite.remove().');
       }
     }
     // add(sprite) is push(sprite) under a different name — same membership
@@ -5278,6 +5388,8 @@
   global.frameRate = frameRate;
   global.nf = nf;
   global.createVector = createVector;
+  global.rgba = rgba;
+  global.randomColor = randomColor;
   global.Vector = Vector;
   global.loadJSON = loadJSON;
   global.loadSound = loadSound;
