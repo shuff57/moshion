@@ -150,16 +150,17 @@
   const WARNED_ONCE_ = new Set();
   // Sprites taken out of a group with group.remove(s) this frame; checked
   // after drawTop() by _noteGroupRemovals().
-  const REMOVED_FROM_GROUP_ = new Set();
+  const REMOVED_FROM_GROUP_ = [];
   function _noteGroupRemovals() {
-    for (const s of REMOVED_FROM_GROUP_) {
-      if (!s._dead) {
+    for (const [s, group] of REMOVED_FROM_GROUP_) {
+      // Destroyed after all, or put back in that group: nothing to say.
+      if (!s._dead && !group.includes(s)) {
         _warnOnce('group.remove', 'group.remove(sprite) only takes the sprite out of the group; it is still on screen. ' +
           'To get rid of it, use sprite.remove().');
         break;
       }
     }
-    REMOVED_FROM_GROUP_.clear();
+    REMOVED_FROM_GROUP_.length = 0;
   }
   function _warnOnce(key, msg) {
     if (WARNED_ONCE_.has(key)) return;
@@ -922,8 +923,10 @@
     normalize: (c) => { const m = Math.hypot(c.x, c.y); return m ? [c.x / m, c.y / m] : [c.x, c.y]; },
   };
   function _vDist(c, o, what) {
-    if (!o || typeof o !== 'object') throw new TypeError(`${what} needs another point, like ${what.replace('()', '(enemy.pos)')}`);
-    const [ox, oy] = Array.isArray(o) ? o : [o.x, o.y];
+    const [ox, oy] = o && typeof o === 'object' ? (Array.isArray(o) ? o : [o.x, o.y]) : [];
+    if (!Number.isFinite(ox) || !Number.isFinite(oy)) {
+      throw new TypeError(`${what} needs another point with an x and a y, like ${what.replace('()', '(enemy.pos)')}`);
+    }
     return Math.hypot(c.x - ox, c.y - oy);
   }
 
@@ -2552,7 +2555,7 @@
       }
       // Said at the END of the frame, and only if the sprite is still alive
       // then: coins.remove(c); c.remove(); is fine and says nothing.
-      if (s instanceof Sprite && !s._dead) REMOVED_FROM_GROUP_.add(s);
+      if (s instanceof Sprite && !s._dead) REMOVED_FROM_GROUP_.push([s, this]);
     }
     // add(sprite) is push(sprite) under a different name — same membership
     // bookkeeping, same dedupe-against-the-array behavior.
