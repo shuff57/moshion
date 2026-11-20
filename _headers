@@ -1,0 +1,9 @@
+# Cloudflare Pages headers (moshion.lefthanddev.com). GitHub Pages ignores this file.
+#
+# The sketch runner is a sandboxed iframe with no allow-same-origin, so its
+# requests come from origin `null`: fetch() of a sound, a font or a picture is
+# cross-origin even on this site. GitHub Pages answers every file with
+# access-control-allow-origin: *, which is what the specs' harness copies
+# (tests/harness.mjs); Cloudflare Pages does not, so it is said here.
+/*
+  Access-Control-Allow-Origin: *

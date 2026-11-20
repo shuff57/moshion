@@ -1,4 +1,4 @@
-name: Deploy to GitHub Pages
+name: Deploy (moshion.lefthanddev.com and GitHub Pages)
 
 on:
   push:
@@ -28,3 +28,18 @@ jobs:
           path: .
       - id: deployment
         uses: actions/deploy-pages@v4
+
+  # The public site, moshion.lefthanddev.com: the Cloudflare Pages project
+  # `moshion` (made with wrangler, so it deploys from here rather than from a
+  # Git connection). Needs the repo secrets CLOUDFLARE_API_TOKEN (Cloudflare
+  # Pages: Edit) and CLOUDFLARE_ACCOUNT_ID. _headers gives every file
+  # access-control-allow-origin: *, which the sandboxed runner needs.
+  cloudflare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy . --project-name moshion --branch main --commit-dirty=true

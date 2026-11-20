@@ -26,7 +26,7 @@ function draw() {
 
 ## Try it
 
-Open **[the live demo](https://shuff57.github.io/moshion/)** — it embeds the
+Open **[the live demo](https://moshion.lefthanddev.com/)** — it embeds the
 runner in a sandboxed iframe, exactly the way a host app is meant to.
 
 ## Use it in your own page
@@ -37,7 +37,7 @@ runs in an opaque origin and cannot touch your app:
 
 ```html
 <iframe sandbox="allow-scripts allow-downloads"
-        src="https://shuff57.github.io/moshion/runner.html"></iframe>
+        src="https://moshion.lefthanddev.com/runner.html"></iframe>
 ```
 
 The frame posts `{source: 'preview-storage-request'}` to its parent; the host
