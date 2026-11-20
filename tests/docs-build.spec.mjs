@@ -32,6 +32,11 @@ check('D5 the parser reads functions and constants', globals.some((g) => g.name 
 check('D6 old names land on the "Old names" page with their replacement', /kb\.pressed: .*presses/.test(ref.pages.find((p) => p.id === 'old-names').body));
 check('D7 a description stops at a sentence, never inside ".rotation"', shortDoc('Degrees per frame, same turning direction as .rotation.') === 'Degrees per frame, same turning direction as .rotation.');
 
+const props = ref.pages.map((p) => p.body).join('\n');
+check('D8 a get/set accessor is listed as a property, never as a call (sprite.texture, ani.loop, group.scale)',
+  ['sprite.texture:', 'ani.loop:', 'group.scale:'].every((s) => props.includes(s)) &&
+  !/sprite\.texture\(|ani\.loop\(|group\.scale\(/.test(props));
+
 let failed = 0;
 for (const [name, pass, detail] of results) {
   if (!pass) failed++;

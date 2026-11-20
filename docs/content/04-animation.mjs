@@ -231,7 +231,7 @@ Keep the pose until the animation has finished by remembering that it is playing
 
 ghost.ani.frame is the picture showing (0 first) and ghost.ani.frameCount is how many there are, so the animation is finished when frame >= frameCount - 1.
 
-To play it again, start it over from the first picture: for an animation made with addAni, set sprite.ani.frame = 0 (the same animation object is reused, so changeAni alone does not restart it). For a texture you drew in the Textures tab, sprite.texture = 'swing' builds a fresh animation each time it switches back, so it restarts by itself; set sprite.texture.loop = false on the line after the assignment, because the new one starts out looping.
+To play it again, start it over from the first picture: for an animation made with addAni, set sprite.ani.frame = 0 (the same animation object is reused, so changeAni alone does not restart it). For a named texture, sprite.texture = 'swing' builds a fresh animation each time it switches back, so it restarts by itself; set sprite.texture.loop = false on the line after the assignment, because the new one starts out looping.
 
 Neither version restarts an animation that is already showing: assigning the same art again, or calling changeAni with the name it is already playing, changes nothing. That is deliberate. Without it, a texture set every frame in update() would freeze on its first picture instead of animating.`,
       code: `let ghost;

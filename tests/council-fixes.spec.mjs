@@ -217,8 +217,16 @@ async function open(code) {
     const copy = s.vel.copy(); copy.x = 99;
     s.pos.set(10, 20); const p = [s.x, s.y];
     const chain = s.vel.set(0, 0) === s.vel;
-    return { a, b, c, mag, unit, copyIsolated: s.vel.x !== 99, p, chain, keys: Object.keys(s.vel) };
+    s.vel.set(1, 1); s.vel.add(2); const addX = [s.vel.x, s.vel.y];
+    const err = (fn) => { try { fn(); return null; } catch (e) { return e.message; } };
+    const badAdd = err(() => s.vel.add('a'));
+    const badDiv = err(() => s.vel.div(0));
+    const after = [s.vel.x, s.vel.y];
+    return { a, b, c, mag, unit, copyIsolated: s.vel.x !== 99, p, chain, keys: Object.keys(s.vel), addX, badAdd, badDiv, after };
   });
+  check('C5g vel.add(2) adds to x only (a missing y is 0); vel.add("a") and vel.div(0) are refused in words and change nothing',
+    m.addX[0] === 3 && m.addX[1] === 1 && /needs numbers/.test(m.badAdd || '') && /needs numbers/.test(m.badDiv || '') &&
+    m.after[0] === 3 && m.after[1] === 1, m);
   check('C5f set/add/mult/mag/normalize/copy work on sprite.vel and sprite.pos, and stay live',
     m.a[0] === 2 && m.a[1] === 1 && m.b[0] === 3 && m.b[1] === 2 && m.c[0] === 6 && m.c[1] === 4 &&
     near(m.mag, 5) && near(m.unit, 1) && m.copyIsolated && near(m.p[0], 10) && near(m.p[1], 20) && m.chain &&

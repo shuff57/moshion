@@ -7,8 +7,9 @@ the moSHion engine in this repository.
 
 This is the in-repo source of the **moSHion** teaching engine — a small,
 hand-authored JavaScript facade over [planck.js][] (a pure-JS/TS port of
-Box2D). There is no build step, no bundler and no linter configured. The only
-tooling is the Playwright spec suite under `tests/`.
+Box2D). The engine has no build step, no bundler and no linter. The docs
+have one small build (`node scripts/build-docs.mjs`, no dependencies), and the
+tests are the Playwright spec suite under `tests/`.
 
 - `moshion.js` (~5,400 lines) — the entire engine. Edit directly; do not split
   without discussion.
@@ -62,6 +63,8 @@ bun tests/starter-games.spec.mjs  # games/{asteroids,platformer,runner}.js
 bun tests/integration.spec.mjs    # index.html demo panel
 bun tests/viewport.spec.mjs       # the demo viewport shows the whole sketch
 bun tests/docs.spec.mjs           # every example on the docs site actually runs
+bun tests/docs-build.spec.mjs     # docs/data is built from docs/content; the reference lists every typed name
+bun tests/council-fixes.spec.mjs  # engine: newSprite defaults, pressed/remove notes, text 0, vector assignment, rgba
 bun tests/gaps.spec.mjs           # broadphase exactness, culling, square, Tiles, Walls, timers, addSensor
 bun tests/math-origin.spec.mjs    # world.origin = 'math' (centre, y up) + showGrid/showMouse; default unchanged
 bun tests/tiles-perf.bench.mjs    # NOT a spec: frame cost with 300..2400 tile sprites
@@ -280,33 +283,31 @@ any change once a sprite exists, gravity is non-zero or a frame has run.
   screen-pinned hit-test.
 - **`moshion.js` and `moshion.d.ts` ship together** — public API changes must be
   reflected in both. The `.d.ts` is hand-authored, not generated.
-- **The in-app docs** (`lib/moshion-docs.ts`, rendered at `/docs/moshion`) are
-  hand-authored against this engine's real surface. If you change the engine
-  API, update `lib/moshion-docs.ts` and `docs/challenges.md` too.
+- **The docs are `docs/content/`**, here, and nowhere else: shCode copies the
+  built file in. If you change the engine API, change the page that teaches it
+  and the doc comment in `docs/moshion.d.ts` (that comment IS its line in the
+  generated API reference), then `node scripts/build-docs.mjs`.
 
 ## Committing and pushing: then check shCode
 
-shCode (`../shCode`, default branch `cs-3d`) carries its own copy of this
-engine in `public/moshion/` and its own docs, so a push here is not finished
-until shCode has been checked. After every commit that changes the engine's
-behaviour or API (`moshion.js`, `docs/moshion.d.ts`, `runner.html`):
+shCode (`../shCode`, default branch `cs-3d`) carries a copy of this engine in
+`public/moshion/` and of these docs in `lib/moshion-docs-shared.generated.ts`,
+so a push here is not finished until shCode has been synced. After a commit that
+changes `moshion.js`, `docs/moshion.d.ts` or `docs/content/`:
 
-1. Read `public/moshion/VENDORED.md` in shCode. It records which commit is
-   vendored and the resync steps, including the local lines to re-apply.
-2. Resync from this repo's pushed `main`, following "To resync" there:
-   `moshion.js` and `docs/moshion.d.ts` byte for byte plus the local lines,
-   then `scripts/generate-moshion-completions.mjs`.
-3. Update shCode's docs by hand to match: `lib/moshion-docs.ts` (the in-app
-   docs students read), `public/moshion/docs/CLAUDE.md` (engine invariants),
-   and shCode's own `public/moshion/runner.html` if this repo's runner changed
-   behaviour (shCode's reads `?code=`, so never copy it over).
-4. Run shCode's gates: `scripts/test-moshion.mjs`,
-   `scripts/check-moshion-textures.mjs`, `scripts/test-editor-completions.mjs`.
-   For a change in behaviour, also run the corpus comparison
-   `VENDORED.md` describes (`scripts/moshion-harness.mjs`, old engine vs new).
-5. Record the sync in `VENDORED.md` (commit, date, what changed), then commit
-   and push in shCode on a branch. shCode's working checkout often has other
-   work in progress, so do this in a `git worktree` off `origin/cs-3d`.
+1. Here: `node scripts/build-docs.mjs`, then the specs (`tests/docs-build.spec.mjs`
+   and `tests/docs.spec.mjs` for docs; the engine specs for the engine).
+2. In shCode, in a `git worktree` off `origin/cs-3d` (its main checkout often has
+   other work in progress): `npm run sync:moshion`. It copies the engine, typings
+   and docs from this repo's pushed `main` (or `MOSHION_REF=<branch>` before the
+   push), regenerates the autocomplete and runs shCode's moSHion gates. Its
+   `public/moshion/VENDORED.md` says what is copied and what is shCode's own.
+3. If shCode's `scripts/test-moshion-docs.mjs` reports that a page shCode adds to
+   (`lib/moshion-docs-shcode.ts`) changed here, re-read that note in shCode.
+   shCode's own `public/moshion/runner.html` is never copied over: port a runner
+   behaviour change by hand.
+4. Commit in shCode on a branch. Its deploy refuses while its copy differs from
+   this repo's `main`.
 
 A change that only touches this repo's demo games, homepage or tests needs no
 shCode sync, but still say so when reporting the push.

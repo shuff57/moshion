@@ -52,7 +52,7 @@ function draw() {
       title: "A colour with alpha",
       body: `A colour is a CSS string. fill(), stroke(), background() and a sprite's .color all take the same one, and the alpha can go inside it: 'rgba(255, 99, 71, 0.5)' is that red at half strength, with the alpha from 0 to 1. fill(), stroke() and background() also take numbers the way p5 does: fill(255, 99, 71) for red, fill(200) for light grey, and a fourth number for alpha, fill(255, 99, 71, 128), where the alpha runs from 0 to 255.
 
-shCode adds two helpers so you do not have to build the string yourself. rgba(r, g, b, a) rounds and clamps the channels and the alpha, and randomColor(alpha) or randomColor(minAlpha, maxAlpha) picks a random colour for you. Both return a plain string, so they go anywhere a colour goes.`,
+Two helpers build the string for you. rgba(r, g, b, a) rounds and clamps the channels and the alpha, and randomColor(alpha) or randomColor(minAlpha, maxAlpha) picks a random colour for you. Both return a plain string, so they go anywhere a colour goes.`,
       code: `let dots = [];
 
 function setup() {

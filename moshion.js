@@ -866,14 +866,25 @@
     // work on the live vector exactly as on createVector()'s. A sketch that
     // assigned a Vector used to get one by accident (and lose physics); now it
     // keeps both. Each change is one write; each returns the live vector.
-    const two = (x, y) => (x && typeof x === 'object' ? [x.x, x.y] : [x, y]);
+    // A missing number counts as 0, as in p5 (vel.add(2) adds 2 to x only);
+    // anything that would leave a non-number in the physics body (vel.add('a'),
+    // vel.div(0)) is refused in plain words instead of crashing inside planck.
+    const two = (x, y) => (x && typeof x === 'object' ? [x.x ?? 0, x.y ?? 0] : [x ?? 0, y ?? 0]);
+    const put = (name, a, b) => {
+      if (!Number.isFinite(a) || !Number.isFinite(b)) {
+        throw new TypeError(`.${name}() needs numbers, like vel.${name === 'mult' || name === 'div' ? name + '(2)' : name + '(3, 0)'}; ` +
+          `it would have made x ${a} and y ${b}`);
+      }
+      write(a, b);
+      return v;
+    };
     const methods = {
-      set(x, y) { const [a, b] = two(x, y); write(a || 0, b || 0); return v; },
+      set(x, y) { const [a, b] = two(x, y); return put('set', a, b); },
       copy() { const c = read(); return new Vector(c.x, c.y); },
-      add(x, y) { const [a, b] = two(x, y); const c = read(); write(c.x + a, c.y + b); return v; },
-      sub(x, y) { const [a, b] = two(x, y); const c = read(); write(c.x - a, c.y - b); return v; },
-      mult(n) { const c = read(); write(c.x * n, c.y * n); return v; },
-      div(n) { const c = read(); write(c.x / n, c.y / n); return v; },
+      add(x, y) { const [a, b] = two(x, y); const c = read(); return put('add', c.x + a, c.y + b); },
+      sub(x, y) { const [a, b] = two(x, y); const c = read(); return put('sub', c.x - a, c.y - b); },
+      mult(n) { const c = read(); return put('mult', c.x * n, c.y * n); },
+      div(n) { const c = read(); return put('div', c.x / n, c.y / n); },
       mag() { const c = read(); return Math.sqrt(c.x * c.x + c.y * c.y); },
       dist(o) { const c = read(); return Math.sqrt((c.x - o.x) ** 2 + (c.y - o.y) ** 2); },
       normalize() { const c = read(); const m = Math.sqrt(c.x * c.x + c.y * c.y); if (m !== 0) write(c.x / m, c.y / m); return v; },
@@ -4317,9 +4328,10 @@
   // ---- vector (6.5.x) -----------------------------------------------------
 
   // p5.Vector-shaped: methods mutate in place and return `this` for chaining,
-  // matching real p5.js semantics (createVector() is a fresh instance, not
-  // tied to a sprite — assigning it to sprite.vel/pos replaces the live
-  // physics-backed proxy with a plain vector, exactly like the reference API).
+  // matching real p5.js semantics. createVector() is a fresh instance, not
+  // tied to a sprite: assigning it to sprite.vel/pos COPIES its x and y into
+  // the live, physics-backed vector (see _vecParts and liveVec), which carries
+  // these same methods.
   class Vector {
     constructor(x, y) { this.x = x || 0; this.y = y || 0; }
     set(x, y) {

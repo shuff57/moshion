@@ -65,11 +65,15 @@ export function parseTypings(text) {
       }
       doc = null;
     } else if (depth === 1 && block) {
-      const m = /^(?:readonly\s+|static\s+|get\s+|set\s+)*([A-Za-z_$][\w$]*)\??\s*(<[^>]*>)?\s*([(:])/.exec(t);
-      if (m && m[1] !== 'constructor') {
+      const m = /^((?:readonly\s+|static\s+|get\s+|set\s+)*)([A-Za-z_$][\w$]*)\??\s*(<[^>]*>)?\s*([(:])/.exec(t);
+      if (m && m[2] !== 'constructor') {
+        // `get texture(): X` / `set texture(v)` declare a PROPERTY, whatever
+        // the brackets look like: it is read and written as sprite.texture.
+        const accessor = /\b(get|set)\s/.test(m[1]);
+        const method = m[4] === '(' && !accessor;
         let sig = t;
-        if (m[3] === '(') while (!balanced(sig) && i + 1 < lines.length) { sig += ' ' + lines[i + 1].trim(); i++; line = sig; }
-        add(block.members, { name: m[1], kind: m[3] === '(' ? 'method' : 'prop', params: m[3] === '(' ? [params(sig)] : [], ...docFields(doc) });
+        if (m[4] === '(') while (!balanced(sig) && i + 1 < lines.length) { sig += ' ' + lines[i + 1].trim(); i++; line = sig; }
+        add(block.members, { name: m[2], kind: method ? 'method' : 'prop', params: method ? [params(sig)] : [], ...docFields(doc) });
       }
       doc = null;
     }
@@ -99,7 +103,23 @@ function params(sig) {
 function readDoc(c) {
   const body = c.replace(/^\/\*\*/, '').replace(/\*\/$/, '').split('\n').map((l) => l.replace(/^\s*\*\s?/, '')).join('\n');
   const dep = /@deprecated\s*([\s\S]*?)(?=\n\s*@|$)/.exec(body);
-  const text = body.replace(/@[\s\S]*$/, '').replace(/\s+/g, ' ').trim();
+  // A list in a comment (lines starting with a quote or a dash, like the
+  // collider kinds) stays readable: its items are joined with "; ", and the
+  // line after the list starts a new sentence.
+  let text = '';
+  let inList = false;
+  for (const raw of body.replace(/@[\s\S]*$/, '').split('\n')) {
+    const line = raw.trim();
+    if (!line) continue;
+    const item = /^['"-]/.test(line);
+    const clean = line.replace(/^-\s*/, '');
+    if (!text) text = clean;
+    else if (item) text += (inList ? '; ' : ' ') + clean;
+    else if (inList) text += (/[.!?]$/.test(text) ? ' ' : '. ') + clean;
+    else text += ' ' + clean;
+    inList = item;
+  }
+  text = text.replace(/\s+/g, ' ').trim();
   return { text, deprecated: dep ? dep[1].replace(/\s+/g, ' ').trim() || 'Old name.' : null };
 }
 const docFields = (d) => ({ doc: d?.text || '', deprecated: d?.deprecated || null });

@@ -347,7 +347,7 @@ function renderTree() {
 		btn.textContent = sec.title;
 		btn.addEventListener('click', function() {
 			activeSectionIndex = si;
-			location.hash = '#' + sec.slug + '/0';
+			location.hash = pageHash(sec, 0);
 		});
 		wrap.appendChild(btn);
 
@@ -358,7 +358,7 @@ function renderTree() {
 				var li = document.createElement('li');
 				var a = document.createElement('a');
 				a.className = 'page-link' + (pi === currentPageIndex ? ' active' : '');
-				a.href = '#' + sec.slug + '/' + pi;
+				a.href = pageHash(sec, pi);
 				a.textContent = pg.title;
 				li.appendChild(a);
 				ul.appendChild(li);
@@ -368,6 +368,14 @@ function renderTree() {
 
 		tree.appendChild(wrap);
 	});
+}
+
+// A page's link uses its permanent id (#sprite/removing), so a link someone
+// saved still opens the same page after pages are added. An old numeric
+// link (#sprite/9) still works.
+function pageHash(sec, pi) {
+	var pg = sec.pages[pi];
+	return '#' + sec.slug + '/' + (pg && pg.id ? pg.id : pi);
 }
 
 // ---- search -------------------------------------------------------------
@@ -386,14 +394,17 @@ searchInput.addEventListener('input', function() {
 	resultsEl.style.display = '';
 	resultsEl.innerHTML = '';
 
-	var hits = [];
+	// Title hits first, then pages whose words or example mention it (the
+	// API reference lists every name in its words).
+	var hits = [], later = [];
 	sections.forEach(function(sec) {
 		sec.pages.forEach(function(pg, pi) {
-			if (pg.title.toLowerCase().indexOf(q) !== -1) {
-				hits.push({ section: sec, pageIndex: pi, page: pg });
-			}
+			var hit = { section: sec, pageIndex: pi, page: pg };
+			if (pg.title.toLowerCase().indexOf(q) !== -1) hits.push(hit);
+			else if ((pg.body + '\n' + (pg.code || '')).toLowerCase().indexOf(q) !== -1) later.push(hit);
 		});
 	});
+	hits = hits.concat(later).slice(0, 40);
 
 	if (!hits.length) {
 		var none = document.createElement('li');
@@ -407,7 +418,7 @@ searchInput.addEventListener('input', function() {
 		var li = document.createElement('li');
 		var a = document.createElement('a');
 		a.className = 'search-hit';
-		a.href = '#' + hit.section.slug + '/' + hit.pageIndex;
+		a.href = pageHash(hit.section, hit.pageIndex);
 		var secLabel = document.createElement('span');
 		secLabel.className = 'hit-section mono';
 		secLabel.textContent = hit.section.title;
@@ -483,7 +494,7 @@ function renderPage(sectionIndex, pageIndex) {
 
 	if (flatIdx > 0) {
 		var prev = flat[flatIdx - 1];
-		prevLink.href = '#' + prev.slug + '/' + prev.pageIndex;
+		prevLink.href = pageHash(sections.filter(function(x) { return x.slug === prev.slug; })[0], prev.pageIndex);
 		prevLink.classList.remove('disabled');
 	} else {
 		prevLink.href = '#';
@@ -492,7 +503,7 @@ function renderPage(sectionIndex, pageIndex) {
 
 	if (flatIdx >= 0 && flatIdx < flat.length - 1) {
 		var next = flat[flatIdx + 1];
-		nextLink.href = '#' + next.slug + '/' + next.pageIndex;
+		nextLink.href = pageHash(sections.filter(function(x) { return x.slug === next.slug; })[0], next.pageIndex);
 		nextLink.classList.remove('disabled');
 	} else {
 		nextLink.href = '#';
@@ -518,16 +529,22 @@ function parseHash() {
 	var raw = location.hash.replace(/^#/, '');
 	var parts = raw.split('/');
 	var slug = parts[0];
-	var pageIndex = parseInt(parts[1], 10);
 
 	var sectionIndex = -1;
 	for (var i = 0; i < sections.length; i++) {
 		if (sections[i].slug === slug) { sectionIndex = i; break; }
 	}
+	// The part after the slash is a page id, or (an older link) its number.
+	var pageIndex = NaN;
+	if (sectionIndex !== -1) {
+		var pages = sections[sectionIndex].pages;
+		for (var j = 0; j < pages.length; j++) if (pages[j].id === parts[1]) { pageIndex = j; break; }
+		if (isNaN(pageIndex) && /^\d+$/.test(parts[1] || '')) pageIndex = parseInt(parts[1], 10);
+	}
 
 	if (sectionIndex === -1 || isNaN(pageIndex) || pageIndex < 0 || pageIndex >= sections[sectionIndex].pages.length) {
 		if (sections.length) {
-			location.hash = '#' + sections[0].slug + '/0';
+			location.hash = pageHash(sections[0], 0);
 		}
 		return;
 	}
