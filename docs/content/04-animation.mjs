@@ -79,29 +79,7 @@ function draw() {
     {
       id: 'textures',
       title: "Textures: named pixel art",
-      body: `sprite.texture = 'coin' picks art by NAME instead of by URL. moSHion ships a catalog of 105 pixel-art textures, so you can give a sprite a picture without finding, hosting, or spelling a file path.
-
-94 are stills; 11 are animated sprite sheets that simply play when you assign the name (see below). The terrain, things, battle, numbers and candy groups are newer: ground to build levels from, flags and switches, swords and shields, the digits 0-9 for a score or a die, and candy.
-
-The names, by group —
-
-characters: player, playerBlue, playerPink, playerYellow, playerBeige, runnerJump, playerWalk, playerBlueWalk, playerPinkWalk, playerYellowWalk, playerBeigeWalk, runner
-
-pickups: coin, coinSilver, coinBronze, star, heart, heartHalf, gem, gemGreen, gemYellow, gemOrange, key, keyGreen, keyBlue, keyOrange
-
-blocks: crate, crateX, block, door, torch, bomb, mushroom, mushroomBrown, cactus, exitSign
-
-creatures: slime, slimeBlue, bee, bat, ghost, fish, fishPink, bird, snail, ladybug, worm, frog, monster, batFly, beeFly, fishSwim, ladybugWalk, snailCrawl
-
-terrain: grass, sand, snow, stone, brick, brickTan, water, waterDeep, lava, lavaDeep, ice, spikes, tree, bush, rock
-
-things: flag, flagGreen, flagRed, flagBlue, sign, signArrow, lock, lockGreen, spring, lever, apple
-
-battle: sword, swordGold, shield, shieldSilver, shieldGold, blaster, burst, burstGreen, burstOrange, burstBlue
-
-numbers: num0, num1, num2, num3, num4, num5, num6, num7, num8, num9
-
-candy: candyOrange, candyGreen, candyYellow, swirl, swirlMint
+      body: `sprite.texture = 'coin' picks art by NAME instead of by URL. moSHion ships a catalog of pixel-art textures (the next page lists every name), so you can give a sprite a picture without finding, hosting, or spelling a file path.
 
 Call textureNames() to print the list from inside a sketch, and hasTexture('coin') to check one name. A name that does not exist warns in the console and suggests near matches rather than failing silently, so a typo tells you what it was.
 
@@ -148,6 +126,33 @@ function update() {
 function draw() {
   background('#222');
 }`,
+    },
+    {
+      id: 'texture-catalog',
+      title: "Every texture name",
+      body: `moSHion ships 105 pixel-art textures. Every name below works the same way: sprite.texture = 'coin', sprite.texture = 'slime'.
+
+94 are stills; 11 are animated sprite sheets that simply play when you assign the name (see below). The terrain, things, battle, numbers and candy groups are newer: ground to build levels from, flags and switches, swords and shields, the digits 0-9 for a score or a die, and candy.
+
+The names, by group —
+
+characters: player, playerBlue, playerPink, playerYellow, playerBeige, runnerJump, playerWalk, playerBlueWalk, playerPinkWalk, playerYellowWalk, playerBeigeWalk, runner
+
+pickups: coin, coinSilver, coinBronze, star, heart, heartHalf, gem, gemGreen, gemYellow, gemOrange, key, keyGreen, keyBlue, keyOrange
+
+blocks: crate, crateX, block, door, torch, bomb, mushroom, mushroomBrown, cactus, exitSign
+
+creatures: slime, slimeBlue, bee, bat, ghost, fish, fishPink, bird, snail, ladybug, worm, frog, monster, batFly, beeFly, fishSwim, ladybugWalk, snailCrawl
+
+terrain: grass, sand, snow, stone, brick, brickTan, water, waterDeep, lava, lavaDeep, ice, spikes, tree, bush, rock
+
+things: flag, flagGreen, flagRed, flagBlue, sign, signArrow, lock, lockGreen, spring, lever, apple
+
+battle: sword, swordGold, shield, shieldSilver, shieldGold, blaster, burst, burstGreen, burstOrange, burstBlue
+
+numbers: num0, num1, num2, num3, num4, num5, num6, num7, num8, num9
+
+candy: candyOrange, candyGreen, candyYellow, swirl, swirlMint`,
     },
     {
       id: 'patterns',
