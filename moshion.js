@@ -145,6 +145,33 @@
     return KEY_ALIASES_[k] || k;
   }
 
+  // A plain-words console note shown once per run for each `key`, for code
+  // that works but very likely does not do what its writer meant.
+  const WARNED_ONCE_ = new Set();
+  // Sprites taken out of a group with group.remove(s) this frame; checked
+  // after drawTop() by _noteGroupRemovals().
+  const REMOVED_FROM_GROUP_ = [];
+  function _noteGroupRemovals() {
+    for (const [s, group, before] of REMOVED_FROM_GROUP_) {
+      // Destroyed after all, put back, or moved into a group it was not in
+      // when it was removed (alive.remove(s); dead.push(s);): nothing to say.
+      // Still being in some other group it was in all along says nothing
+      // about a move, so coins.remove(s) still notes it.
+      const movedIn = (s._groups || []).some((g) => !before.includes(g));
+      if (!s._dead && !group.includes(s) && !movedIn) {
+        _warnOnce('group.remove', 'group.remove(sprite) only takes the sprite out of the group; it is still on screen. ' +
+          'To get rid of it, use sprite.delete().');
+        break;
+      }
+    }
+    REMOVED_FROM_GROUP_.length = 0;
+  }
+  function _warnOnce(key, msg) {
+    if (WARNED_ONCE_.has(key)) return;
+    WARNED_ONCE_.add(key);
+    console.warn(msg);
+  }
+
   const kb = {
     holdThreshold: 12,
     // Boolean, matching the course (5.1.5/6.3.3: "returns true every frame
@@ -162,7 +189,14 @@
     // frame the key comes back UP, not the frame it goes down. Matched here
     // exactly even though several reading lessons (6.5.11 etc.) read like
     // they expect a down-edge trigger — see build report for the disagreement.
-    pressed: (k) => kb.released(k),
+    // Kept (saved programs depend on it), but the first call each run says
+    // so in the console, because `if (kb.pressed('space'))` nearly always
+    // means presses().
+    pressed: (k) => {
+      _warnOnce('kb.pressed', 'kb.pressed() is true when the key comes back UP. ' +
+        'To act the moment it goes down, use kb.presses().');
+      return kb.released(k);
+    },
     // The reference API's releases() is a literal alias of released() (verified
     // against the reference implementation: `releases(inp) { return
     // this.released(inp); }`) — both are already true for exactly one frame
@@ -199,7 +233,12 @@
     holding: (b) => { const v = MOUSE[_btnSlot(b)]; return v >= mouse.holdThreshold ? v : 0; },
     held: (b) => MOUSE[_btnSlot(b)] === -2,
     released: (b) => MOUSE[_btnSlot(b)] <= -1,
-    pressed: (b) => mouse.released(b),
+    // The same up-edge alias as kb.pressed() above, with the same one-time note.
+    pressed: (b) => {
+      _warnOnce('mouse.pressed', 'mouse.pressed() is true when the button comes back UP. ' +
+        'To act the moment it goes down, use mouse.presses().');
+      return mouse.released(b);
+    },
     // Same alias relationship as kb.releases() above (the reference implementation).
     releases: (b) => mouse.released(b),
     // True once the browser has reported the cursor inside the canvas and
@@ -364,17 +403,21 @@
     },
   });
 
+  // A live vector like sprite.vel: world.gravity.y = 10 writes through, and a
+  // non-number is refused in words (it used to turn every falling sprite NaN).
+  let GRAVITY_VEC_ = null;
   Object.defineProperty(world, 'gravity', {
     get() {
-      const g = _world().getGravity();
-      return {
-        get x() { return g.x; },
-        get y() { return g.y; },
-        set x(v) { const c = _world().getGravity(); _world().setGravity(pl.Vec2(v, c.y)); },
-        set y(v) { const c = _world().getGravity(); _world().setGravity(pl.Vec2(c.x, v)); },
-      };
+      if (!GRAVITY_VEC_) {
+        GRAVITY_VEC_ = liveVec(
+          () => { const g = _world().getGravity(); return { x: g.x, y: g.y }; },
+          (x, y) => _world().setGravity(pl.Vec2(x, y)),
+          'world.gravity',
+        );
+      }
+      return GRAVITY_VEC_;
     },
-    set(v) { _world().setGravity(pl.Vec2(v.x, v.y)); },
+    set(v) { const [x, y] = _vecParts(v, 'world.gravity'); _world().setGravity(pl.Vec2(x, y)); },
   });
 
   // camera.off() / camera.on() switch drawing between world space and screen
@@ -485,6 +528,60 @@
     if (a.length === 2) return `rgba(${n(a[0])},${n(a[0])},${n(a[0])},${al(a[1])})`;
     if (a.length === 3) return `rgb(${n(a[0])},${n(a[1])},${n(a[2])})`;
     return `rgba(${n(a[0])},${n(a[1])},${n(a[2])},${al(a[3])})`;
+  }
+
+  // rgba() and randomColor(): colours as one CSS string, which is what
+  // fill(), stroke(), background() and .color already take. Building an rgba
+  // string by hand is a lot of concatenation for a beginner:
+  //   sprite.color = 'rgba(' + r + ', ' + g + ', ' + b + ', ' + a + ')';
+  // Moved here from shCode's own extras file (2026-11-20), same behaviour.
+  function _rgbaChannel(n) {
+    const v = Math.round(Number(n));
+    if (!isFinite(v)) return 0;
+    return Math.max(0, Math.min(255, v));
+  }
+  function _rgbaAlpha(n) {
+    const v = Number(n);
+    if (!isFinite(v)) return 1;
+    return Math.max(0, Math.min(1, v));
+  }
+
+  // rgba(r, g, b, a) -> 'rgba(r, g, b, a)'
+  // rgba([r, g, b], a) also works. Channels are rounded and clamped to 0-255;
+  // alpha is clamped to 0-1 and defaults to 1. Accepts expressions, so
+  // rgba(255, 99, 71, random(0.2, 0.8)) is one call.
+  function rgba(r, g, b, a) {
+    if (Array.isArray(r)) {
+      const triple = r;
+      // rgba([r, g, b], a): the alpha arrives in the second parameter, which is
+      // about to be overwritten by the green channel, so take it first.
+      const alphaArg = a !== undefined ? a : (typeof g === 'number' ? g : triple[3]);
+      r = triple[0];
+      g = triple[1];
+      b = triple[2];
+      a = alphaArg;
+    }
+    if (a === undefined) a = 1;
+    return 'rgba(' + _rgbaChannel(r) + ', ' + _rgbaChannel(g) + ', ' + _rgbaChannel(b) + ', ' + _rgbaAlpha(a) + ')';
+  }
+
+  // randomColor()            -> random rgb, fully opaque
+  // randomColor(a)           -> random rgb at alpha a
+  // randomColor(minA, maxA)  -> random rgb, random alpha in the range
+  // Rolls the engine's own seeded random(), so randomSeed() repeats it.
+  function randomColor(minA, maxA) {
+    if (minA === undefined) minA = 1;
+    if (maxA === undefined) maxA = minA;
+    let lo = _rgbaAlpha(minA);
+    let hi = _rgbaAlpha(maxA);
+    if (hi < lo) { const t = lo; lo = hi; hi = t; }
+    const a = lo === hi ? lo : lo + random() * (hi - lo);
+    return rgba(
+      Math.floor(random() * 256),
+      Math.floor(random() * 256),
+      Math.floor(random() * 256),
+      a,
+    );
   }
 
   function background(...args) {
@@ -705,8 +802,8 @@
   /**
    * Save art under a name, so `sprite.texture = name` finds it next run.
    *
-   * The host bridge caps a value at 64 KB and the store at 512 KB, which is
-   * why this is for small pixel art rather than photographs. A 32x32 PNG
+   * The host bridge caps a value at 64 KB (the host sets the total), which
+   * is why this is for small pixel art rather than photographs. A 32x32 PNG
    * data URL is about 1-2 KB.
    */
   function saveTexture(name, dataUrl, opts) {
@@ -766,13 +863,104 @@
     throw new TypeError(`sprite.shape must be 'circle' or 'rect', not ${JSON.stringify(v)}`);
   }
 
-  function liveVec(read, write) {
-    return {
+  // `sprite.vel = createVector(3, 0)`, `sprite.pos = {x, y}`, `[x, y]`: the
+  // numbers to copy INTO a live vector. Assigning used to swap the live proxy
+  // for the plain object, so the sprite stopped answering to physics with no
+  // error. Anything without two numbers is refused in plain words.
+  function _vecParts(v, where) {
+    // Number.isFinite, not typeof: a NaN or Infinity copied into the physics
+    // body would make the sprite vanish with no error.
+    if (Array.isArray(v) && v.length >= 2 && Number.isFinite(v[0]) && Number.isFinite(v[1])) return [v[0], v[1]];
+    if (v && typeof v === 'object' && Number.isFinite(v.x) && Number.isFinite(v.y)) return [v.x, v.y];
+    throw new TypeError(`${where} must be a point with x and y, like createVector(3, 0), {x: 3, y: 0} or [3, 0], not ` +
+      (Array.isArray(v) ? `[${v.map(_show).join(', ')}]`
+        : v && typeof v === 'object' ? `{x: ${_show(v.x)}, y: ${_show(v.y)}}` : _show(v)));
+  }
+
+  // ---- numbers and points, checked in one place ----------------------------
+  // Every number a sketch writes into the engine (a position, a speed, a
+  // rotation, a size, gravity) goes through _num, so a typo such as
+  // `player.vel.x = speed` with speed never set is refused in plain words
+  // naming what was written, instead of putting NaN into the physics and
+  // making the sprite vanish with no error.
+  const _show = (v) => (typeof v === 'string' ? JSON.stringify(v) : String(v));
+  // `example` is a line the student could copy; it defaults to `where = 3`.
+  function _num(v, where, example = `${where} = 3`) {
+    if (!Number.isFinite(v)) throw new TypeError(`${where} must be a number, like ${example}, not ${_show(v)}`);
+    return v;
+  }
+  // A size may be Infinity (a floor that never ends; the collider keeps its
+  // last good size, see _buildFixture), but never NaN or a word.
+  function _size(v, where, example = `${where} = 40`) {
+    if (typeof v !== 'number' || Number.isNaN(v)) throw new TypeError(`${where} must be a number, like ${example}, not ${_show(v)}`);
+    return v;
+  }
+  // Vector maths, shared by createVector()'s vectors and a sprite's live
+  // pos/vel (and world.gravity), so the two cannot behave differently. `what`
+  // is the call as the sketch wrote it ('v.add()', 'sprite.vel.add()').
+  // A point is x, y or {x, y} or [x, y]; a missing number is 0, as in p5.
+  function _vNum(n, what, example) {
+    if (n === undefined || n === null) return 0;
+    if (!Number.isFinite(n)) throw new TypeError(`${what} needs numbers, like ${example}, not ${_show(n)}`);
+    return n;
+  }
+  function _vPoint(x, y, what) {
+    const ex = what.replace('()', '(3, 0)');
+    if (Array.isArray(x)) return [_vNum(x[0], what, ex), _vNum(x[1], what, ex)];
+    if (x && typeof x === 'object') return [_vNum(x.x, what, ex), _vNum(x.y, what, ex)];
+    return [_vNum(x, what, ex), _vNum(y, what, ex)];
+  }
+  function _vFactor(n, what) {
+    if (!Number.isFinite(n)) throw new TypeError(`${what} needs one number, like ${what.replace('()', '(2)')}, not ${_show(n)}`);
+    return n;
+  }
+  // Each returns the new [x, y] from the current point c.
+  const VEC_MATH_ = {
+    set: (c, x, y, w) => _vPoint(x, y, w),
+    add: (c, x, y, w) => { const [a, b] = _vPoint(x, y, w); return [c.x + a, c.y + b]; },
+    sub: (c, x, y, w) => { const [a, b] = _vPoint(x, y, w); return [c.x - a, c.y - b]; },
+    mult: (c, n, _, w) => { n = _vFactor(n, w); return [c.x * n, c.y * n]; },
+    div: (c, n, _, w) => {
+      n = _vFactor(n, w);
+      if (n === 0) throw new TypeError(`${w}: a vector cannot be divided by 0`);
+      return [c.x / n, c.y / n];
+    },
+    normalize: (c) => { const m = Math.hypot(c.x, c.y); return m ? [c.x / m, c.y / m] : [c.x, c.y]; },
+  };
+  function _vDist(c, o, what) {
+    const [ox, oy] = o && typeof o === 'object' ? (Array.isArray(o) ? o : [o.x, o.y]) : [];
+    if (!Number.isFinite(ox) || !Number.isFinite(oy)) {
+      throw new TypeError(`${what} needs another point with an x and a y, like ${what.replace('()', '(enemy.pos)')}`);
+    }
+    return Math.hypot(c.x - ox, c.y - oy);
+  }
+
+  // `name` is how a sketch writes it ('sprite.vel', 'world.gravity'), for the error message.
+  function liveVec(read, write, name) {
+    // One axis at a time too: player.vel.x = speed with speed never set
+    // would put NaN into the physics body and the sprite would vanish.
+    const v = {
       get x() { return read().x; },
       get y() { return read().y; },
-      set x(v) { const c = read(); write(v, c.y); },
-      set y(v) { const c = read(); write(c.x, v); },
+      set x(n) { const c = read(); write(_num(n, `${name}.x`), c.y); },
+      set y(n) { const c = read(); write(c.x, _num(n, `${name}.y`)); },
     };
+    // Both axes in one write, for whole-vector assignment (so a velocity is
+    // never judged half old, half new by the speed-cap note).
+    Object.defineProperty(v, '_write', { value: write, enumerable: false });
+    // The Vector methods (the same VEC_MATH_ as createVector()'s), so
+    // sprite.vel.set(0, 0), pos.add(...) and friends work on the live vector.
+    // Each change is one write; each returns the live vector.
+    const methods = {
+      copy() { const c = read(); return new Vector(c.x, c.y); },
+      mag() { const c = read(); return Math.hypot(c.x, c.y); },
+      dist(o) { return _vDist(read(), o, `${name}.dist()`); },
+    };
+    for (const k of Object.keys(VEC_MATH_)) {
+      methods[k] = function (a, b) { const [x, y] = VEC_MATH_[k](read(), a, b, `${name}.${k}()`); write(x, y); return v; };
+    }
+    for (const [k, fn] of Object.entries(methods)) Object.defineProperty(v, k, { value: fn, enumerable: false });
+    return v;
   }
 
   const WARNED_ANIS_ = new Set();
@@ -790,11 +978,20 @@
       if (typeof h === 'string' && bodyType === undefined) { bodyType = h; h = undefined; }
       if (x === undefined && y === undefined) { x = camera.x; y = camera.y; }
       const sig = 'new Sprite(x, y, w, h, collider)';
-      for (const [k, v] of [['x', x], ['y', y], ['w', w], ['h', h]]) {
-        if (v !== undefined && typeof v !== 'number') {
-          throw new TypeError(`${sig}: ${k} must be a number, not ${JSON.stringify(v)}`);
-        }
+      // x and y are both needed (new Sprite() with neither puts it where the
+      // camera looks); w and h may be left out (a 50x50 box, or a circle when
+      // only w is given) but never NaN or a word. Checked before the physics
+      // body exists, so new Sprite(x, 100) with x never set says so instead
+      // of making a sprite that is nowhere.
+      const ex = 'new Sprite(200, 150, 40, 40)';
+      if (typeof w === 'string' && /^(static|dynamic|kinematic|none)$/i.test(w)) {
+        throw new TypeError(`${sig}: w must be a number. A collider name like ${_show(w)} goes after the size: ` +
+          `new Sprite(200, 150, 40, 40, ${_show(w)})`);
       }
+      _num(x, `${sig}: x`, ex);
+      _num(y, `${sig}: y`, ex);
+      if (w !== undefined) _size(w, `${sig}: w`, ex);
+      if (h !== undefined) _size(h, `${sig}: h`, ex);
       let isCircle = false;
       if (w !== undefined && h === undefined) { isCircle = true; h = w; }
       else if (w === undefined) { w = 50; h = 50; }
@@ -855,9 +1052,10 @@
       this._buildFixture();
       if (wantsNone) this.collider = 'none';
 
-      this.pos = liveVec(
+      this._pos = liveVec(
         () => { const p = this._body.getPosition(); return { x: p.x * PXM, y: p.y * PXM }; },
         (x, y) => this._body.setPosition(pl.Vec2(x / PXM, y / PXM)),
+        'sprite.pos',
       );
       // planck (Box2D) clamps a body's per-step translation to 2 metres —
       // its anti-tunnelling safety, so a fast body can't skip through a
@@ -866,9 +1064,10 @@
       // The ceiling is `world.maxSpeed` (one global, default 60, opt-in to
       // raise -- see its definition for the cost); setting a speed past it
       // warns once per run, naming that knob, instead of failing silently.
-      this.vel = liveVec(
+      this._vel = liveVec(
         () => { const v = this._body.getLinearVelocity(); return { x: v.x * PXM / FPS, y: v.y * PXM / FPS }; },
         (x, y) => { noteSpeed_(x, y); this._body.setLinearVelocity(pl.Vec2(x * FPS / PXM, y * FPS / PXM)); },
+        'sprite.vel',
       );
 
       ALL_.push(this);
@@ -907,13 +1106,13 @@
     // size, so on a circle setting either one sets both.
     get w() { return this._w; }
     set w(v) {
-      this._w = v;
+      this._w = _size(v, 'sprite.w');
       if (this._shape === 'circle') this._h = v;
       this._buildFixture();
     }
     get h() { return this._h; }
     set h(v) {
-      this._h = v;
+      this._h = _size(v, 'sprite.h');
       if (this._shape === 'circle') this._w = v;
       this._buildFixture();
     }
@@ -927,13 +1126,13 @@
     get body() { return this.collider; }
     set body(t) { this.collider = t; }
     get bounciness() { return this._bounciness; }
-    set bounciness(v) { this._bounciness = v; this._buildFixture(); }
+    set bounciness(v) { this._bounciness = _num(v, 'sprite.bounciness'); this._buildFixture(); }
     get friction() { return this._friction; }
-    set friction(v) { this._friction = v; this._buildFixture(); }
+    set friction(v) { this._friction = _num(v, 'sprite.friction'); this._buildFixture(); }
     // density (D2): fixture density in Box2D units — rebuilds the fixture,
     // same convention as bounciness/friction above.
     get density() { return this._density; }
-    set density(v) { this._density = v; this._buildFixture(); }
+    set density(v) { this._density = _num(v, 'sprite.density'); this._buildFixture(); }
 
     // real p5play Sprite surface: mass reads straight off the planck body;
     // setting it scales density so the resulting fixture mass matches
@@ -942,6 +1141,7 @@
     // mass assignment on one is a no-op, matching real physics.
     get mass() { return this._body.getMass(); }
     set mass(m) {
+      _num(m, 'sprite.mass');
       const current = this._body.getMass();
       if (current > 0) this.density = this._density * (m / current);
     }
@@ -953,9 +1153,9 @@
     // allowSleeping ~1603, physicsEnabled ~1622, physicsType ~1632); none of
     // these change any EXISTING getter, so no prior sketch is affected.
     get drag() { return this._body.getLinearDamping(); }
-    set drag(v) { this._body.setLinearDamping(v); }
+    set drag(v) { this._body.setLinearDamping(_num(v, 'sprite.drag')); }
     get rotationDrag() { return this._body.getAngularDamping(); }
-    set rotationDrag(v) { this._body.setAngularDamping(v); }
+    set rotationDrag(v) { this._body.setAngularDamping(_num(v, 'sprite.rotationDrag')); }
     get rotationLock() { return this._body.isFixedRotation(); }
     set rotationLock(v) {
       this._body.setFixedRotation(v);
@@ -964,13 +1164,14 @@
     // rotationSpeed is the reference API's OWN name for this file's angularVelocity
     // (deg/frame) — a literal alias, both stay live (the reference implementation).
     get rotationSpeed() { return this.angularVelocity; }
-    set rotationSpeed(v) { this.angularVelocity = v; }
+    set rotationSpeed(v) { this.angularVelocity = _num(v, 'sprite.rotationSpeed'); }
     get gravityScale() { return this._body.getGravityScale(); }
-    set gravityScale(v) { this._body.setGravityScale(v); }
-    applyTorque(t) { this._body.applyTorque(t, true); }
+    set gravityScale(v) { this._body.setGravityScale(_num(v, 'sprite.gravityScale')); }
+    applyTorque(t) { this._body.applyTorque(_num(t, 'sprite.applyTorque(t): t', 'sprite.applyTorque(5)'), true); }
     // Force scaled by this sprite's own mass, so the same fx/fy accelerates
     // every sprite equally regardless of size (the reference implementation).
     applyForceScaled(fx, fy) {
+      _num(fx, 'sprite.applyForceScaled(fx, fy): fx', 'sprite.applyForceScaled(5, 0)'); _num(fy, 'sprite.applyForceScaled(fx, fy): fy', 'sprite.applyForceScaled(5, 0)');
       const m = this.mass;
       this._body.applyForceToCenter(pl.Vec2(fx * m, fy * m), true);
     }
@@ -1020,7 +1221,7 @@
     // does SOMETHING sensible instead of silently no-oping. Argued in the
     // build report per the spec's invitation to make this call either way.
     get rollingResistance() { return this.drag; }
-    set rollingResistance(v) { this.drag = v; }
+    set rollingResistance(v) { this.drag = _num(v, 'sprite.rollingResistance'); }
 
     // speed/direction: a polar view onto .vel (magnitude px/frame, heading
     // degrees — 0 = right, matching .rotation's convention). Setting one
@@ -1028,6 +1229,7 @@
     // a momentary zero-speed frame (atan2(0,0) would otherwise reset it).
     get speed() { return Math.hypot(this.vel.x, this.vel.y); }
     set speed(s) {
+      _num(s, 'sprite.speed');
       const rad = (this.direction * Math.PI) / 180;
       this.vel.x = Math.cos(rad) * s;
       this.vel.y = Math.sin(rad) * s;
@@ -1039,6 +1241,7 @@
       return this._direction;
     }
     set direction(deg) {
+      _num(deg, 'sprite.direction');
       const speed = this.speed;
       this._direction = deg;
       const rad = (deg * Math.PI) / 180;
@@ -1352,16 +1555,16 @@
     // shorthand size setter for circular sprites (group default + per-sprite,
     // e.g. `apples.diameter = 20`, `leftWheel.diameter = 20`).
     get diameter() { return this.w; }
-    set diameter(v) { this._w = v; this._h = v; this._shape = 'circle'; this._buildFixture(); }
+    set diameter(v) { _size(v, 'sprite.diameter'); this._w = v; this._h = v; this._shape = 'circle'; this._buildFixture(); }
 
     // Aliases for numbers the sprite already has. None of these is a new
     // capability — they exist because a student arriving from p5/the reference API
     // material types `.width` or `.velocity` before they type `.w` or `.vel`,
     // and an unknown property is a silent undefined, not an error.
     get width() { return this.w; }
-    set width(v) { this.w = v; }
+    set width(v) { this.w = _size(v, 'sprite.width'); }
     get height() { return this.h; }
-    set height(v) { this.h = v; }
+    set height(v) { this.h = _size(v, 'sprite.height'); }
     get hw() { return this.w / 2; }
     set hw(v) { this.w = v * 2; }
     get hh() { return this.h / 2; }
@@ -1371,16 +1574,16 @@
     get halfHeight() { return this.hh; }
     set halfHeight(v) { this.hh = v; }
     get d() { return this.diameter; }
-    set d(v) { this.diameter = v; }
+    set d(v) { this.diameter = _size(v, 'sprite.d'); }
     get r() { return this.diameter / 2; }
-    set r(v) { this.diameter = v * 2; }
+    set r(v) { this.diameter = _size(v, 'sprite.r') * 2; }
     get radius() { return this.r; }
-    set radius(v) { this.r = v; }
+    set radius(v) { this.r = _size(v, 'sprite.radius'); }
     // Assigning .velocity copies into the existing vector rather than
     // replacing it — sprite.vel is a live proxy onto the physics body, so
     // swapping the object out would disconnect it.
     get velocity() { return this.vel; }
-    set velocity(v) { this.vel.x = v.x; this.vel.y = v.y; }
+    set velocity(v) { this.vel = v; }
 
     // still art — mutually exclusive with an active `ani` (2.4.3d).
     // Accepts: an emoji / short text (a string that is not a URL), an image URL,
@@ -1634,23 +1837,33 @@
       return c;
     }
 
+    // pos and vel are live vectors onto the physics body (see liveVec).
+    // Assigning a whole vector copies its x and y in, so
+    // `player.vel = createVector(3, 0)` moves the sprite; it used to replace
+    // the live vector with the plain object and disconnect it from physics.
+    get pos() { return this._pos; }
+    set pos(v) { const [x, y] = _vecParts(v, 'sprite.pos'); this._pos._write(x, y); }
+    get vel() { return this._vel; }
+    set vel(v) { const [x, y] = _vecParts(v, 'sprite.vel'); this._vel._write(x, y); }
+
     get x() { return this.pos.x; }
-    set x(v) { this.pos.x = v; }
+    set x(v) { this.pos.x = _num(v, 'sprite.x'); }
     get y() { return this.pos.y; }
-    set y(v) { this.pos.y = v; }
+    set y(v) { this.pos.y = _num(v, 'sprite.y'); }
 
     // `sprite.position` is the reference API's own name for `sprite.pos` (verified
     // against the reference implementation) — plain alias, same live vector.
     get position() { return this.pos; }
-    set position(v) { this.pos.x = v.x; this.pos.y = v.y; }
+    set position(v) { this.pos = v; }
 
     get rotation() { return (this._body.getAngle() * 180) / Math.PI; }
-    set rotation(deg) { this._body.setAngle((deg * Math.PI) / 180); }
+    set rotation(deg) { this._body.setAngle((_num(deg, 'sprite.rotation') * Math.PI) / 180); }
 
     // angularVelocity — degrees per frame, matching the facade's px/frame unit
     // convention (2.3.19 pendulum kick, 2.3.21 car-ramp wheel drive).
     get angularVelocity() { return ((this._body.getAngularVelocity() * 180) / Math.PI) / FPS; }
     set angularVelocity(degPerFrame) {
+      _num(degPerFrame, 'sprite.angularVelocity');
       // rotationLock means "this sprite does not turn". Box2D's fixed-rotation
       // flag only stops TORQUE from spinning a body — an explicit angular
       // velocity write still turns it, so a locked sprite handed a spin would
@@ -1663,7 +1876,7 @@
     applyForce(fx, fy) {
       // raw Box2D Newtons, like the reference API's applyForce — the old px/frame²
       // conversion (x120) made forces 120x too strong.
-      this._body.applyForceToCenter(pl.Vec2(fx, fy), true);
+      this._body.applyForceToCenter(pl.Vec2(_num(fx, 'sprite.applyForce(fx, fy): fx', 'sprite.applyForce(5, 0)'), _num(fy, 'sprite.applyForce(fx, fy): fy', 'sprite.applyForce(5, 0)')), true);
     }
 
     _bounds() {
@@ -2061,7 +2274,9 @@
       // scaled with the sprite's art (real p5play draws sprite text
       // axis-aligned; six lessons use this for HP/score labels that
       // shouldn't spin with the sprite).
-      if (this.text) {
+      // The number 0 is a label too (a score, a countdown); null, undefined
+      // and '' draw nothing.
+      if (this.text || this.text === 0) {
         CTX_.save();
         CTX_.globalAlpha = this.opacity;
         CTX_.translate(this.x, this.y);
@@ -2093,7 +2308,7 @@
   const JUMP_HEIGHT_ = 120; // px a jump with jumpPower 1 rises, at any gravity
   function _jumpNumber(v, what) {
     if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) {
-      throw new TypeError(`sprite.${what} must be a number, 0 or more, not ${JSON.stringify(v)}`);
+      throw new TypeError(`sprite.${what} must be a number, 0 or more, like sprite.${what} = 2, not ${_show(v)}`);
     }
     return v;
   }
@@ -2286,7 +2501,10 @@
       }
       Object.defineProperty(this, 'Sprite', { value: GroupSprite, enumerable: false });
     }
-    newSprite(x, y, w, h) { const s = new Sprite(x, y, w, h); this.push(s); return s; }
+    // group.newSprite(...) is `new group.Sprite(...)` under another name: the
+    // same factory, so it gets every group default (colour, collider, size,
+    // made-up fields). It used to build a plain Sprite and only push it.
+    newSprite(...args) { return new this.Sprite(...args); }
 
     // texture: same cascade-and-remember behaviour as `image`, by catalog name.
     get texture() { return this._groupTexture == null ? null : this._groupTexture; }
@@ -2342,6 +2560,8 @@
     // (2.3.3/2.3.7: "group.remove(sprite) only unparents; there is no
     // sprite.remove() on Group" — a real, documented distinction this
     // engine previously got wrong by destroying on group.remove()).
+    // Because `coins.remove(c)` reads like "get rid of c", the first such
+    // call each run that leaves a live sprite behind says so in the console.
     remove(s) {
       const i = this.indexOf(s);
       if (i >= 0) this.splice(i, 1);
@@ -2349,6 +2569,9 @@
         const gi = s._groups.indexOf(this);
         if (gi >= 0) s._groups.splice(gi, 1);
       }
+      // Said at the END of the frame, and only if the sprite is still alive
+      // then: coins.remove(c); c.remove(); is fine and says nothing.
+      if (s instanceof Sprite && !s._dead) REMOVED_FROM_GROUP_.push([s, this, [...(s._groups || [])]]);
     }
     // add(sprite) is push(sprite) under a different name — same membership
     // bookkeeping, same dedupe-against-the-array behavior.
@@ -2495,11 +2718,16 @@
     'collider', 'body', 'physicsType', 'bounciness', 'friction', 'density',
     'drag', 'rotationDrag', 'rotationLock', 'gravityScale',
   ];
+  const GROUP_CHECK_ = {};
+  for (const k of ['w', 'h', 'width', 'height', 'diameter', 'd', 'r', 'radius']) GROUP_CHECK_[k] = _size;
+  for (const k of ['bounciness', 'friction', 'density', 'drag', 'rotationDrag', 'gravityScale']) GROUP_CHECK_[k] = _num;
   for (const prop of GROUP_CASCADE_) {
     Object.defineProperty(Group.prototype, prop, {
       configurable: true,
       get() { return this._defaults && this._defaults.has(prop) ? this._defaults.get(prop) : undefined; },
       set(v) {
+        // Checked here, when the group is told, not when a member is made later.
+        if (GROUP_CHECK_[prop]) GROUP_CHECK_[prop](v, `group.${prop}`);
         if (!this._defaults) Object.defineProperty(this, '_defaults', { value: new Map() });
         this._defaults.delete(prop); // re-insert, so members replay writes in the order they were made
         this._defaults.set(prop, v);
@@ -2963,7 +3191,7 @@
   function _hingeDegrees(v, name) {
     if (v === null || v === undefined) return null;
     if (typeof v !== 'number' || !isFinite(v)) {
-      throw new TypeError(`hinge.${name} must be a number of degrees, like ${name === 'lowerLimit' ? -45 : 90}, or null for no limit, not ${JSON.stringify(v)}`);
+      throw new TypeError(`hinge.${name} must be a number of degrees, like ${name === 'lowerLimit' ? -45 : 90}, or null for no limit, not ${_show(v)}`);
     }
     return v;
   }
@@ -4190,36 +4418,23 @@
   // ---- vector (6.5.x) -----------------------------------------------------
 
   // p5.Vector-shaped: methods mutate in place and return `this` for chaining,
-  // matching real p5.js semantics (createVector() is a fresh instance, not
-  // tied to a sprite — assigning it to sprite.vel/pos replaces the live
-  // physics-backed proxy with a plain vector, exactly like the reference API).
+  // matching real p5.js semantics. createVector() is a fresh instance, not
+  // tied to a sprite: assigning it to sprite.vel/pos COPIES its x and y into
+  // the live, physics-backed vector (see _vecParts and liveVec), which carries
+  // these same methods.
+  // createVector()'s vectors: the same maths (VEC_MATH_) and the same checks
+  // as a sprite's live pos/vel, on a plain {x, y} that belongs to nobody.
   class Vector {
-    constructor(x, y) { this.x = x || 0; this.y = y || 0; }
-    set(x, y) {
-      if (x && typeof x === 'object') { this.x = x.x; this.y = x.y; }
-      else { this.x = x || 0; this.y = y || 0; }
-      return this;
-    }
+    constructor(x, y) { this.x = _vNum(x, 'createVector()', 'createVector(3, 4)'); this.y = _vNum(y, 'createVector()', 'createVector(3, 4)'); }
     copy() { return new Vector(this.x, this.y); }
-    add(x, y) {
-      if (x && typeof x === 'object') { this.x += x.x; this.y += x.y; }
-      else { this.x += x; this.y += y; }
-      return this;
-    }
-    sub(x, y) {
-      if (x && typeof x === 'object') { this.x -= x.x; this.y -= x.y; }
-      else { this.x -= x; this.y -= y; }
-      return this;
-    }
-    mult(n) { this.x *= n; this.y *= n; return this; }
-    div(n) { this.x /= n; this.y /= n; return this; }
-    mag() { return Math.sqrt(this.x * this.x + this.y * this.y); }
-    dist(v) { const dx = this.x - v.x, dy = this.y - v.y; return Math.sqrt(dx * dx + dy * dy); }
-    normalize() {
-      const m = this.mag();
-      if (m !== 0) { this.x /= m; this.y /= m; }
-      return this;
-    }
+    mag() { return Math.hypot(this.x, this.y); }
+    dist(o) { return _vDist(this, o, 'v.dist()'); }
+  }
+  for (const k of Object.keys(VEC_MATH_)) {
+    Object.defineProperty(Vector.prototype, k, {
+      value: function (a, b) { [this.x, this.y] = VEC_MATH_[k](this, a, b, `v.${k}()`); return this; },
+      writable: true, configurable: true,
+    });
   }
   function createVector(x, y) { return new Vector(x, y); }
 
@@ -4706,12 +4921,24 @@
     delete _bridge()[name];
     _postStore({ op: 'remove', key: String(name) });
   }
+  // clearStorage() erases what sketches saved with storeItem, and only that:
+  // saved pictures, sounds and fonts (and their editor data) are the
+  // student's art, kept under these prefixes, and a Reset button in one game
+  // must never wipe them. The host's own store is told the same ('clear'
+  // keeps these prefixes there too).
+  const LIBRARY_PREFIXES_ = ['texture:', 'texmeta:', 'sound:', 'sndmeta:', 'font:', 'fontmeta:'];
+  const _isLibraryKey = (k) => LIBRARY_PREFIXES_.some((p) => k.startsWith(p));
   function clearStorage() {
     const ls = _ls();
-    if (ls) { ls.clear(); return; }
+    if (ls) {
+      const keys = [];
+      for (let i = 0; i < ls.length; i++) keys.push(ls.key(i));
+      for (const k of keys) if (!_isLibraryKey(k)) ls.removeItem(k);
+      return;
+    }
     const store = _bridge();
-    for (const k of Object.keys(store)) delete store[k];
-    _postStore({ op: 'clear' });
+    for (const k of Object.keys(store)) if (!_isLibraryKey(k)) delete store[k];
+    _postStore({ op: 'clear', keep: LIBRARY_PREFIXES_ });
   }
 
   // ---- main loop --------------------------------------------------------
@@ -5109,6 +5336,7 @@
       camera._active = false;
       drawTopFn();
       camera._active = camWasActive;
+      _noteGroupRemovals();
 
       // Counter sweep AFTER this frame's update/draw ran, not before —
       // keydown/mousedown fire asynchronously between rAF calls, so
@@ -5278,6 +5506,8 @@
   global.frameRate = frameRate;
   global.nf = nf;
   global.createVector = createVector;
+  global.rgba = rgba;
+  global.randomColor = randomColor;
   global.Vector = Vector;
   global.loadJSON = loadJSON;
   global.loadSound = loadSound;

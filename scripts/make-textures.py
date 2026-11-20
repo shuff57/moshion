@@ -181,6 +181,30 @@ ANIMATED = {
 ORIGINAL = {
     "runner": ("characters", 6, 4, 24),
     "runnerJump": ("characters", 1, 4, 24),
+    # Moved versions of the Kenney tiles above, drawn by make-anim-sheets.py
+    # (run it after this script has written the base tiles, then run this again).
+    # name -> (group, frames, hold, size); hold = ticks per frame.
+    "coinSpin": ("pickups", 6, 9, 21),
+    "coinSilverSpin": ("pickups", 6, 9, 21),
+    "coinBronzeSpin": ("pickups", 6, 9, 21),
+    "heartBlink": ("pickups", 2, 20, 21),
+    "heartLose": ("pickups", 6, 10, 21),
+    "gemSparkle": ("pickups", 8, 9, 21),
+    "gemGreenSparkle": ("pickups", 8, 9, 21),
+    "gemYellowSparkle": ("pickups", 8, 9, 21),
+    "gemOrangeSparkle": ("pickups", 8, 9, 21),
+    "starTwinkle": ("pickups", 6, 12, 21),
+    "playerJump": ("characters", 6, 9, 21),
+    "playerBlueJump": ("characters", 6, 9, 21),
+    "playerPinkJump": ("characters", 6, 9, 21),
+    "playerYellowJump": ("characters", 6, 9, 21),
+    "playerBeigeJump": ("characters", 6, 9, 21),
+    "flagWave": ("things", 4, 12, 21),
+    "flagGreenWave": ("things", 4, 12, 21),
+    "flagRedWave": ("things", 4, 12, 21),
+    "flagBlueWave": ("things", 4, 12, 21),
+    "torchFlicker": ("blocks", 4, 11, 21),
+    "boom": ("battle", 6, 6, 21),
 }
 
 
@@ -222,7 +246,8 @@ def main():
     for name, (group, frames, hold, size) in ORIGINAL.items():
         path = os.path.join(OUT, f"{name}.png")
         if not os.path.exists(path):
-            raise SystemExit(f"{name}.png missing -- run scripts/make-runner-sheet.py first")
+            maker = "make-runner-sheet.py" if name.startswith("runner") else "make-anim-sheets.py (this script has written the base tiles it starts from)"
+            raise SystemExit(f"{name}.png missing -- run scripts/{maker}, then this script again")
         written.append((group, name, -1))
         anim_meta[name] = (frames, hold, size)
 

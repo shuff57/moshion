@@ -7,13 +7,21 @@ the moSHion engine in this repository.
 
 This is the in-repo source of the **moSHion** teaching engine — a small,
 hand-authored JavaScript facade over [planck.js][] (a pure-JS/TS port of
-Box2D). There is no build step, no bundler and no linter configured. The only
-tooling is the Playwright spec suite under `tests/`.
+Box2D). The engine has no build step, no bundler and no linter. The docs
+have one small build (`node scripts/build-docs.mjs`, no dependencies), and the
+tests are the Playwright spec suite under `tests/`.
 
-- `moshion.js` (~4,100 lines) — the entire engine. Edit directly; do not split
+- `moshion.js` (~5,400 lines) — the entire engine. Edit directly; do not split
   without discussion.
-- `docs/moshion.d.ts` (~1,000 lines) — public API types. Keep in sync with
-  runtime behavior in `moshion.js`.
+- `docs/moshion.d.ts` (~1,500 lines) — public API types. Keep in sync with
+  runtime behavior in `moshion.js`. Every name's doc comment is also its line in
+  the docs' generated API reference, so write it for a beginner.
+- `docs/content/*.mjs` — THE docs, one file per section, every page with a
+  permanent `id` (never rename one). `node scripts/build-docs.mjs` turns them,
+  plus a reference generated from `docs/moshion.d.ts`, into
+  `docs/data/moshion-docs.js`, which the docs site and shCode (through its
+  `npm run sync:moshion`) both read. Never edit `docs/data/` by hand;
+  `node scripts/build-docs.mjs --check` fails when it is stale.
 - `planck.min.js` — vendored planck.js v1.5.0 (MIT). Do not edit.
 - `runner.html` — sandbox host used by the app's preview iframes
   (`/moshion/runner.html`; the sketch rides the postMessage bridge, with
@@ -22,9 +30,11 @@ tooling is the Playwright spec suite under `tests/`.
   live editor. Both embed `runner.html` in a sandboxed iframe.
 - `games/*.js` — the six demo sketches the homepage loads by `fetch`.
 - `tests/*.spec.mjs` — browser specs driving the real surface (see Commands).
-- `textures/` — the `sprite.texture = 'name'` catalog: 40 PNGs plus a
+- `textures/` — the `sprite.texture = 'name'` catalog: 126 PNGs plus a
   generated `textures.json` / `textures.js`. **Generated, not hand-edited.**
-  Regenerate with `python scripts/make-textures.py`; adding a texture means
+  Regenerate with `python scripts/make-textures.py` (then, on a fresh checkout,
+  `make-anim-sheets.py` and `make-textures.py` again: the 21 animated sheets
+  start from the tiles the first pass cuts out); adding a texture means
   adding a name -> tile index there, never dropping a PNG in by hand.
   Third-party CC0 art (Kenney) -- see LICENSE.md section 5, not section 1.
   `scripts/check-textures.mjs` gates the pipeline, including that `runner.html`
@@ -55,6 +65,8 @@ bun tests/starter-games.spec.mjs  # games/{asteroids,platformer,runner}.js
 bun tests/integration.spec.mjs    # index.html demo panel
 bun tests/viewport.spec.mjs       # the demo viewport shows the whole sketch
 bun tests/docs.spec.mjs           # every example on the docs site actually runs
+bun tests/docs-build.spec.mjs     # docs/data is built from docs/content; the reference lists every typed name
+bun tests/council-fixes.spec.mjs  # engine: newSprite defaults, pressed/remove notes, text 0, vector assignment, rgba
 bun tests/gaps.spec.mjs           # broadphase exactness, culling, square, Tiles, Walls, timers, addSensor
 bun tests/math-origin.spec.mjs    # world.origin = 'math' (centre, y up) + showGrid/showMouse; default unchanged
 bun tests/tiles-perf.bench.mjs    # NOT a spec: frame cost with 300..2400 tile sprites
@@ -86,38 +98,38 @@ The main loop (`start()` in `moshion.js`):
 2. Each frame: user `update(step)` → physics step → contact tracking →
    user `draw()` → render → user `drawTop()` → edge-trigger flags reset.
 
-Key classes and where they live in `moshion.js`:
+Key classes in `moshion.js` (search for the name; line numbers move):
 
-- `Canvas` (~298) — creates the canvas element; sets `width`/`height` globals.
-- `Sprite` (~338) — the heart of the engine. Constructor dispatch:
+- `Canvas` — creates the canvas element; sets `width`/`height` globals.
+- `Sprite` — the heart of the engine. Constructor dispatch:
   `(x,y)` → 50×50 square, `(x,y,d)` → circle, `(x,y,w,h)` → rect,
   `(x,y,w,h,bodyType)` → rect + body type. Physics knobs (`bounciness`,
   `friction`, `shape`, `body`, `collider`) rebuild the planck fixture on
   change via `_buildFixture()`.
-- `liveVec` (~329) — `pos`/`vel` are live proxy vectors that read/write the
+- `liveVec` — `pos`/`vel` are live proxy vectors that read/write the
   underlying planck body on every axis access, so `player.vel.x = 3` and
   `player.pos.y += 5` work like the reference API.
-- `Ani` (~1252) / `Anis` — minimal horizontal frame-strip animation.
+- `Ani` / `Anis` — minimal horizontal frame-strip animation.
   `addAni(name, sheetUrl, frameCount)`; first `addAni` auto-activates.
-  `changeAni(name)` is a silent no-op for unregistered names.
-- `Group` (~1275) `extends Array` — `new groupName.Sprite(...)` factory copies
+  `changeAni(name)` with an unregistered name changes nothing and warns once per name, listing the names the sprite has.
+- `Group` `extends Array` — `new groupName.Sprite(...)` factory copies
   the group's own properties as defaults; `push()` tracks membership in
   `sprite._groups` so `sprite.delete()` can unparent everywhere.
-- `allSprites` (~1468) — implicit group every sprite auto-joins.
-- `world` (~241) — `world.gravity` is a live proxy vector (raw Box2D m/s²,
+- `allSprites` — implicit group every sprite auto-joins.
+- `world` — `world.gravity` is a live proxy vector (raw Box2D m/s²,
   `y = 10` ≈ 1g); `world.getSpriteAt(x, y)` is a top-most layer hit-test.
-  Gravity STARTS at 0, as in p5play (`_world()`, ~331): a plain
+  Gravity STARTS at 0, as in p5play (`_world()`): a plain
   `new Sprite()` stays put until a sketch sets `world.gravity.y`. It was 9.8
   until 2026-11-01; a sketch that relied on falling now needs its own
   `world.gravity.y = ...` line.
-- `camera` (~259) — `camera.off()`/`on()` gate the transform that every
+- `camera` — `camera.off()`/`on()` gate the transform that every
   drawing primitive applies for itself.
-- `world.origin` (~255) — `'screen'` (default: top-left, y down) or `'math'`
+- `world.origin` — `'screen'` (default: top-left, y down) or `'math'`
   (centre, y up, counter-clockwise angles). See "Coordinates" below.
-- Joints (~1683–1820) — thin facades over planck joints: `HingeJoint`,
+- Joints — thin facades over planck joints: `HingeJoint`,
   `DistanceJoint`, `SliderJoint`, `WheelJoint`, `GrabberJoint`, `GlueJoint`.
-  All share `Joint.delete()`; there is no `joint.remove()`.
-- Input (~122–240) — `kb.pressing`/`kb.presses`, `mouse.x/y`,
+  All share `joint.delete()` (`joint.remove()` is the same).
+- Input — `kb.pressing`/`kb.presses`, `mouse.x/y`,
   `mouse.pressing`/`presses`/`released`. Edge flags reset AFTER the frame's
   update/draw ran (see the comment in `loop()` — reordering this breaks
   `presses()`).
@@ -192,7 +204,7 @@ any change once a sprite exists, gravity is non-zero or a frame has run.
 - **`overlaps()` and `colliding()` are NOT aliases.** `overlaps()` is a manual
   bounding-box query (works for `collider = 'none'` sensors); `colliding()`
   reads planck's real contact list and excludes sensor fixtures. See
-  `_updateContacts()` (~1823). `overlaps()` is a QUERY, not p5play's
+  `_updateContacts()`. `overlaps()` is a QUERY, not p5play's
   pass-through rule: calling it once in setup() changes nothing. A fixture
   made by `addSensor()` carries its `Sensor` as fixture user data (no other
   fixture has any), and `_updateContacts()` routes sensor contacts to it only
@@ -209,8 +221,11 @@ any change once a sprite exists, gravity is non-zero or a frame has run.
   untransformed at render time and has `getTransform()` (the shCode node
   harness's stub has none, so it never culls there).
 - **`group.remove(sprite)` only unparents** — the sprite keeps existing,
-  drawing, and running physics. `sprite.delete()` (alias `remove()`) is full
-  destruction: destroys the body and unparents from every group.
+  drawing, and running physics, and the console warns once (`_warnOnce`)
+  because a beginner writing `coins.remove(c)` means destroy. `sprite.delete()`
+  (alias `remove()`) is full destruction: destroys the body and unparents from
+  every group. `kb.pressed`/`mouse.pressed` warn once the same way (they are
+  up-edge aliases of `released()`, as in p5play).
 - **`sprite.image` heuristic:** a string with no `.` is an emoji placeholder
   (`'🧍'`), anything else is an image URL. Mutually exclusive with an active
   `ani`.
@@ -270,33 +285,31 @@ any change once a sprite exists, gravity is non-zero or a frame has run.
   screen-pinned hit-test.
 - **`moshion.js` and `moshion.d.ts` ship together** — public API changes must be
   reflected in both. The `.d.ts` is hand-authored, not generated.
-- **The in-app docs** (`lib/moshion-docs.ts`, rendered at `/docs/moshion`) are
-  hand-authored against this engine's real surface. If you change the engine
-  API, update `lib/moshion-docs.ts` and `docs/challenges.md` too.
+- **The docs are `docs/content/`**, here, and nowhere else: shCode copies the
+  built file in. If you change the engine API, change the page that teaches it
+  and the doc comment in `docs/moshion.d.ts` (that comment IS its line in the
+  generated API reference), then `node scripts/build-docs.mjs`.
 
 ## Committing and pushing: then check shCode
 
-shCode (`../shCode`, default branch `cs-3d`) carries its own copy of this
-engine in `public/moshion/` and its own docs, so a push here is not finished
-until shCode has been checked. After every commit that changes the engine's
-behaviour or API (`moshion.js`, `docs/moshion.d.ts`, `runner.html`):
+shCode (`../shCode`, default branch `cs-3d`) carries a copy of this engine in
+`public/moshion/` and of these docs in `lib/moshion-docs-shared.generated.ts`,
+so a push here is not finished until shCode has been synced. After a commit that
+changes `moshion.js`, `docs/moshion.d.ts` or `docs/content/`:
 
-1. Read `public/moshion/VENDORED.md` in shCode. It records which commit is
-   vendored and the resync steps, including the local lines to re-apply.
-2. Resync from this repo's pushed `main`, following "To resync" there:
-   `moshion.js` and `docs/moshion.d.ts` byte for byte plus the local lines,
-   then `scripts/generate-moshion-completions.mjs`.
-3. Update shCode's docs by hand to match: `lib/moshion-docs.ts` (the in-app
-   docs students read), `public/moshion/docs/CLAUDE.md` (engine invariants),
-   and shCode's own `public/moshion/runner.html` if this repo's runner changed
-   behaviour (shCode's reads `?code=`, so never copy it over).
-4. Run shCode's gates: `scripts/test-moshion.mjs`,
-   `scripts/check-moshion-textures.mjs`, `scripts/test-editor-completions.mjs`.
-   For a change in behaviour, also run the corpus comparison
-   `VENDORED.md` describes (`scripts/moshion-harness.mjs`, old engine vs new).
-5. Record the sync in `VENDORED.md` (commit, date, what changed), then commit
-   and push in shCode on a branch. shCode's working checkout often has other
-   work in progress, so do this in a `git worktree` off `origin/cs-3d`.
+1. Here: `node scripts/build-docs.mjs`, then the specs (`tests/docs-build.spec.mjs`
+   and `tests/docs.spec.mjs` for docs; the engine specs for the engine).
+2. In shCode, in a `git worktree` off `origin/cs-3d` (its main checkout often has
+   other work in progress): `npm run sync:moshion`. It copies the engine, typings
+   and docs from this repo's pushed `main` (or `MOSHION_REF=<branch>` before the
+   push), regenerates the autocomplete and runs shCode's moSHion gates. Its
+   `public/moshion/VENDORED.md` says what is copied and what is shCode's own.
+3. If shCode's `scripts/test-moshion-docs.mjs` reports that a page shCode adds to
+   (`lib/moshion-docs-shcode.ts`) changed here, re-read that note in shCode.
+   shCode's own `public/moshion/runner.html` is never copied over: port a runner
+   behaviour change by hand.
+4. Commit in shCode on a branch. Its deploy refuses while its copy differs from
+   this repo's `main`.
 
 A change that only touches this repo's demo games, homepage or tests needs no
 shCode sync, but still say so when reporting the push.

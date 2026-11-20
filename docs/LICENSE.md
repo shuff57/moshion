@@ -2,9 +2,13 @@
 
 moSHion is an original engine written for this course, inspired by q5play.
 It contains no q5play source code. The sections below cover each file in
-`public/moshion/`.
+this repository. (shCode copies this file and the files it covers, and serves
+them under `/moshion/`; the paths below are this repository's.)
 
 ## 1. moshion.js, moshion.d.ts, runner.html, assets/ — MIT
+
+> `textures/` is **not** covered by this section — it is third-party CC0 art.
+> See section 5.
 
 The moSHion engine facade, its type declarations, the sandbox host and the
 example sprite sheets are original work written for this course and released
@@ -110,14 +114,22 @@ twice on purpose — beside the source sheet in
 `textures/LICENSE.txt` — so the provenance travels with the bytes in either
 direction.
 
-Each of the 40 PNGs is an **exact 21×21 crop** of that sheet. Nothing is
+Each Kenney tile is an **exact 21×21 crop** of that sheet. Nothing is
 redrawn, recoloured or modified. `scripts/make-textures.py` holds the
 name → tile-index table and is deterministic: re-running it reproduces every
 file. Adding a texture means adding a row to that table and re-running, never
 dropping a PNG into the directory by hand — `scripts/check-textures.mjs`
-fails on a file the manifest does not name. If a future texture comes from
-somewhere else, it needs its own row and its own section, not a quiet
-addition to this one.
+fails on a file the manifest does not name.
+
+### Why this section reads the way section 4 does
+
+Section 4 exists because `assets/` once held art byte-identical to q5play's
+while section 1 called it original work. This section is written to make that
+mistake harder to repeat: the pack, the author, the license, the upstream repo
+and the hash of the exact file are all recorded here, and the slicing script
+reads a vendored copy of that file rather than downloading one. If a future
+texture comes from somewhere else, it needs its own row and its own section —
+not a quiet addition to this one.
 
 ### Student-saved textures
 
@@ -135,3 +147,12 @@ They sit in the `textures/` catalog beside the Kenney crops but are not
 covered by section 5; `make-textures.py` lists them separately as `ORIGINAL`.
 The `*Walk`, `*Fly`, `*Swim` and `*Crawl` strips are Kenney tiles placed
 side by side, still exact crops with nothing redrawn.
+
+The 21 animated sheets drawn by `scripts/make-anim-sheets.py` (`coinSpin`,
+`heartBlink`, `heartLose`, the `*Sparkle` gems, `starTwinkle`, the `*Jump`
+players, the `*Wave` flags, `torchFlicker`, `boom`) are different: each one
+starts from a Kenney tile that `make-textures.py` cut out and MOVES it
+(squash and stretch, a narrower copy for a coin's edge, a white flash, a
+column-by-column wave). No other image is read. CC0 allows changing the art,
+so they stay under section 5's CC0, but they are not exact crops;
+`make-textures.py` lists them in `ORIGINAL` with their frame counts.
