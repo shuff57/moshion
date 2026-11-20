@@ -234,8 +234,8 @@ const byLower = (a, b) => a.toLowerCase().localeCompare(b.toLowerCase());
 export const GAME_LOGIC = /\bkb\.\w+\(|\bmouse\.(presses|pressing|released|pressed)\(|\.vel\.[xy]\s*[-+*]?=|\.vel\s*=/;
 
 /** The body of `function name() { ... }` in an example ('' if none). Braces
- *  are counted in code only: a brace inside a string, a template, a regex-free
- *  comment or a character class in text('{') does not end the body early. */
+ *  are counted in code only: a brace inside a string (text('{')), a template
+ *  or a comment does not end the body early. */
 export function fnBody(code, name) {
   const m = new RegExp(`function\\s+${name}\\s*\\([^)]*\\)\\s*\\{`).exec(code);
   return m ? blockFrom(code, m.index + m[0].length) : '';
