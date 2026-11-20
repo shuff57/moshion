@@ -846,8 +846,10 @@
   // for the plain object, so the sprite stopped answering to physics with no
   // error. Anything without two numbers is refused in plain words.
   function _vecParts(v, where) {
-    if (Array.isArray(v) && v.length >= 2 && typeof v[0] === 'number' && typeof v[1] === 'number') return [v[0], v[1]];
-    if (v && typeof v === 'object' && typeof v.x === 'number' && typeof v.y === 'number') return [v.x, v.y];
+    // Number.isFinite, not typeof: a NaN or Infinity copied into the physics
+    // body would make the sprite vanish with no error.
+    if (Array.isArray(v) && v.length >= 2 && Number.isFinite(v[0]) && Number.isFinite(v[1])) return [v[0], v[1]];
+    if (v && typeof v === 'object' && Number.isFinite(v.x) && Number.isFinite(v.y)) return [v.x, v.y];
     throw new TypeError(`${where} must be a point with x and y, like createVector(3, 0), {x: 3, y: 0} or [3, 0], not ` +
       (v === null ? 'null' : typeof v === 'object' ? JSON.stringify(v) : typeof v === 'string' ? JSON.stringify(v) : String(v)));
   }
@@ -4340,14 +4342,15 @@
       return this;
     }
     copy() { return new Vector(this.x, this.y); }
+    // A missing number counts as 0, as in p5: v.add(2) adds 2 to x only.
     add(x, y) {
-      if (x && typeof x === 'object') { this.x += x.x; this.y += x.y; }
-      else { this.x += x; this.y += y; }
+      if (x && typeof x === 'object') { this.x += x.x ?? 0; this.y += x.y ?? 0; }
+      else { this.x += x ?? 0; this.y += y ?? 0; }
       return this;
     }
     sub(x, y) {
-      if (x && typeof x === 'object') { this.x -= x.x; this.y -= x.y; }
-      else { this.x -= x; this.y -= y; }
+      if (x && typeof x === 'object') { this.x -= x.x ?? 0; this.y -= x.y ?? 0; }
+      else { this.x -= x ?? 0; this.y -= y ?? 0; }
       return this;
     }
     mult(n) { this.x *= n; this.y *= n; return this; }

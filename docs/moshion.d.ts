@@ -1228,8 +1228,8 @@ declare function textWeight(weight: number): void;
 declare function textWeight(): number;
 /** The typeface for text(): a built-in font ('sans', 'serif', 'code',
  *  'rounded', 'pixel', 'arcade', 'handwriting', 'comic', 'bubbly', 'space',
- *  'spooky', 'slab', 'blocky', 'script', 'tall') or one you saved in your
- *  Library. textFont('monospace') goes back to the default. An unknown name
+ *  'spooky', 'slab', 'blocky', 'script', 'tall') or the name of a font you
+ *  saved. textFont('monospace') goes back to the default. An unknown name
  *  warns once in the console and leaves the font as it was. With nothing,
  *  returns the font's name. */
 declare function textFont(name: string): void;

@@ -13,7 +13,7 @@ tests are the Playwright spec suite under `tests/`.
 
 - `moshion.js` (~5,400 lines) — the entire engine. Edit directly; do not split
   without discussion.
-- `docs/moshion.d.ts` (~1,200 lines) — public API types. Keep in sync with
+- `docs/moshion.d.ts` (~1,500 lines) — public API types. Keep in sync with
   runtime behavior in `moshion.js`. Every name's doc comment is also its line in
   the docs' generated API reference, so write it for a beginner.
 - `docs/content/*.mjs` — THE docs, one file per section, every page with a
@@ -96,38 +96,38 @@ The main loop (`start()` in `moshion.js`):
 2. Each frame: user `update(step)` → physics step → contact tracking →
    user `draw()` → render → user `drawTop()` → edge-trigger flags reset.
 
-Key classes and where they live in `moshion.js`:
+Key classes in `moshion.js` (search for the name; line numbers move):
 
-- `Canvas` (~298) — creates the canvas element; sets `width`/`height` globals.
-- `Sprite` (~338) — the heart of the engine. Constructor dispatch:
+- `Canvas` — creates the canvas element; sets `width`/`height` globals.
+- `Sprite` — the heart of the engine. Constructor dispatch:
   `(x,y)` → 50×50 square, `(x,y,d)` → circle, `(x,y,w,h)` → rect,
   `(x,y,w,h,bodyType)` → rect + body type. Physics knobs (`bounciness`,
   `friction`, `shape`, `body`, `collider`) rebuild the planck fixture on
   change via `_buildFixture()`.
-- `liveVec` (~329) — `pos`/`vel` are live proxy vectors that read/write the
+- `liveVec` — `pos`/`vel` are live proxy vectors that read/write the
   underlying planck body on every axis access, so `player.vel.x = 3` and
   `player.pos.y += 5` work like the reference API.
-- `Ani` (~1252) / `Anis` — minimal horizontal frame-strip animation.
+- `Ani` / `Anis` — minimal horizontal frame-strip animation.
   `addAni(name, sheetUrl, frameCount)`; first `addAni` auto-activates.
-  `changeAni(name)` is a silent no-op for unregistered names.
-- `Group` (~1275) `extends Array` — `new groupName.Sprite(...)` factory copies
+  `changeAni(name)` with an unregistered name changes nothing and warns once per name, listing the names the sprite has.
+- `Group` `extends Array` — `new groupName.Sprite(...)` factory copies
   the group's own properties as defaults; `push()` tracks membership in
   `sprite._groups` so `sprite.delete()` can unparent everywhere.
-- `allSprites` (~1468) — implicit group every sprite auto-joins.
-- `world` (~241) — `world.gravity` is a live proxy vector (raw Box2D m/s²,
+- `allSprites` — implicit group every sprite auto-joins.
+- `world` — `world.gravity` is a live proxy vector (raw Box2D m/s²,
   `y = 10` ≈ 1g); `world.getSpriteAt(x, y)` is a top-most layer hit-test.
-  Gravity STARTS at 0, as in p5play (`_world()`, ~331): a plain
+  Gravity STARTS at 0, as in p5play (`_world()`): a plain
   `new Sprite()` stays put until a sketch sets `world.gravity.y`. It was 9.8
   until 2026-11-01; a sketch that relied on falling now needs its own
   `world.gravity.y = ...` line.
-- `camera` (~259) — `camera.off()`/`on()` gate the transform that every
+- `camera` — `camera.off()`/`on()` gate the transform that every
   drawing primitive applies for itself.
-- `world.origin` (~255) — `'screen'` (default: top-left, y down) or `'math'`
+- `world.origin` — `'screen'` (default: top-left, y down) or `'math'`
   (centre, y up, counter-clockwise angles). See "Coordinates" below.
-- Joints (~1683–1820) — thin facades over planck joints: `HingeJoint`,
+- Joints — thin facades over planck joints: `HingeJoint`,
   `DistanceJoint`, `SliderJoint`, `WheelJoint`, `GrabberJoint`, `GlueJoint`.
   All share `Joint.delete()`; there is no `joint.remove()`.
-- Input (~122–240) — `kb.pressing`/`kb.presses`, `mouse.x/y`,
+- Input — `kb.pressing`/`kb.presses`, `mouse.x/y`,
   `mouse.pressing`/`presses`/`released`. Edge flags reset AFTER the frame's
   update/draw ran (see the comment in `loop()` — reordering this breaks
   `presses()`).
@@ -202,7 +202,7 @@ any change once a sprite exists, gravity is non-zero or a frame has run.
 - **`overlaps()` and `colliding()` are NOT aliases.** `overlaps()` is a manual
   bounding-box query (works for `collider = 'none'` sensors); `colliding()`
   reads planck's real contact list and excludes sensor fixtures. See
-  `_updateContacts()` (~1823). `overlaps()` is a QUERY, not p5play's
+  `_updateContacts()`. `overlaps()` is a QUERY, not p5play's
   pass-through rule: calling it once in setup() changes nothing. A fixture
   made by `addSensor()` carries its `Sensor` as fixture user data (no other
   fixture has any), and `_updateContacts()` routes sensor contacts to it only

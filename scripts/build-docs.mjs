@@ -101,24 +101,38 @@ function params(sig) {
   return out.map((p) => p.trim().replace(/\s*:.*$/s, '')).filter(Boolean);
 }
 function readDoc(c) {
-  const body = c.replace(/^\/\*\*/, '').replace(/\*\/$/, '').split('\n').map((l) => l.replace(/^\s*\*\s?/, '')).join('\n');
+  // Keep each line's indentation after the leading "*": it is what tells a
+  // list item from a wrapped line.
+  const lines = c.replace(/^\/\*\*/, '').replace(/\*\/$/, '').split('\n').map((l, i) => (i === 0 ? l : l.replace(/^\s*\*/, '')));
+  const body = lines.join('\n');
   const dep = /@deprecated\s*([\s\S]*?)(?=\n\s*@|$)/.exec(body);
-  // A list in a comment (lines starting with a quote or a dash, like the
-  // collider kinds) stays readable: its items are joined with "; ", and the
-  // line after the list starts a new sentence.
+  const prose = [];
+  for (const l of lines) { if (/^\s*@/.test(l)) break; prose.push(l); }
+  // A list (like the collider kinds) is lines indented deeper than the
+  // comment's own text that start with a quote or "- "; a deeper line that
+  // does not is the item's own wrapped text. Items are joined with "; ", and
+  // the first line back at the comment's indent starts a new sentence. A
+  // line merely STARTING with a quote or a minus sign ('rounded', -1) at the
+  // comment's indent is ordinary wrapped text.
+  const indent = (l) => l.match(/^ */)[0].length;
+  const rest = prose.slice(1).filter((l) => l.trim());
+  const base = rest.length ? Math.min(...rest.map(indent)) : 0;
   let text = '';
   let inList = false;
-  for (const raw of body.replace(/@[\s\S]*$/, '').split('\n')) {
+  prose.forEach((raw, i) => {
     const line = raw.trim();
-    if (!line) continue;
-    const item = /^['"-]/.test(line);
-    const clean = line.replace(/^-\s*/, '');
+    if (!line) return;
+    const deeper = i > 0 && indent(raw) > base;
+    const item = deeper && /^(['"]|- )/.test(line);
+    const clean = item ? line.replace(/^-\s+/, '') : line;
     if (!text) text = clean;
     else if (item) text += (inList ? '; ' : ' ') + clean;
+    else if (deeper && inList) text += ' ' + clean; // the item's wrapped text
     else if (inList) text += (/[.!?]$/.test(text) ? ' ' : '. ') + clean;
     else text += ' ' + clean;
-    inList = item;
-  }
+    if (item) inList = true;
+    else if (!deeper) inList = false;
+  });
   text = text.replace(/\s+/g, ' ').trim();
   return { text, deprecated: dep ? dep[1].replace(/\s+/g, ' ').trim() || 'Old name.' : null };
 }

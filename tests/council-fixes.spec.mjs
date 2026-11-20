@@ -222,11 +222,17 @@ async function open(code) {
     const badAdd = err(() => s.vel.add('a'));
     const badDiv = err(() => s.vel.div(0));
     const after = [s.vel.x, s.vel.y];
-    return { a, b, c, mag, unit, copyIsolated: s.vel.x !== 99, p, chain, keys: Object.keys(s.vel), addX, badAdd, badDiv, after };
+    const plain = createVector(1, 1).add(2); const plainXY = [plain.x, plain.y];
+    const nanVel = err(() => { s.vel = { x: NaN, y: 0 }; });
+    const nanPos = err(() => { s.pos = [Infinity, 0]; });
+    return { a, b, c, mag, unit, copyIsolated: s.vel.x !== 99, p, chain, keys: Object.keys(s.vel), addX, badAdd, badDiv, after, plainXY, nanVel, nanPos, vAfter: [s.vel.x, s.vel.y] };
   });
   check('C5g vel.add(2) adds to x only (a missing y is 0); vel.add("a") and vel.div(0) are refused in words and change nothing',
     m.addX[0] === 3 && m.addX[1] === 1 && /needs numbers/.test(m.badAdd || '') && /needs numbers/.test(m.badDiv || '') &&
     m.after[0] === 3 && m.after[1] === 1, m);
+  check('C5h createVector(1, 1).add(2) is (3, 1); a NaN or Infinity assigned to vel or pos is refused in words and changes nothing',
+    m.plainXY[0] === 3 && m.plainXY[1] === 1 && /must be a point/.test(m.nanVel || '') && /must be a point/.test(m.nanPos || '') &&
+    m.vAfter[0] === 3 && m.vAfter[1] === 1, m);
   check('C5f set/add/mult/mag/normalize/copy work on sprite.vel and sprite.pos, and stay live',
     m.a[0] === 2 && m.a[1] === 1 && m.b[0] === 3 && m.b[1] === 2 && m.c[0] === 6 && m.c[1] === 4 &&
     near(m.mag, 5) && near(m.unit, 1) && m.copyIsolated && near(m.p[0], 10) && near(m.p[1], 20) && m.chain &&

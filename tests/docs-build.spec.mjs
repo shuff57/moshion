@@ -37,6 +37,16 @@ check('D8 a get/set accessor is listed as a property, never as a call (sprite.te
   ['sprite.texture:', 'ani.loop:', 'group.scale:'].every((s) => props.includes(s)) &&
   !/sprite\.texture\(|ani\.loop\(|group\.scale\(/.test(props));
 
+// Exact lines, each once mangled by a comment's layout: a leading minus sign,
+// a wrapped line that starts with a quote, an indented list, quoted words.
+const line = (name) => { const l = props.split('\n').find((x) => x.startsWith(name + ': ') || x.startsWith(name + ' or ')) || ''; return l.slice(l.indexOf(': ') + 2); };
+check('D9 sound.pan keeps its minus sign', line('sound.pan') === '-1 hard left, 0 centre, 1 hard right.', line('sound.pan'));
+check('D10 textFont lists its fonts as one sentence, in words that fit any host (no "Library")', /^The typeface for text\(\): a built-in font \('sans', 'serif', 'code', 'rounded', 'pixel',/.test(line('textFont(name)')) && !/Library/.test(line('textFont(name)')), line('textFont(name)'));
+check('D11 world.origin ends on a whole sentence, with no stray ",." from its list',
+  /^Which way the coordinates go\..*\.$/.test(line('world.origin')) && !/,\./.test(line('world.origin')), line('world.origin'));
+check('D12 camera.off() keeps the quoted words inside its sentence', /^Draw in screen space from here on — for HUDs and overlays\. In math mode "screen space" is still centred/.test(line('camera.off()')), line('camera.off()'));
+check('D13 the collider kinds stay a list', /'dynamic' moves, falls, gets pushed \(the default\); 'static' never moves/.test(line('sprite.collider')), line('sprite.collider'));
+
 let failed = 0;
 for (const [name, pass, detail] of results) {
   if (!pass) failed++;
