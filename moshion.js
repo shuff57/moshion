@@ -152,11 +152,13 @@
   // after drawTop() by _noteGroupRemovals().
   const REMOVED_FROM_GROUP_ = [];
   function _noteGroupRemovals() {
-    for (const [s, group] of REMOVED_FROM_GROUP_) {
-      // Destroyed after all, put back, or moved to another group of the
-      // sketch's (alive.remove(s); dead.push(s);): nothing to say.
-      const elsewhere = (s._groups || []).some((g) => g !== allSprites);
-      if (!s._dead && !group.includes(s) && !elsewhere) {
+    for (const [s, group, before] of REMOVED_FROM_GROUP_) {
+      // Destroyed after all, put back, or moved into a group it was not in
+      // when it was removed (alive.remove(s); dead.push(s);): nothing to say.
+      // Still being in some other group it was in all along says nothing
+      // about a move, so coins.remove(s) still notes it.
+      const movedIn = (s._groups || []).some((g) => !before.includes(g));
+      if (!s._dead && !group.includes(s) && !movedIn) {
         _warnOnce('group.remove', 'group.remove(sprite) only takes the sprite out of the group; it is still on screen. ' +
           'To get rid of it, use sprite.delete().');
         break;
@@ -800,8 +802,8 @@
   /**
    * Save art under a name, so `sprite.texture = name` finds it next run.
    *
-   * The host bridge caps a value at 64 KB and the store at 512 KB, which is
-   * why this is for small pixel art rather than photographs. A 32x32 PNG
+   * The host bridge caps a value at 64 KB (the host sets the total), which
+   * is why this is for small pixel art rather than photographs. A 32x32 PNG
    * data URL is about 1-2 KB.
    */
   function saveTexture(name, dataUrl, opts) {
@@ -882,14 +884,15 @@
   // naming what was written, instead of putting NaN into the physics and
   // making the sprite vanish with no error.
   const _show = (v) => (typeof v === 'string' ? JSON.stringify(v) : String(v));
-  function _num(v, where) {
-    if (!Number.isFinite(v)) throw new TypeError(`${where} must be a number, like ${where} = 3, not ${_show(v)}`);
+  // `example` is a line the student could copy; it defaults to `where = 3`.
+  function _num(v, where, example = `${where} = 3`) {
+    if (!Number.isFinite(v)) throw new TypeError(`${where} must be a number, like ${example}, not ${_show(v)}`);
     return v;
   }
   // A size may be Infinity (a floor that never ends; the collider keeps its
   // last good size, see _buildFixture), but never NaN or a word.
-  function _size(v, where) {
-    if (typeof v !== 'number' || Number.isNaN(v)) throw new TypeError(`${where} must be a number, like ${where} = 40, not ${_show(v)}`);
+  function _size(v, where, example = `${where} = 40`) {
+    if (typeof v !== 'number' || Number.isNaN(v)) throw new TypeError(`${where} must be a number, like ${example}, not ${_show(v)}`);
     return v;
   }
   // Vector maths, shared by createVector()'s vectors and a sprite's live
@@ -975,11 +978,16 @@
       if (typeof h === 'string' && bodyType === undefined) { bodyType = h; h = undefined; }
       if (x === undefined && y === undefined) { x = camera.x; y = camera.y; }
       const sig = 'new Sprite(x, y, w, h, collider)';
-      for (const [k, v] of [['x', x], ['y', y], ['w', w], ['h', h]]) {
-        if (v !== undefined && typeof v !== 'number') {
-          throw new TypeError(`${sig}: ${k} must be a number, not ${JSON.stringify(v)}`);
-        }
-      }
+      // x and y are both needed (new Sprite() with neither puts it where the
+      // camera looks); w and h may be left out (a 50x50 box, or a circle when
+      // only w is given) but never NaN or a word. Checked before the physics
+      // body exists, so new Sprite(x, 100) with x never set says so instead
+      // of making a sprite that is nowhere.
+      const ex = 'new Sprite(200, 150, 40, 40)';
+      _num(x, `${sig}: x`, ex);
+      _num(y, `${sig}: y`, ex);
+      if (w !== undefined) _size(w, `${sig}: w`, ex);
+      if (h !== undefined) _size(h, `${sig}: h`, ex);
       let isCircle = false;
       if (w !== undefined && h === undefined) { isCircle = true; h = w; }
       else if (w === undefined) { w = 50; h = 50; }
@@ -1155,11 +1163,11 @@
     set rotationSpeed(v) { this.angularVelocity = _num(v, 'sprite.rotationSpeed'); }
     get gravityScale() { return this._body.getGravityScale(); }
     set gravityScale(v) { this._body.setGravityScale(_num(v, 'sprite.gravityScale')); }
-    applyTorque(t) { this._body.applyTorque(_num(t, 'sprite.applyTorque(t): t'), true); }
+    applyTorque(t) { this._body.applyTorque(_num(t, 'sprite.applyTorque(t): t', 'sprite.applyTorque(5)'), true); }
     // Force scaled by this sprite's own mass, so the same fx/fy accelerates
     // every sprite equally regardless of size (the reference implementation).
     applyForceScaled(fx, fy) {
-      _num(fx, 'sprite.applyForceScaled(fx, fy): fx'); _num(fy, 'sprite.applyForceScaled(fx, fy): fy');
+      _num(fx, 'sprite.applyForceScaled(fx, fy): fx', 'sprite.applyForceScaled(5, 0)'); _num(fy, 'sprite.applyForceScaled(fx, fy): fy', 'sprite.applyForceScaled(5, 0)');
       const m = this.mass;
       this._body.applyForceToCenter(pl.Vec2(fx * m, fy * m), true);
     }
@@ -1209,7 +1217,7 @@
     // does SOMETHING sensible instead of silently no-oping. Argued in the
     // build report per the spec's invitation to make this call either way.
     get rollingResistance() { return this.drag; }
-    set rollingResistance(v) { this.drag = v; }
+    set rollingResistance(v) { this.drag = _num(v, 'sprite.rollingResistance'); }
 
     // speed/direction: a polar view onto .vel (magnitude px/frame, heading
     // degrees — 0 = right, matching .rotation's convention). Setting one
@@ -1864,7 +1872,7 @@
     applyForce(fx, fy) {
       // raw Box2D Newtons, like the reference API's applyForce — the old px/frame²
       // conversion (x120) made forces 120x too strong.
-      this._body.applyForceToCenter(pl.Vec2(_num(fx, 'sprite.applyForce(fx, fy): fx'), _num(fy, 'sprite.applyForce(fx, fy): fy')), true);
+      this._body.applyForceToCenter(pl.Vec2(_num(fx, 'sprite.applyForce(fx, fy): fx', 'sprite.applyForce(5, 0)'), _num(fy, 'sprite.applyForce(fx, fy): fy', 'sprite.applyForce(5, 0)')), true);
     }
 
     _bounds() {
@@ -2559,7 +2567,7 @@
       }
       // Said at the END of the frame, and only if the sprite is still alive
       // then: coins.remove(c); c.remove(); is fine and says nothing.
-      if (s instanceof Sprite && !s._dead) REMOVED_FROM_GROUP_.push([s, this]);
+      if (s instanceof Sprite && !s._dead) REMOVED_FROM_GROUP_.push([s, this, [...(s._groups || [])]]);
     }
     // add(sprite) is push(sprite) under a different name — same membership
     // bookkeeping, same dedupe-against-the-array behavior.

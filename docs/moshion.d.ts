@@ -363,9 +363,9 @@ declare class Sprite {
   onGround: boolean;
 
   // ---- physics -------------------------------------------------------------
-  /** Linear damping — air resistance. 0 = none. */
+  /** How quickly it slows down, like air resistance: 0 is none. */
   drag: number;
-  /** Angular damping. */
+  /** How quickly its spinning slows down: 0 is none. */
   rotationDrag: number;
   /** True freezes rotation, including explicit angularVelocity writes. */
   rotationLock: boolean;

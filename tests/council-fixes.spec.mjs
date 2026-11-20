@@ -98,6 +98,26 @@ async function open(code) {
   await page.close();
 }
 
+// ---- C3d: a sprite that was ALREADY in another group is not "moved" by
+// coins.remove(s): the note still comes.
+{
+  const { page, frame, warns } = await open(`
+    var coins, gems, s;
+    function setup() {
+      new Canvas(400, 300);
+      coins = new Group(); gems = new Group();
+      s = new coins.Sprite(100, 100, 20, 20);
+      gems.push(s);
+      coins.remove(s);
+    }
+    function draw() { background('black'); }
+  `);
+  await waitFrames(frame, 5);
+  const w = warns.filter((x) => x.includes('group.remove('));
+  check('C3d a sprite still in a group it was already in gets the note when taken out of another', w.length === 1, w);
+  await page.close();
+}
+
 // ---- C3: group.remove(sprite) only unparents, and warns once
 {
   const { page, frame, warns } = await open(`
@@ -278,10 +298,18 @@ async function open(code) {
     phys['group.w'] = err(() => { grp.w = 'big'; });
     phys['sprite.gravityScale_text'] = err(() => { s.gravityScale = '2'; });
     const physAfter = [Number.isFinite(s.x), Number.isFinite(s.y), s.gravityScale, grp.gravityScale];
+    // new Sprite(x, y) with x never set: refused before a body exists.
+    const before = allSprites.length;
+    let unset;
+    const ctorBad = [err(() => new Sprite(unset, 100)), err(() => new Sprite(NaN, 100)), err(() => new Sprite(100)),
+      err(() => new Sprite(100, 100, NaN)), err(() => new Sprite(100, 100, 'big', 20))];
+    const ctorOk = [new Sprite(), new Sprite(50, 50), new Sprite(50, 50, 30), new Sprite(50, 50, Infinity, 10, 'static')].every((t) => Number.isFinite(t.x));
+    const ctorCount = allSprites.length - before;
+    const forceMsg = err(() => s.applyForce(undefined, 0));
     const nanVel = err(() => { s.vel = { x: NaN, y: 0 }; });
     const nanPos = err(() => { s.pos = [Infinity, 0]; });
     const vAfter = [s.vel.x, s.vel.y];
-    return { a, b, c, mag, unit, copyIsolated: s.vel.x !== 99, p, chain, keys: Object.keys(s.vel), addX, badAdd, badDiv, after, plainXY, nanVel, nanPos, vAfter, halfXY, plainBad, axisBad, axisAfter, named, g0, gAfter, gLive, arrSet, arrAddXY, ctor, multNone, distBad, distOk, phys, physAfter };
+    return { a, b, c, mag, unit, copyIsolated: s.vel.x !== 99, p, chain, keys: Object.keys(s.vel), addX, badAdd, badDiv, after, plainXY, nanVel, nanPos, vAfter, halfXY, plainBad, axisBad, axisAfter, named, g0, gAfter, gLive, arrSet, arrAddXY, ctor, multNone, distBad, distOk, phys, physAfter, ctorBad, ctorOk, ctorCount, forceMsg };
   });
   check('C5g vel.add(2) adds to x only (a missing y is 0); vel.add("a") and vel.div(0) are refused in words and change nothing',
     m.addX[0] === 3 && m.addX[1] === 1 && /needs numbers/.test(m.badAdd || '') && /divided by 0/.test(m.badDiv || '') &&
@@ -307,6 +335,11 @@ async function open(code) {
     Object.entries(m.phys).every(([k, e]) => typeof e === 'string' && e.startsWith(k.replace('_text', '') + ' must be a number')) &&
     m.physAfter[0] && m.physAfter[1] && m.physAfter[2] === 1 && m.physAfter[3] === undefined,
     { phys: m.phys, physAfter: m.physAfter });
+  check('C5o new Sprite refuses a missing or NaN x/y and a NaN or word size before making anything; new Sprite(), (x, y), (x, y, d) and an Infinity size still work',
+    m.ctorBad.every((e) => /^new Sprite\(x, y, w, h, collider\): [xywh] must be a number, like new Sprite\(200, 150, 40, 40\)/.test(e || '')) &&
+    m.ctorOk && m.ctorCount === 4,
+    { ctorBad: m.ctorBad, ctorOk: m.ctorOk, ctorCount: m.ctorCount });
+  check('C5p the force message gives a line a student can copy', /like sprite\.applyForce\(5, 0\)/.test(m.forceMsg || ''), m.forceMsg);
   check('C5h createVector(1, 1).add(2) is (3, 1); a NaN or Infinity assigned to vel or pos is refused in words and changes nothing',
     m.plainXY[0] === 3 && m.plainXY[1] === 1 && /must be a point/.test(m.nanVel || '') && /must be a point/.test(m.nanPos || '') &&
     m.vAfter[0] === 5 && m.vAfter[1] === 6, m);
