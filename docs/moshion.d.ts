@@ -1324,8 +1324,8 @@ declare function hasTexture(name: string): boolean;
 /**
  * Save art under a name so `sprite.texture = name` finds it.
  *
- * `dataUrl` must be a `data:` URL; small pixel art only (the store caps a
- * value at 64 KB and the whole store at 512 KB).
+ * `dataUrl` must be a `data:` URL; small pixel art only (up to 64 KB each;
+ * the page running the game sets the total).
  *
  * Pass `{ frames: n }` and `dataUrl` is read as a horizontal strip of n
  * equal frames — `sprite.texture = name` then animates it, no addAni needed.
@@ -1488,7 +1488,7 @@ declare class Vector {
   /** The vector's length. */
   mag(): number;
   /** The distance to another point. */
-  dist(v: Vec2): number;
+  dist(v: Vec2 | [number, number]): number;
   /** Makes the vector length 1, keeping its direction; returns the same vector. */
   normalize(): Vector;
 }

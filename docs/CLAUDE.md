@@ -126,7 +126,7 @@ Key classes in `moshion.js` (search for the name; line numbers move):
   (centre, y up, counter-clockwise angles). See "Coordinates" below.
 - Joints — thin facades over planck joints: `HingeJoint`,
   `DistanceJoint`, `SliderJoint`, `WheelJoint`, `GrabberJoint`, `GlueJoint`.
-  All share `Joint.delete()`; there is no `joint.remove()`.
+  All share `joint.delete()` (`joint.remove()` is the same).
 - Input — `kb.pressing`/`kb.presses`, `mouse.x/y`,
   `mouse.pressing`/`presses`/`released`. Edge flags reset AFTER the frame's
   update/draw ran (see the comment in `loop()` — reordering this breaks

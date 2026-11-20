@@ -136,7 +136,7 @@ Do you need update()? No. A sketch with only setup() and draw() works, and the c
 
 One rule is not optional: drawing goes in draw() or drawTop(), never in update(). update() runs first, so the background() at the top of draw() paints over anything update() drew.
 
-frameCount tells you how many frames have passed since the sketch started, which is handy for timing things without a clock. "Where does my code go?", the next page, sorts the usual lines into the functions.`,
+frameCount tells you how many frames have passed since the sketch started, which is handy for timing things without a clock. "Where does my code go?", the page before this one, sorts the usual lines into the functions.`,
       code: `let player, ground;
 let jumps = 0;
 

@@ -91,7 +91,7 @@ Setting the texture a sprite already shows does nothing, so door.texture = 'open
 
 Textures draw with smoothing turned off, so a 21x21 texture stretched across a 50x50 sprite stays blocky instead of blurring. A plain .image still smooths. Textures are square, so give the sprite a roughly square shape; a very tall or wide sprite stretches the picture.
 
-In code, saveTexture('myGuy', dataUrl) stores a data: URL under a name, and from then on sprite.texture = 'myGuy' finds it. A saved name beats a built-in one, so saving 'coin' replaces the built-in coin. Pass { frames: 4 } as a third argument and the picture is read as a horizontal strip of 4 frames, which sprite.texture = 'myGuy' then plays without an addAni call. deleteTexture('myGuy') forgets it. Keep saved art small: the store holds 64 KB per value and 512 KB in total.
+In code, saveTexture('myGuy', dataUrl) stores a data: URL under a name, and from then on sprite.texture = 'myGuy' finds it. A saved name beats a built-in one, so saving 'coin' replaces the built-in coin. Pass { frames: 4 } as a third argument and the picture is read as a horizontal strip of 4 frames, which sprite.texture = 'myGuy' then plays without an addAni call. deleteTexture('myGuy') forgets it. Keep saved art small: each saved picture can be up to 64 KB, and the page running the game sets how much they may take up together.
 
 Most of the built-in art is Kenney's "Platformer Art: Pixel Redux" pack, released under CC0 — public domain, free for classroom and commercial use alike. runner and runnerJump are original to moSHion.`,
       code: `let player, coins;
