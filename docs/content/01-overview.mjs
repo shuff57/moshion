@@ -232,7 +232,7 @@ function drawTop() {
       title: "Debugging your sketch",
       body: `When something goes wrong, open your browser's developer console (F12 on most systems). Errors show up there with a line number. console.log(value) is your best friend — sprinkle it anywhere to see what's happening.
 
-Three mistakes trip up almost every beginner. First: forgetting background() in draw. The canvas never clears, so old frames pile up and everything looks smeared. Second: creating new Sprite() inside draw or update instead of setup. You'll spawn a new sprite every frame and the sketch will grind to a halt. Third: using a variable before it's assigned — usually because you wrote let player inside setup instead of at the top of the file.
+Three mistakes trip up almost every beginner. First: forgetting background() in draw. The canvas never clears, so old frames pile up and everything looks smeared. Second: writing new Sprite() in draw or update where it runs every frame, instead of in setup. You'll make a new sprite 60 times a second and the sketch will grind to a halt. Making one inside an if, when a key is pressed or a timer fires, is fine. Third: using a variable before it's assigned — usually because you wrote let player inside setup instead of at the top of the file.
 
 If a sprite isn't showing up, log its x and y. If input doesn't work, log kb.pressing('left') inside update to confirm the key name.`,
       code: `let player;

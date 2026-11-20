@@ -233,6 +233,16 @@ const byLower = (a, b) => a.toLowerCase().localeCompare(b.toLowerCase());
 // lifecycle page teaches that split, so every example must model it).
 export const GAME_LOGIC = /\bkb\.\w+\(|\bmouse\.(presses|pressing|released|pressed)\(|\.vel\.[xy]\s*[-+*]?=|\.vel\s*=/;
 
+/** The body of `function name() { ... }` in an example, by counting braces ('' if none). */
+export function fnBody(code, name) {
+  const m = new RegExp(`function\\s+${name}\\s*\\([^)]*\\)\\s*\\{`).exec(code);
+  if (!m) return '';
+  let depth = 1, i = m.index + m[0].length;
+  const start = i;
+  for (; i < code.length && depth; i++) { if (code[i] === '{') depth++; else if (code[i] === '}') depth--; }
+  return code.slice(start, i - 1);
+}
+
 export function validate(sections) {
   const errs = [];
   const slugs = new Set();
@@ -248,7 +258,8 @@ export function validate(sections) {
       ids.add(p.id);
       if (!p.title || !p.body) errs.push(`${where}: a page needs a title and a body`);
       if (s.slug !== 'reference' && /\bpages? \d/i.test(p.body)) errs.push(`${where}: names another page by number; name it by its title instead`);
-      if (p.code && /new\s+(?:\w+\.)?Sprite\b|\btext\(/.test(p.code) && !/\bbackground\(|\bclear\(\)/.test(p.code)) {
+      const drawBody = fnBody(p.code || '', 'draw');
+      if (p.code && /new\s+(?:\w+\.)?Sprite\b|\btext\(/.test(p.code) && !/\bbackground\(|\bclear\(\)/.test(drawBody)) {
         errs.push(`${where}: the example never clears the canvas; start draw() with background(...) so moving things do not smear`);
       }
       for (const m of (p.code || '').matchAll(/for\s*\(\s*(?:const|let|var)\s+(\w+)\s+of\s+([\w.]+)\s*\)\s*\{([\s\S]*?)\n\s*\}/g)) {
@@ -256,8 +267,7 @@ export function validate(sections) {
           errs.push(`${where}: deletes while looping over ${m[2]} itself; loop over a copy, [...${m[2]}], so no sprite is skipped`);
         }
       }
-      const draw = p.code && /function draw\(\)\s*\{([\s\S]*?)\n\}/.exec(p.code);
-      if (draw && GAME_LOGIC.test(draw[1])) errs.push(`${where}: the example reads keys or moves sprites in draw(); the rules of a game go in update()`);
+      if (p.code && GAME_LOGIC.test(drawBody)) errs.push(`${where}: the example reads keys or moves sprites in draw(); the rules of a game go in update()`);
     }
   }
   return errs;

@@ -52,7 +52,8 @@ check('D13 the collider kinds stay a list', /'dynamic' moves, falls, gets pushed
 const probe = (code) => validate([{ slug: 'x', title: 'X', pages: [{ id: 'p', title: 'P', body: 'b', code }] }]);
 check('D14 an example that moves sprites but never clears the canvas is refused',
   probe('function setup() { new Canvas(400, 300); new Sprite(10, 10); }').some((e) => /never clears the canvas/.test(e)) &&
-  probe('function setup() { new Canvas(400, 300); new Sprite(10, 10); }\nfunction draw() { background(0); }').length === 0);
+  probe('function setup() { new Canvas(400, 300); new Sprite(10, 10); }\nfunction draw() { background(0); }').length === 0 &&
+  probe('function setup() { new Canvas(400, 300); background(0); new Sprite(10, 10); }').some((e) => /never clears the canvas/.test(e)));
 check('D15 deleting while looping over the group itself is refused; over a copy it is fine',
   probe('function update() {\n  for (const e of enemies) {\n    e.delete();\n  }\n}\nfunction draw() { background(0); }').some((e) => /loop over a copy/.test(e)) &&
   probe('function update() {\n  for (const e of [...enemies]) {\n    e.delete();\n  }\n}\nfunction draw() { background(0); }').length === 0);

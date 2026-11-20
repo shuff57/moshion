@@ -162,7 +162,7 @@ function draw() {
       title: "Culling sprites that leave the screen",
       body: `Every spawner has the same problem: sprites that drift off the edge are invisible but still alive, still costing physics every frame. Left alone, a game that fires a bullet every 10 frames is dragging thousands of dead bullets around after a few minutes.
 
-group.cull(margin) deletes the members that have gone that far outside the canvas, and returns how many it deleted. cull(0) means "the moment they leave", cull(50) gives them a 50-pixel grace border so a sprite that is only halfway off doesn't vanish mid-view.
+group.cull(margin) deletes the members that have gone that far outside the canvas, and returns how many it deleted. cull(0) deletes a sprite once its centre is past the edge (so it is about half off screen); cull(50) waits until the centre is 50 pixels past the edge, so a sprite that is only partly off doesn't vanish mid-view.
 
 Give it a function and it runs that instead of deleting: cull(0, s => s.y = 0). That's how you wrap a sprite around to the other side, or send it back to the spawn point, rather than destroying it. The sprite stays in the group either way.
 

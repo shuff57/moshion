@@ -201,7 +201,7 @@ lerp(a, b, t) is the number a fraction t of the way from a to b: lerp(0, 10, 0.2
 
 nf(num, left, right) turns a number into text with a fixed number of digits, which keeps a score from jumping around on screen. left is how many digits go before the point and right is how many after: nf(7, 2) is '07', nf(3.14159, 1, 2) is '3.14', and nf(12.5, 3, 1) is '012.5'.
 
-millis() is the number of milliseconds since the sketch started. TWO_PI is a full turn in radians and HALF_PI is a quarter turn, next to PI. These are for radians; sprites turn in degrees unless you call angleMode().`,
+millis() is the number of milliseconds since the sketch started. TWO_PI is a full turn in radians and HALF_PI is a quarter turn, next to PI. These are for radians. Sprites always turn in degrees; angleMode() changes only what cos(), sin(), tan(), atan() and atan2() use.`,
       code: `function setup() {
   new Canvas(400, 200);
 }
