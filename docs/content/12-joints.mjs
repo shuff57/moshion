@@ -111,7 +111,11 @@ function setup() {
 
 function update() {
   // Hold the mouse down to make the elbow floppy.
-  elbow.stiffness = mouse.pressing() ? 0 : 0.5;
+  if (mouse.pressing()) {
+    elbow.stiffness = 0;
+  } else {
+    elbow.stiffness = 0.5;
+  }
 }
 
 function draw() {
@@ -141,9 +145,13 @@ function setup() {
 }
 
 function update() {
-  if (kb.pressing('up'))        piston.vel.y = -3;
-  else if (kb.pressing('down')) piston.vel.y = 3;
-  else                          piston.vel.y = 0;
+  if (kb.pressing('up')) {
+    piston.vel.y = -3;
+  } else if (kb.pressing('down')) {
+    piston.vel.y = 3;
+  } else {
+    piston.vel.y = 0;
+  }
 }
 
 function draw() {
@@ -172,9 +180,13 @@ function setup() {
 }
 
 function update() {
-  if (kb.pressing('right'))     wheel.angularVelocity = 6;
-  else if (kb.pressing('left')) wheel.angularVelocity = -6;
-  else                          wheel.angularVelocity = 0;
+  if (kb.pressing('right')) {
+    wheel.angularVelocity = 6;
+  } else if (kb.pressing('left')) {
+    wheel.angularVelocity = -6;
+  } else {
+    wheel.angularVelocity = 0;
+  }
 }
 
 function draw() {
@@ -209,7 +221,9 @@ function update() {
   if (mouse.presses() && world.getSpriteAt(mouse) === box) {
     grab = new GrabberJoint(anchor, box, { maxForce: 200 });
   }
-  if (grab) grab.target = mouse;
+  if (grab) {
+    grab.target = mouse;
+  }
   if (mouse.released() && grab) {
     grab.delete();
     grab = null;
@@ -227,7 +241,48 @@ function draw() {
 
 joint.delete() takes a joint away, and joint.remove() does the same. sprite.joints lists the joints on a sprite.
 
-Joints take an options object as the last argument. anchor is the point in the world where the joint pins the two sprites together, and each kind of joint has its own default for it. lowerLimit and upperLimit belong to HingeJoint: they stop it turning past an angle, in degrees from the pose it started in. maxForce is how hard a GrabberJoint is allowed to pull, and it is 100 unless you say otherwise.`,
+Joints take an options object as the last argument. anchor is the point in the world where the joint pins the two sprites together, and each kind of joint has its own default for it. lowerLimit and upperLimit belong to HingeJoint: they stop it turning past an angle, in degrees from the pose it started in. maxForce is how hard a GrabberJoint is allowed to pull, and it is 100 unless you say otherwise.
+
+In the example, a hinge and a distance joint hold three sprites together. The numbers on screen come from sprite.joints, the list of joints on a sprite. Press the space bar to take away the first joint with joint.delete(), and press R to take away the other one with joint.remove().`,
+      code: `let anchor, middle, ball;
+let hinge, rope;
+
+function setup() {
+  new Canvas(400, 400);
+  world.gravity.y = 10;
+
+  anchor = new Sprite(200, 60, 16, 16, 'static');
+  middle = new Sprite(200, 140, 16, 100);
+  middle.color = 'khaki';
+  ball = new Sprite(320, 140, 30);
+  ball.color = 'tomato';
+
+  hinge = new HingeJoint(anchor, middle, { anchor: { x: 200, y: 60 } });
+  rope = new DistanceJoint(middle, ball, { length: 120 });
+}
+
+function update() {
+  if (kb.presses(' ') && hinge) {
+    hinge.delete();
+    hinge = null;
+  }
+  if (kb.presses('r') && rope) {
+    rope.remove();
+    rope = null;
+  }
+}
+
+function draw() {
+  background('#222');
+}
+
+function drawTop() {
+  fill('white');
+  textSize(14);
+  text('space: delete the hinge   r: remove the rope', 10, 20);
+  text('joints on the middle sprite: ' + middle.joints.length, 10, 40);
+  text('joints on the ball: ' + ball.joints.length, 10, 60);
+}`,
     },
   ],
 };

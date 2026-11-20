@@ -27,10 +27,16 @@ function setup() {
 }
 
 function update() {
-  if (kb.pressing('left'))       player.vel.x = -5;
-  else if (kb.pressing('right')) player.vel.x = 5;
-  else                           player.vel.x = 0;
-  if (kb.presses(' ')) player.jump(); // jumps only when standing on something
+  if (kb.pressing('left')) {
+    player.vel.x = -5;
+  } else if (kb.pressing('right')) {
+    player.vel.x = 5;
+  } else {
+    player.vel.x = 0;
+  }
+  if (kb.presses(' ')) {
+    player.jump(); // jumps only when standing on something
+  }
 
   camera.x += (player.x - camera.x) * 0.1;
   camera.y += (player.y - camera.y) * 0.1;
@@ -43,7 +49,49 @@ function draw() {
     {
       id: 'camera-off',
       title: "camera.off() and camera.on()",
-      body: `camera.off() makes everything you draw after it ignore the camera, so it stays put on the screen. camera.on() puts the camera back, and the world scrolls again. Use off() before drawing a score or a health bar and on() when you are done. A sprite with screenSpace = true does the same thing for itself.`,
+      body: `camera.off() makes everything you draw after it ignore the camera, so it stays put on the screen. camera.on() puts the camera back, and the world scrolls again. Use off() before drawing a score or a health bar and on() when you are done. A sprite with screenSpace = true does the same thing for itself.
+
+In the example the camera follows the player along a row of posts. The grey bar is drawn between camera.off() and camera.on(), so it stays in the corner. The grid of dots is drawn after camera.on(), so it scrolls past as the player moves.`,
+      code: `let player;
+
+function setup() {
+  new Canvas(400, 300);
+  player = new Sprite(200, 150, 30, 30);
+  player.collider = 'none';
+  player.color = 'deepskyblue';
+  for (let x = 0; x < 2000; x += 100) {
+    let post = new Sprite(x, 200, 10, 60);
+    post.collider = 'none';
+    post.color = 'gray';
+  }
+}
+
+function update() {
+  if (kb.pressing('left')) {
+    player.x -= 4;
+  }
+  if (kb.pressing('right')) {
+    player.x += 4;
+  }
+  camera.x = player.x;
+}
+
+function draw() {
+  background('#222');
+
+  camera.off();
+  fill('rgba(255, 255, 255, 0.3)');
+  rect(10, 10, 120, 24);
+  fill('white');
+  textSize(14);
+  text('x: ' + Math.round(player.x), 20, 28);
+  camera.on();
+
+  fill('gold');
+  for (let x = 0; x < 2000; x += 100) {
+    circle(x, 60, 12);
+  }
+}`,
     },
   ],
 };

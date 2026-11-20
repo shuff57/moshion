@@ -25,8 +25,11 @@ function setup() {
 }
 
 function update() {
-  if (kb.pressing('left'))       player.x -= 3;
-  else if (kb.pressing('right')) player.x += 3;
+  if (kb.pressing('left')) {
+    player.x -= 3;
+  } else if (kb.pressing('right')) {
+    player.x += 3;
+  }
 }
 
 function draw() {
@@ -64,11 +67,16 @@ function setup() {
 }
 
 function update() {
-  if (kb.pressing('left'))       player.x -= 3;
-  else if (kb.pressing('right')) player.x += 3;
+  if (kb.pressing('left')) {
+    player.x -= 3;
+  } else if (kb.pressing('right')) {
+    player.x += 3;
+  }
 
   for (let i = stars.length - 1; i >= 0; i--) {
-    if (player.overlaps(stars[i])) stars[i].remove();
+    if (player.overlaps(stars[i])) {
+      stars[i].remove();
+    }
   }
 }
 
@@ -83,7 +91,7 @@ function draw() {
 
 Call textureNames() to print the list from inside a sketch, and hasTexture('coin') to check one name. A name that does not exist warns in the console and suggests near matches rather than failing silently, so a typo tells you what it was.
 
-Names ending in Walk, Fly, Swim or Crawl are animated sprite sheets, and so are runner (a 6-frame run cycle) and runnerJump. Assigning one plays it with no addAni call. To switch between standing and walking, set the name for what the player is doing, every frame if you like: player.texture = moving ? 'playerWalk' : 'player'. The walk keeps playing, because setting the name a sprite already shows changes nothing (more on that below).
+Names ending in Walk, Fly, Swim or Crawl are animated sprite sheets, and so are runner (a 6-frame run cycle) and runnerJump. Assigning one plays it with no addAni call. To switch between standing and walking, set the name for what the player is doing, every frame if you like: player.texture = 'playerWalk' while it moves, and player.texture = 'player' when it stops. The walk keeps playing, because setting the name a sprite already shows changes nothing (more on that below).
 
 Reading sprite.texture gives back the texture itself. Its name is sprite.texture.name, so ask if (s.texture.name === 'coin'). An animated texture is controlled through the same name: sprite.texture.frameDelay is the speed (game frames per picture, lower is faster), sprite.texture.frame is the picture showing now, sprite.texture.loop = false plays it once and stops on the last picture (sprite.texture.loop = 3 plays it three times), and sprite.texture.frameCount says how many pictures it has. A sprite with no texture reads back null. An animation made with addAni() counts too: after addAni, sprite.texture is the animation showing, and sprite.texture = 'run' switches to the sprite's own animation called 'run', like changeAni('run'). Setting .texture clears .image and .ani, exactly the way those two already clear each other.
 
@@ -115,11 +123,16 @@ function setup() {
 }
 
 function update() {
-  if (kb.pressing('left'))       player.x -= 3;
-  else if (kb.pressing('right')) player.x += 3;
+  if (kb.pressing('left')) {
+    player.x -= 3;
+  } else if (kb.pressing('right')) {
+    player.x += 3;
+  }
 
   for (let i = coins.length - 1; i >= 0; i--) {
-    if (player.overlaps(coins[i])) coins[i].remove();
+    if (player.overlaps(coins[i])) {
+      coins[i].remove();
+    }
   }
 }
 
@@ -156,7 +169,36 @@ candy: candyGreen, candyOrange, candyYellow, swirl, swirlMint
 
 Animated ones to try: coinSpin (and coinSilverSpin, coinBronzeSpin), starTwinkle, gemSparkle (and gemGreenSparkle, gemYellowSparkle, gemOrangeSparkle), heartBlink, playerJump (one per player colour, like playerBlueJump), flagWave (one per flag colour), torchFlicker and boom.
 
-Every animation loops unless you set sprite.texture.loop = false, which plays it once and stops on the last picture. Two are made to play once: heartLose (a heart flashes, then shows half) and boom (an explosion that grows and fades). Show them for one loop, then change the picture or remove the sprite. heartLose shows 6 pictures for 10 frames each, so after(60, () => heart.texture = 'heartHalf'). boom shows 6 pictures for 6 frames each, so after(36, () => blast.remove()).`,
+Every animation loops unless you set sprite.texture.loop = false, which plays it once and stops on the last picture. Two are made to play once: heartLose (a heart flashes, then shows half) and boom (an explosion that grows and fades). Show them for one loop, then change the picture or remove the sprite. heartLose shows 6 pictures for 10 frames each, so after(60, () => { heart.texture = 'heartHalf'; }). boom shows 6 pictures for 6 frames each, so after(36, () => { blast.remove(); }).
+
+The example below puts a few names on sprites in a row, and writes each name under its picture with text(). It also asks sprite.texture.toString() for the name of the picture a sprite is showing, and hasTexture(name) whether a name exists.`,
+      code: `let names = ['coin', 'gem', 'heart', 'slime', 'coinSpin', 'torchFlicker'];
+
+function setup() {
+  new Canvas(400, 200);
+  world.gravity.y = 0;
+
+  for (let i = 0; i < names.length; i++) {
+    const s = new Sprite(40 + i * 64, 90, 44, 44);
+    s.collider = 'none';
+    s.texture = names[i]; // pick the picture by its name
+  }
+}
+
+function draw() {
+  background('#222');
+}
+
+function drawTop() {
+  fill('white');
+  textSize(9);
+  for (let i = 0; i < names.length; i++) {
+    text(names[i], 18 + i * 64, 140);
+  }
+  textSize(13);
+  text('hasTexture("coin"): ' + hasTexture('coin'), 14, 24);
+  text('hasTexture("nope"): ' + hasTexture('nope'), 14, 44);
+}`,
     },
     {
       id: 'patterns',
@@ -220,7 +262,9 @@ function update() {
   // hold the right arrow (or D) to fly; let go to hover
   if (kb.pressing('right')) {
     ghost.x += 2;
-    if (ghost.x > 440) ghost.x = -40; // wrap back to the left edge
+    if (ghost.x > 440) {
+      ghost.x = -40; // wrap back to the left edge
+    }
     ghost.changeAni('fly');
   } else {
     ghost.changeAni('idle');
@@ -260,7 +304,9 @@ function setup() {
 function update() {
   if (swinging) {
     // Leave the art alone until the swing has played through.
-    if (ghost.ani.frame >= ghost.ani.frameCount - 1) swinging = false;
+    if (ghost.ani.frame >= ghost.ani.frameCount - 1) {
+      swinging = false;
+    }
   } else if (kb.presses(' ')) {
     ghost.changeAni('swing');
     ghost.ani.frame = 0; // start it from the first picture
@@ -297,7 +343,11 @@ function update() {
   orb.rotation = frameCount * 3;
   orb.scale.x = 1 + 0.25 * Math.sin(frameCount / 15);
   orb.scale.y = orb.scale.x;
-  orb.color = (frameCount % 60 < 30) ? 'cyan' : 'magenta';
+  if (frameCount % 60 < 30) {
+    orb.color = 'cyan';
+  } else {
+    orb.color = 'magenta';
+  }
 }
 
 function draw() {
@@ -311,7 +361,54 @@ function draw() {
 
 sprite.texture.frameDelays is an optional list with one number per frame, saying how many game frames to hold that frame for. It is null when every frame lasts frameDelay frames.
 
-sprite.texture.spriteSheet is the loaded picture the frames are cut from. Printing a texture shows its name (that is its toString), so text('using ' + sprite.texture) reads using coin. Anis is the type that holds Ani objects by name.`,
+sprite.texture.spriteSheet is the loaded picture the frames are cut from. Printing a texture shows its name (that is its toString), so text('using ' + sprite.texture) reads using coin. Anis is the type that holds Ani objects by name.
+
+An Ani also has a few more things to read and use. ani.name is its name. ani.tick counts the game frames the current picture has been showing. ani.pause() freezes it on the picture showing, ani.play() carries on, and ani.paused is true while it is frozen. ani.toString() gives the name as words, and adding a texture to a string does the same thing.
+
+In the example, press space to pause or play the spinning coin and watch tick stop counting. The numbers under it are read straight from the texture. A built-in animation has no frameDelays list, so that line reads null.`,
+      code: `let coin, still;
+
+function setup() {
+  new Canvas(400, 300);
+  world.gravity.y = 0;
+
+  coin = new Sprite(130, 90, 64, 64);
+  coin.collider = 'none';
+  coin.texture = 'coinSpin'; // an Ani: several pictures
+
+  still = new Sprite(270, 90, 64, 64);
+  still.collider = 'none';
+  still.texture = 'coin'; // a StillTexture: one picture
+}
+
+function update() {
+  if (kb.presses(' ')) {
+    if (coin.texture.paused) {
+      coin.texture.play();
+    } else {
+      coin.texture.pause();
+    }
+  }
+}
+
+function draw() {
+  background('#222');
+}
+
+function drawTop() {
+  fill('white');
+  textSize(13);
+  text('using ' + coin.texture.toString(), 14, 170);
+  text('name: ' + coin.texture.name, 14, 190);
+  text('frame ' + coin.texture.frame + ' of ' + coin.texture.frameCount, 14, 210);
+  text('tick: ' + coin.texture.tick, 14, 230);
+  text('paused: ' + coin.texture.paused, 14, 250);
+  text('frameDelays: ' + coin.texture.frameDelays, 14, 270);
+  text('sheet width: ' + coin.texture.spriteSheet.width, 200, 190);
+  text('still: ' + still.texture.name, 200, 210);
+  fill('#888');
+  text('space = pause / play', 200, 270);
+}`,
     },
   ],
 };

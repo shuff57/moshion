@@ -33,11 +33,17 @@ function setup() {
 }
 
 function update() {
-  if (kb.pressing('left'))       player.vel.x = -4;
-  else if (kb.pressing('right')) player.vel.x = 4;
-  else                           player.vel.x = 0;
+  if (kb.pressing('left')) {
+    player.vel.x = -4;
+  } else if (kb.pressing('right')) {
+    player.vel.x = 4;
+  } else {
+    player.vel.x = 0;
+  }
 
-  if (kb.presses(' '))   player.color = 'gold';
+  if (kb.presses(' ')) {
+    player.color = 'gold';
+  }
 }
 
 function draw() {
@@ -51,17 +57,26 @@ function draw() {
 
 kb.holds('key') fires exactly once, the frame the hold crosses kb.holdThreshold (12 frames by default — about a fifth of a second at 60fps). kb.holding('key') is the frame count while held past that threshold (0 before it). kb.held('key') fires exactly once, the frame the key comes back up after having been held past the threshold — use it to tell a quick tap apart from a held press.
 
-mouse has the same four: mouse.holds(), mouse.holding(), mouse.held(), mouse.holdThreshold.`,
+mouse has the same four: mouse.holds(), mouse.holding(), mouse.held(), mouse.holdThreshold.
+
+You can change kb.holdThreshold. kb.holdThreshold = 30 makes a hold count only after half a second.`,
       code: `let charge = 0;
 
 function setup() {
   new Canvas(400, 200);
+  kb.holdThreshold = 30; // a hold counts after 30 frames
 }
 
 function update() {
-  if (kb.holds(' ')) charge = 0;
-  if (kb.holding(' ')) charge = kb.holding(' ');
-  if (kb.held(' ')) console.log('released a full charge:', charge);
+  if (kb.holds(' ')) {
+    charge = 0;
+  }
+  if (kb.holding(' ')) {
+    charge = kb.holding(' ');
+  }
+  if (kb.held(' ')) {
+    console.log('released a full charge:', charge);
+  }
 }
 
 function draw() {
@@ -69,6 +84,56 @@ function draw() {
   fill('gold');
   textSize(16);
   text('hold space — charge: ' + charge, 14, 24);
+  text('a hold counts after ' + kb.holdThreshold + ' frames', 14, 48);
+}`,
+    },
+    {
+      id: 'named-keys',
+      title: "Named keys: space, shift, arrows and more",
+      body: `Every special key has its own name on kb. Each one is true while that key is held and false otherwise, the same answer kb.pressing() would give.
+
+kb.space, kb.enter, kb.escape, kb.tab, kb.backspace and kb.capsLock are single keys.
+
+kb.shift is the Shift key. kb.alt is the Alt key, and kb.opt and kb.option are other names for it (Option on a Mac). kb.ctrl and kb.control are the Control key.
+
+kb.cmd, kb.command, kb.meta, kb.win and kb.windows all mean the Command key on a Mac or the Windows key on a PC.
+
+kb.arrowUp, kb.arrowDown, kb.arrowLeft and kb.arrowRight are the four arrow keys on their own. Unlike 'up' and 'left', they do not answer to W and A.
+
+The example lists every name and lights it up while you hold that key. The browser may keep a few of these, like Tab or the Windows key, for itself.`,
+      code: `let names = [
+  'space', 'enter', 'escape', 'tab', 'backspace', 'capsLock', 'shift',
+  'alt', 'opt', 'option', 'ctrl', 'control', 'cmd', 'command',
+  'meta', 'win', 'windows', 'arrowUp', 'arrowDown', 'arrowLeft', 'arrowRight',
+];
+let states = [];
+
+function setup() {
+  new Canvas(400, 260);
+}
+
+function update() {
+  // one true or false for each name above, in the same order
+  states = [
+    kb.space, kb.enter, kb.escape, kb.tab, kb.backspace, kb.capsLock, kb.shift,
+    kb.alt, kb.opt, kb.option, kb.ctrl, kb.control, kb.cmd, kb.command,
+    kb.meta, kb.win, kb.windows, kb.arrowUp, kb.arrowDown, kb.arrowLeft, kb.arrowRight,
+  ];
+}
+
+function draw() {
+  background('#222');
+  textSize(14);
+  for (let i = 0; i < names.length; i++) {
+    let column = Math.floor(i / 7);
+    let row = i % 7;
+    if (states[i]) {
+      fill('gold');
+    } else {
+      fill('#666');
+    }
+    text('kb.' + names[i], 20 + column * 125, 40 + row * 30);
+  }
 }`,
     },
     {
@@ -97,8 +162,11 @@ function update() {
   dot.x = mouse.x;
   dot.y = mouse.y;
 
-  if (mouse.pressing())       dot.color = 'gold';
-  else                        dot.color = 'white';
+  if (mouse.pressing()) {
+    dot.color = 'gold';
+  } else {
+    dot.color = 'white';
+  }
 }
 
 function draw() {
@@ -119,6 +187,7 @@ button.mouse.presses() is true on the frame a click starts on the sprite. button
 
 To hide the pointer, for a game with its own crosshair sprite, write mouse.visible = false. mouse.visible = true brings it back. mouse.pressing() (no sprite) is true while any mouse button is down anywhere.`,
       code: `let button, crosshair;
+let hoverCount = 0;
 
 function setup() {
   new Canvas(400, 300);
@@ -138,17 +207,41 @@ function update() {
   crosshair.x = mouse.x;
   crosshair.y = mouse.y;
 
-  if (button.mouse.hovering()) button.color = 'mediumslateblue';
-  else button.color = 'slateblue';
+  if (button.mouse.hovering()) {
+    button.color = 'mediumslateblue';
+  } else {
+    button.color = 'slateblue';
+  }
 
-  if (button.mouse.pressing()) button.scale = 0.9;
-  else button.scale = 1;
+  if (button.mouse.pressing()) {
+    button.scale = 0.9;
+  } else {
+    button.scale = 1;
+  }
 
-  if (button.mouse.presses()) button.text = 'Clicked!';
+  if (button.mouse.presses()) {
+    button.text = 'Clicked!';
+  }
+
+  // hovers() is true once, on the frame the pointer arrives
+  if (button.mouse.hovers()) {
+    hoverCount += 1;
+  }
+
+  // hovered() is true once, on the frame the pointer leaves
+  if (button.mouse.hovered()) {
+    button.text = 'Click me';
+  }
 }
 
 function draw() {
   background('#222');
+}
+
+function drawTop() {
+  fill('white');
+  textSize(14);
+  text('times the pointer arrived: ' + hoverCount, 14, 24);
 }`,
     },
     {
@@ -172,9 +265,13 @@ function setup() {
 
 function update() {
   if (mouse.presses()) {
-    if (selected) selected.color = 'steelblue';
+    if (selected) {
+      selected.color = 'steelblue';
+    }
     selected = world.getSpriteAt(mouse.x, mouse.y);
-    if (selected) selected.color = 'tomato';
+    if (selected) {
+      selected.color = 'tomato';
+    }
   }
 }
 
@@ -191,7 +288,59 @@ mouse.drags() is true on the first frame of a drag, mouse.dragging() counts the 
 
 mouse.scrollDelta has an x and a y for how far the wheel moved since the last frame, and is 0 when it did not move. mouse.cursor changes the shape of the pointer over the canvas, with a CSS cursor name: mouse.cursor = 'pointer' gives a pointing hand, and mouse.cursor = 'none' hides it. (mouse.visible = false also hides it; see "The mouse and a sprite".)
 
-mouse.pressed(button) and mouse.releases(button) are old names, like the kb ones: use presses() and released().`,
+mouse.center counts how many frames the middle button has been held (mouse.left and mouse.right do the same for their buttons), and is 0 when it is up.
+
+mouse.pressed(button) and mouse.releases(button) are old names, like the kb ones: use presses() and released().
+
+The example below follows the pointer with mouse.position, grows and shrinks a circle with the wheel (mouse.scrollDelta.y), shows the drag and the middle button, and turns the pointer into a hand while it is over the canvas.`,
+      code: `let ball;
+let dragFrames = 0;
+let message = 'drag, scroll or press the middle button';
+
+function setup() {
+  new Canvas(400, 300);
+  world.gravity.y = 0;
+  mouse.cursor = 'pointer'; // the pointer becomes a hand
+  ball = new Sprite(200, 150, 60);
+  ball.color = 'tomato';
+  ball.collider = 'none';
+}
+
+function update() {
+  // follow the pointer, but only while it is over the canvas
+  if (mouse.isOnCanvas) {
+    ball.x = mouse.position.x;
+    ball.y = mouse.position.y;
+  }
+
+  // the wheel makes the ball bigger or smaller
+  if (mouse.scrollDelta.y !== 0) {
+    ball.diameter = ball.diameter - mouse.scrollDelta.y / 10;
+    ball.diameter = Math.max(20, Math.min(150, ball.diameter));
+  }
+
+  // the three drag questions
+  if (mouse.drags('left')) {
+    message = 'the drag just started';
+  }
+  dragFrames = mouse.dragging('left');
+  if (mouse.dragged('left')) {
+    message = 'the drag just ended';
+  }
+}
+
+function draw() {
+  background('#222');
+}
+
+function drawTop() {
+  fill('white');
+  textSize(14);
+  text(message, 14, 24);
+  text('frames dragging: ' + dragFrames, 14, 44);
+  text('middle button held for: ' + mouse.center + ' frames', 14, 64);
+  text('ball size: ' + Math.round(ball.diameter), 14, 84);
+}`,
     },
     {
       id: 'touch',
@@ -214,7 +363,11 @@ function setup() {
 function update() {
   dot.x = mouse.x;
   dot.y = mouse.y;
-  dot.color = mouse.pressing() ? 'gold' : 'white';
+  if (mouse.pressing()) {
+    dot.color = 'gold';
+  } else {
+    dot.color = 'white';
+  }
 }
 
 function draw() {

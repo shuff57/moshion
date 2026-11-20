@@ -14,7 +14,7 @@ The built-in sounds load by name, no path needed: loadSound('coin'). They are bl
 
 .play() starts a fresh copy every time it's called, so firing a laser three times in three frames gives you three overlapping shots rather than one restarting over and over. .loop() is the opposite — it's the single track you start once and stop later, and calling it again while it's already going does nothing.
 
-.volume runs 0 to 1. .pan runs -1 (hard left) to 1 (hard right), so a sound can come from where the thing is: enemy.x < player.x ? -0.6 : 0.6. .rate is playback speed, and because it shifts the pitch too it's the cheapest way to get variety out of one sound: coin.rate = 1 + Math.random() * 0.3 makes every pickup sound slightly different. masterVolume(0.5) halves everything at once without touching any individual .volume — that's your mute button.
+.volume runs 0 to 1. .pan runs -1 (hard left) to 1 (hard right), so a sound can come from where the thing is: set boom.pan = -0.6 when the enemy is to the left of the player, and 0.6 when it is to the right. .rate is playback speed, and because it shifts the pitch too it's the cheapest way to get variety out of one sound: coin.rate = 1 + Math.random() * 0.3 makes every pickup sound slightly different. masterVolume(0.5) halves everything at once without touching any individual .volume — that's your mute button.
 
 .fade(to, seconds) ramps the volume instead of jumping it. music.fade(0, 2) is a two-second fade out, and it stops the sound when it lands so nothing keeps running silently.
 
@@ -41,7 +41,9 @@ function setup() {
   coins.diameter = 14;
   coins.color = 'gold';
   coins.collider = 'none';
-  for (let i = 0; i < 4; i++) new coins.Sprite(140 + i * 60, 150);
+  for (let i = 0; i < 4; i++) {
+    new coins.Sprite(140 + i * 60, 150);
+  }
 }
 
 function update() {
@@ -58,7 +60,9 @@ function update() {
   music.loop();
 
   // fade the music down as the coins run out
-  if (coins.length === 1 && music.volume > 0.1) music.fade(0.05, 1.5);
+  if (coins.length === 1 && music.volume > 0.1) {
+    music.fade(0.05, 1.5);
+  }
 }
 
 function draw() {
@@ -73,7 +77,56 @@ function draw() {
       title: "Sound status: playing, loaded, duration",
       body: `A Sound you loaded can tell you how it is doing. sound.loaded is true once the file has downloaded and been decoded, and sound.duration is how long it is in seconds, which is 0 until then. sound.playing is true while it is making noise. sound.url is the name or address you loaded it with.
 
-If something went wrong, sound.error holds a message and the sound stays silent. sound.blocked is true if the browser refused to start audio. That is rare, because the sketch unlocks sound by itself on the first click or key press.`,
+If something went wrong, sound.error holds a message and the sound stays silent. sound.blocked is true if the browser refused to start audio. That is rare, because the sketch unlocks sound by itself on the first click or key press.
+
+sound.ready is a promise that finishes when the file has loaded, so sound.ready.then(...) runs your code at that moment. masterVolume() with nothing in it tells you the master level, and masterVolume(0.5) sets it.
+
+In the example, press space to play the coin and m to mute or unmute everything with masterVolume(). The screen shows each status value. sound.playing is only true for the moment the coin is ringing, so press space and watch it.`,
+      code: `let coin;
+let readyMessage = 'waiting for the file...';
+
+function setup() {
+  new Canvas(400, 300);
+
+  coin = loadSound('coin');
+  // ready finishes when the file has downloaded
+  coin.ready.then(() => {
+    readyMessage = 'the file is ready';
+  });
+}
+
+function update() {
+  if (kb.presses(' ')) {
+    coin.play();
+  }
+  if (kb.presses('m')) {
+    if (masterVolume() > 0) {
+      masterVolume(0);
+    } else {
+      masterVolume(1);
+    }
+  }
+}
+
+function draw() {
+  background('#222');
+}
+
+function drawTop() {
+  fill('white');
+  textSize(14);
+  text('url: ' + coin.url, 14, 30);
+  text('loaded: ' + coin.loaded, 14, 56);
+  text('duration: ' + coin.duration + ' seconds', 14, 82);
+  text('playing: ' + coin.playing, 14, 108);
+  text('blocked: ' + coin.blocked, 14, 134);
+  text('error: ' + coin.error, 14, 160);
+  text('ready: ' + readyMessage, 14, 186);
+  text('masterVolume: ' + masterVolume(), 14, 212);
+  fill('#888');
+  textSize(12);
+  text('space = play    m = mute / unmute', 14, 260);
+}`,
     },
   ],
 };

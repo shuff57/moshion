@@ -24,7 +24,9 @@ function setup() {
 }
 
 function update() {
-  if (kb.presses(' ')) score++;
+  if (kb.presses(' ')) {
+    score++;
+  }
 }
 
 function draw() {
@@ -69,6 +71,8 @@ The built-in fonts:
 
 textFont('monospace') goes back to the default font.
 
+fontNames() gives you the list of every font you can use, as an array of names, including the fonts you saved yourself. The example prints the first few names with text().
+
 A name it does not know prints "No font named ..." in the console once, and the text keeps the font it had. Check the spelling: font names are in quotes and are case-sensitive.
 
 Fonts load while your sketch starts. The preview waits a moment for the fonts named in textFont('...'), so the first frame is right. A name built up from pieces (textFont('pix' + 'el')) works too, but can show the default font for a moment first.`,
@@ -94,6 +98,14 @@ function draw() {
   textFont('rounded');
   fill('gold');
   text('Score: 120', 20, 230);
+
+  textFont('sans');
+  textSize(14);
+  fill('white');
+  let names = fontNames();
+  for (let i = 0; i < 4; i++) {
+    text('font ' + i + ': ' + names[i], 220, 40 + i * 24);
+  }
 }`,
     },
     {
@@ -105,7 +117,7 @@ textStyle(BOLD) is weight 700, textStyle(ITALIC) slants the letters, textStyle(B
 
 To get slanted AND a particular weight, call textStyle(ITALIC) first, then textWeight(): textWeight() only changes the weight.`,
       code: `function setup() {
-  new Canvas(400, 300);
+  new Canvas(400, 400);
 }
 
 function draw() {
@@ -125,6 +137,13 @@ function draw() {
   textWeight(800);
   fill('orange');
   text('slanted and heavy', 20, 250);
+
+  fill('white');
+  textStyle(BOLD);
+  text('bold', 20, 300);
+
+  textStyle(BOLDITALIC);
+  text('bold and slanted', 20, 340);
 }`,
     },
     {
@@ -133,6 +152,8 @@ function draw() {
       body: `A '\\n' inside the words starts a new line: text('Line one\\nLine two', 20, 40).
 
 textWrap(width) breaks long text onto new lines so it fits inside width pixels, between words (textWrap(width, WORD) says the same thing). textWrap(width, CHAR) may break in the middle of a word, which suits a name with no spaces. textWrap() turns wrapping off.
+
+textAlign(RIGHT) lines the text up so x is its right edge (LEFT and CENTER are the other two). The last line of the example is lined up with RIGHT.
 
 textLeading(px) is the distance from one line to the next. textLeading(null) goes back to the normal gap (1.25 times the text size).
 
@@ -144,7 +165,7 @@ textSpacing(px) puts extra pixels between the letters (a negative number squeeze
 
 All of these last until you change them, like textSize(), and they work with textAlign(), textLayer() and every font.`,
       code: `function setup() {
-  new Canvas(400, 320);
+  new Canvas(400, 400);
 }
 
 function draw() {
@@ -161,19 +182,27 @@ function draw() {
   textFont('sans');
   textSize(16);
   fill('#112');
-  textWrap(220);
+  textWrap(220, WORD);
   textLeading(22);
   text('Collect every coin before the timer runs out. Watch out for the bats!', 20, 100);
+  textWrap(120, CHAR);
+  text('Supercalifragilisticexpialidocious', 250, 100);
   textWrap();
   textLeading(null);
 
   textDecoration(UNDERLINE);
   text('Press SPACE to start', 20, 220);
+  textDecoration(STRIKETHROUGH);
+  text('Old price: 50 coins', 20, 250);
   textDecoration(NONE);
 
   textSpacing(6);
-  text('S P A C E D', 20, 270);
+  text('S P A C E D', 20, 290);
   textSpacing(0);
+
+  textAlign(RIGHT);
+  text('Score 120', 380, 340);
+  textAlign(LEFT);
 }`,
     },
     {
@@ -195,8 +224,11 @@ function setup() {
 }
 
 function update() {
-  if (kb.pressing('left'))       player.vel.x = -5;
-  else if (kb.pressing('right')) player.vel.x = 5;
+  if (kb.pressing('left')) {
+    player.vel.x = -5;
+  } else if (kb.pressing('right')) {
+    player.vel.x = 5;
+  }
   camera.x += (player.x - camera.x) * 0.1;
 }
 
@@ -234,8 +266,12 @@ function setup() {
 
 function update() {
   player.vel.x = 0;
-  if (kb.pressing('left')) player.vel.x = -3;
-  if (kb.pressing('right')) player.vel.x = 3;
+  if (kb.pressing('left')) {
+    player.vel.x = -3;
+  }
+  if (kb.pressing('right')) {
+    player.vel.x = 3;
+  }
 }
 
 function draw() {
@@ -254,6 +290,8 @@ function draw() {
 
 sprite.textColor and sprite.textSize style it, same idea as fill()/textSize() for the global text() function but scoped to just this one sprite. It respects sprite.opacity too, so a fading sprite's label fades with it.
 
+sprite.textStroke is the colour of an outline around the letters, and sprite.textStrokeWeight is how thick that outline is in pixels. An outline keeps a label easy to read on a busy colour.
+
 This is a different tool from the global text() function above: text() is for one-off draws you position yourself (titles, HUDs); sprite.text is for a label that's tied to a specific sprite.`,
       code: `let enemy;
 
@@ -266,10 +304,14 @@ function setup() {
   enemy.text = 'HP 3';
   enemy.textColor = 'white';
   enemy.textSize = 14;
+  enemy.textStroke = 'black';
+  enemy.textStrokeWeight = 3;
 }
 
 function update() {
-  if (kb.presses(' ')) enemy.text = 'HP 2';
+  if (kb.presses(' ')) {
+    enemy.text = 'HP 2';
+  }
 }
 
 function draw() {

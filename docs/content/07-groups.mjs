@@ -36,6 +36,65 @@ function draw() {
 }`,
     },
     {
+      id: 'group-members',
+      title: "Adding, counting and checking: add, contains, amount, newSprite",
+      body: `group.newSprite(x, y, w, h) does the same job as new group.Sprite(x, y, w, h): it makes a new sprite with the group's settings and puts it in the group. Use whichever one reads better to you.
+
+group.add(sprite) puts a sprite you already made into the group. A sprite that is already in the group is not added twice. Adding does not copy the group's colour or size onto it: the sprite keeps what it has.
+
+group.contains(sprite) is true if that sprite is in the group, and false if it is not.
+
+group.amount is how many sprites are in the group. It is the same number as group.length, but you can also set it: team.amount = 3 makes new sprites (at 0, 0) until there are three, or deletes sprites from the front until there are three. Move the new ones to where you want them right afterwards.`,
+      code: `let team, stray;
+
+function setup() {
+  new Canvas(400, 300);
+  world.gravity.y = 0;
+
+  team = new Group();
+  team.color = 'gold';
+  team.diameter = 40;
+  team.collider = 'none';
+
+  // amount makes three sprites; they start at 0, 0, so move them
+  team.amount = 3;
+  for (let i = 0; i < team.length; i++) {
+    team[i].x = 60 + i * 80;
+    team[i].y = 150;
+  }
+
+  // newSprite is the same as new team.Sprite(...)
+  team.newSprite(300, 150);
+
+  // a sprite made on its own is not in the group yet
+  stray = new Sprite(200, 240, 40);
+  stray.color = 'gray';
+  stray.collider = 'none';
+}
+
+function update() {
+  // click to add the stray to the team
+  if (mouse.presses()) {
+    if (team.contains(stray) === false) {
+      team.add(stray);
+      stray.color = 'gold'; // add() does not copy the group's colour
+    }
+  }
+}
+
+function draw() {
+  background('#112');
+}
+
+function drawTop() {
+  fill('white');
+  textSize(14);
+  text('team.amount: ' + team.amount, 14, 24);
+  text('team.contains(stray): ' + team.contains(stray), 14, 44);
+  text('click to add the grey sprite', 14, 280);
+}`,
+    },
+    {
       id: 'clone',
       title: "Copying a sprite: clone()",
       body: `sprite.clone() makes a new sprite that looks and behaves like one you already set up: the same size and shape, colour and outline, picture, texture or animation, layer, rotation, and the same physics settings (collider, bounciness, friction, density, drag). It also joins every group the original is in, so a check like player.colliding(pipes) sees the copy too.
@@ -103,10 +162,16 @@ function setup() {
 }
 
 function update() {
-  if (kb.pressing('left'))       player.vel.x = -3;
-  else if (kb.pressing('right')) player.vel.x = 3;
-  else                           player.vel.x = 0;
-  if (kb.presses('up')) player.vel.y = -6;
+  if (kb.pressing('left')) {
+    player.vel.x = -3;
+  } else if (kb.pressing('right')) {
+    player.vel.x = 3;
+  } else {
+    player.vel.x = 0;
+  }
+  if (kb.presses('up')) {
+    player.vel.y = -6;
+  }
 
   player.overlaps(coins, (p, coin) => {
     coin.delete();
@@ -146,7 +211,9 @@ function update() {
   }
   for (const d of [...drops]) {
     d.y += 3;
-    if (d.y > 420) d.delete();
+    if (d.y > 420) {
+      d.delete();
+    }
   }
 }
 
@@ -164,7 +231,7 @@ function draw() {
 
 group.cull(margin) deletes the members that have gone that far outside the canvas, and returns how many it deleted. cull(0) deletes a sprite once its centre is past the edge (so it is about half off screen); cull(50) waits until the centre is 50 pixels past the edge, so a sprite that is only partly off doesn't vanish mid-view.
 
-Give it a function and it runs that instead of deleting: cull(0, s => s.y = 0). That's how you wrap a sprite around to the other side, or send it back to the spawn point, rather than destroying it. The sprite stays in the group either way.
+Give it a function and it runs that instead of deleting: cull(0, (s) => { s.y = 0; }). That's how you wrap a sprite around to the other side, or send it back to the spawn point, rather than destroying it. The sprite stays in the group either way.
 
 It measures against the camera, so a scrolling game culls against what's actually on screen, not against the origin.`,
       code: `let drops;
@@ -182,7 +249,9 @@ function update() {
   if (frameCount % 10 === 0) {
     new drops.Sprite(Math.random() * 400, 0);
   }
-  for (const d of drops) d.y += 3;
+  for (const d of drops) {
+    d.y += 3;
+  }
 
   // one line replaces the remove-while-iterating loop
   drops.cull(20);
@@ -258,7 +327,12 @@ function setup() {
 function update() {
   if (player.overlaps(enemies)) {
     for (const e of [...enemies]) { // a copy: deleting changes the group
-      if (player.overlaps(e)) { e.hp -= 1; if (e.hp <= 0) e.delete(); }
+      if (player.overlaps(e)) {
+        e.hp -= 1;
+        if (e.hp <= 0) {
+          e.delete();
+        }
+      }
     }
   }
 }

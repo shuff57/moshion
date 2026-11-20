@@ -40,12 +40,19 @@ function setup() {
 }
 
 function update() {
-  if (kb.pressing('left'))       player.vel.x = -4;
-  else if (kb.pressing('right')) player.vel.x = 4;
-  else                           player.vel.x = 0;
+  if (kb.pressing('left')) {
+    player.vel.x = -4;
+  } else if (kb.pressing('right')) {
+    player.vel.x = 4;
+  } else {
+    player.vel.x = 0;
+  }
 
-  if (player.overlapping(zone)) zone.color = 'lime';
-  else                          zone.color = 'gold';
+  if (player.overlapping(zone)) {
+    zone.color = 'lime';
+  } else {
+    zone.color = 'gold';
+  }
 }
 
 function draw() {
@@ -79,12 +86,20 @@ function setup() {
 }
 
 function update() {
-  if (kb.pressing('left'))       player.vel.x = -4;
-  else if (kb.pressing('right')) player.vel.x = 4;
-  else                           player.vel.x = 0;
-  if (kb.pressing('up'))         player.vel.y = -4;
-  else if (kb.pressing('down'))  player.vel.y = 4;
-  else                           player.vel.y = 0;
+  if (kb.pressing('left')) {
+    player.vel.x = -4;
+  } else if (kb.pressing('right')) {
+    player.vel.x = 4;
+  } else {
+    player.vel.x = 0;
+  }
+  if (kb.pressing('up')) {
+    player.vel.y = -4;
+  } else if (kb.pressing('down')) {
+    player.vel.y = 4;
+  } else {
+    player.vel.y = 0;
+  }
 
   player.overlaps(coins, (p, coin) => {
     score++;
@@ -106,7 +121,7 @@ function draw() {
 
 colliding() reads the physics engine's own record of what is touching, so it is true only when two solid sprites really push on each other. Use colliding(ground) before a jump to confirm the player is standing on something solid.
 
-If you need to know which sprite was hit, pass a callback, which works on all six questions: player.collides(enemies, (p, e) => e.delete()). Or iterate the group yourself and test one-by-one. When you delete sprites in response to a hit, loop over [...group] (a copy) so the shrinking group doesn't skip items.`,
+If you need to know which sprite was hit, pass a callback, which works on all six questions: player.collides(enemies, (p, e) => { e.delete(); }). Or iterate the group yourself and test one-by-one. When you delete sprites in response to a hit, loop over [...group] (a copy) so the shrinking group doesn't skip items.`,
       code: `let player, enemies;
 let hp = 3;
 
@@ -127,10 +142,16 @@ function setup() {
 }
 
 function update() {
-  if (kb.pressing('left'))       player.vel.x = -3;
-  else if (kb.pressing('right')) player.vel.x = 3;
-  if (kb.pressing('up'))         player.vel.y = -3;
-  else if (kb.pressing('down'))  player.vel.y = 3;
+  if (kb.pressing('left')) {
+    player.vel.x = -3;
+  } else if (kb.pressing('right')) {
+    player.vel.x = 3;
+  }
+  if (kb.pressing('up')) {
+    player.vel.y = -3;
+  } else if (kb.pressing('down')) {
+    player.vel.y = 3;
+  }
 
   for (const e of [...enemies]) {
     if (player.overlapping(e)) {
@@ -179,14 +200,22 @@ function setup() {
 }
 
 function update() {
-  if (kb.pressing('left'))       player.vel.x = -4;
-  else if (kb.pressing('right')) player.vel.x = 4;
-  else                           player.vel.x = 0;
+  if (kb.pressing('left')) {
+    player.vel.x = -4;
+  } else if (kb.pressing('right')) {
+    player.vel.x = 4;
+  } else {
+    player.vel.x = 0;
+  }
 
   if (kb.presses('up') && feet.overlaps(walls)) {
     player.vel.y = -8;
   }
-  player.color = feet.overlaps(walls) ? 'deepskyblue' : 'orange';
+  if (feet.overlaps(walls)) {
+    player.color = 'deepskyblue';
+  } else {
+    player.color = 'orange';
+  }
 }
 
 function draw() {
@@ -198,7 +227,7 @@ function draw() {
       title: "Ray casting",
       body: `world.rayCast(x1, y1, x2, y2, callback) casts a ray from one point to another and calls your callback for every physics shape the ray touches. The callback receives (sprite, point, normal, fraction): sprite is the Sprite that was hit (or null), point is the hit position in world pixels, normal is the surface normal (a unit vector pointing away from the surface), and fraction is how far along the ray the hit happened, from 0 to 1.
 
-What you return from the callback controls how the ray continues. Return the fraction you were handed (or a smaller number) to clip the ray there — the standard pattern for finding the single closest hit. Return 0 to stop at the first hit. Return 1 to keep going past every hit (all objects on the line). Return -1 to ignore a fixture — useful for skipping sensor sprites, which rayCast does report: filter them with if (sprite && sprite.collider === "none") return -1.
+What you return from the callback controls how the ray continues. Return the fraction you were handed (or a smaller number) to clip the ray there — the standard pattern for finding the single closest hit. Return 0 to stop at the first hit. Return 1 to keep going past every hit (all objects on the line). Return -1 to ignore a fixture — useful for skipping sensor sprites, which rayCast does report: filter them with if (sprite && sprite.collider === "none") { return -1; }.
 
 Ray casting is how you build hitscan weapons, line-of-sight checks, aim previews, and anchor-point picking: cast a ray toward a target and read where and what it first touches.
 
@@ -229,7 +258,9 @@ function update() {
   if (mouse.presses()) {
     let hit;
     world.rayCast(player.x, player.y, mouse.x, mouse.y, function (sprite, point, normal, fraction) {
-      if (sprite && sprite.collider === "none") return -1; // skip sensors
+      if (sprite && sprite.collider === "none") {
+        return -1; // skip sensors
+      }
       hit = { sprite, point, normal, fraction };
       return fraction; // clip at each hit to find the closest
     });
@@ -242,10 +273,140 @@ function update() {
 function draw() {
   background("#222");
   // mouse.x/y read (0, 0) until the cursor has been over the canvas once.
-  if (!mouse.isActive) return;
+  if (!mouse.isActive) {
+    return;
+  }
   stroke("#5baafd");
   strokeWeight(2);
   line(player.x, player.y, mouse.x, mouse.y);
+}`,
+    },
+    {
+      id: 'ray-hit',
+      title: "Reading a ray's hit",
+      body: `The easy way to cast a ray is to leave the callback out: const hit = world.rayCast(x1, y1, x2, y2). You get back null when the ray touches nothing, or a hit with these parts:
+
+hit.sprite is the sprite the ray touched first. hit.point is where it touched, with hit.point.x and hit.point.y in world pixels. hit.normal is the direction the surface faces at that spot, as a vector of length 1: a flat floor gives (0, -1), pointing up. hit.fraction is how far along the ray the hit was, from 0 at the start to 1 at the end.
+
+Always check for null first: if (hit) { ... }.
+
+In the example, the ray is aimed at the mouse. A red dot shows hit.point, a short yellow line shows hit.normal, and the number shows hit.fraction.`,
+      code: `let shooter;
+
+function setup() {
+  new Canvas(400, 300);
+  world.gravity.y = 0;
+
+  shooter = new Sprite(40, 150, 20, 20, 'static');
+  shooter.color = 'deepskyblue';
+
+  const block = new Sprite(250, 150, 60, 100, 'static');
+  block.color = 'slategray';
+  const ball = new Sprite(330, 80, 50);
+  ball.collider = 'static';
+  ball.color = 'tomato';
+}
+
+function draw() {
+  background('#222');
+  if (!mouse.isActive) {
+    return;
+  }
+
+  const hit = world.rayCast(shooter.x, shooter.y, mouse.x, mouse.y);
+
+  stroke('white');
+  strokeWeight(1);
+  line(shooter.x, shooter.y, mouse.x, mouse.y);
+
+  if (hit) {
+    // a red dot where the ray touched
+    noStroke();
+    fill('red');
+    circle(hit.point.x, hit.point.y, 10);
+
+    // a yellow line sticking out of the surface
+    stroke('yellow');
+    strokeWeight(3);
+    line(hit.point.x, hit.point.y, hit.point.x + hit.normal.x * 30, hit.point.y + hit.normal.y * 30);
+
+    noStroke();
+    fill('white');
+    textSize(14);
+    text('fraction: ' + hit.fraction.toFixed(2), 10, 20);
+  } else {
+    noStroke();
+    fill('white');
+    textSize(14);
+    text('the ray hit nothing', 10, 20);
+  }
+}`,
+    },
+    {
+      id: 'touch-start-end',
+      title: "collides, collided and overlapped",
+      body: `colliding() and overlapping() count how long two sprites have been touching. Two of the other questions tell you about one single moment.
+
+a.collides(b) is true on the first frame two solid sprites touch, and false after that. Use it for a sound, a score point or a spark when a hit happens. a.collided(b) is true on the one frame the two stop touching: the moment a ball leaves the floor.
+
+a.overlapped(b) is true on the frame two overlapping sprites stop overlapping: the moment a player walks out of a zone. It works with a collider of 'none' too.
+
+In the example, press the arrow keys to move the blue box. The count at the top goes up when the box lands on the ball (collides) and when it walks out of the gold zone (overlapped). The ball changes colour while the box is leaving it (collided).`,
+      code: `let player, ball, zone;
+let landings = 0;
+let exits = 0;
+
+function setup() {
+  new Canvas(400, 300);
+  world.gravity.y = 10;
+  new Sprite(200, 290, 400, 20, 'static');
+
+  ball = new Sprite(120, 260, 40, 40, 'static');
+  ball.color = 'tomato';
+
+  zone = new Sprite(300, 200, 100, 160);
+  zone.collider = 'none';
+  zone.color = 'gold';
+
+  player = new Sprite(120, 100, 30, 30);
+  player.color = 'deepskyblue';
+  player.rotationLock = true;
+}
+
+function update() {
+  if (kb.pressing('left')) {
+    player.vel.x = -4;
+  } else if (kb.pressing('right')) {
+    player.vel.x = 4;
+  } else {
+    player.vel.x = 0;
+  }
+  if (kb.presses('up')) {
+    player.vel.y = -8;
+  }
+
+  if (player.collides(ball)) {
+    landings++;
+  }
+  if (player.collided(ball)) {
+    ball.color = 'white';
+  }
+  if (player.colliding(ball)) {
+    ball.color = 'tomato';
+  }
+  if (player.overlapped(zone)) {
+    exits++;
+  }
+}
+
+function draw() {
+  background('#222');
+}
+
+function drawTop() {
+  fill('white');
+  textSize(14);
+  text('landed on the ball: ' + landings + '   left the zone: ' + exits, 10, 20);
 }`,
     },
   ],

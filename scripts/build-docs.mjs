@@ -276,6 +276,101 @@ export function deletesWhileLooping(code) {
   return out;
 }
 
+// ---- example style ---------------------------------------------------------
+// Examples are written the long way, the way a beginner is taught: every
+// if / else / for / while body in { } (never one statement on its own), every
+// arrow function with a { } body, and an if/else instead of `a ? b : c`.
+
+/** The code with strings, template literals and comments blanked out (same
+ *  length, so positions still line up), for the style checks below. */
+export function codeOnly(code) {
+  let out = '';
+  let i = 0;
+  while (i < code.length) {
+    const c = code[i], n = code[i + 1];
+    if (c === '/' && n === '/') { const e = code.indexOf('\n', i); const j = e < 0 ? code.length : e; out += ' '.repeat(j - i); i = j; continue; }
+    if (c === '/' && n === '*') { const e = code.indexOf('*/', i + 2); const j = e < 0 ? code.length : e + 2; out += code.slice(i, j).replace(/[^\n]/g, ' '); i = j; continue; }
+    if (c === "'" || c === '"' || c === '`') {
+      let j = i + 1;
+      while (j < code.length && code[j] !== c) j += code[j] === '\\' ? 2 : 1;
+      out += c + code.slice(i + 1, j).replace(/[^\n]/g, ' ') + (j < code.length ? c : '');
+      i = j + 1;
+      continue;
+    }
+    out += c;
+    i++;
+  }
+  return out;
+}
+
+/** Where an example uses shorthand: ['line 7: if without { }', ...]. */
+export function shorthandIssues(code) {
+  const src = codeOnly(code);
+  const issues = [];
+  const lineOf = (k) => src.slice(0, k).split('\n').length;
+  const after = (k) => { let j = k; while (j < src.length && /\s/.test(src[j])) j++; return j; };
+  for (const m of src.matchAll(/\b(if|for|while)\s*\(/g)) {
+    let depth = 1, j = m.index + m[0].length;
+    for (; j < src.length && depth; j++) { if (src[j] === '(') depth++; else if (src[j] === ')') depth--; }
+    const k = after(j);
+    if (src[k] !== '{' && !(m[1] === 'while' && src[k] === ';')) issues.push(`line ${lineOf(m.index)}: ${m[1]} without { }`);
+  }
+  for (const m of src.matchAll(/\belse\b/g)) {
+    const k = after(m.index + 4);
+    if (src[k] !== '{' && !src.startsWith('if', k)) issues.push(`line ${lineOf(m.index)}: else without { }`);
+  }
+  for (const m of src.matchAll(/=>/g)) {
+    if (src[after(m.index + 2)] !== '{') issues.push(`line ${lineOf(m.index)}: an arrow function without a { } body`);
+  }
+  // A block after `)`, `else` or `=>` keeps each statement on its own line.
+  for (let i = 0; i < src.length; i++) {
+    if (src[i] !== '{') continue;
+    let p = i - 1;
+    while (p >= 0 && (src[p] === ' ' || src[p] === '\t')) p--;
+    if (!(src[p] === ')' || src.slice(Math.max(0, p - 3), p + 1).endsWith('else') || src.slice(Math.max(0, p - 1), p + 1) === '=>')) continue;
+    let q = i + 1;
+    while (q < src.length && (src[q] === ' ' || src[q] === '\t')) q++;
+    if (src[q] !== '\n' && src[q] !== '}') issues.push(`line ${lineOf(i)}: statements on the same line as { ; put each on its own line`);
+  }
+  for (const m of src.matchAll(/\?(?![.?])/g)) {
+    if (src[m.index - 1] === '?') continue;
+    issues.push(`line ${lineOf(m.index)}: a ? b : c; write it as if / else`);
+  }
+  return issues;
+}
+
+/** Every name in the typings, minus the old names: each needs a runnable
+ *  example somewhere in the docs. A global counts when its name appears as a
+ *  whole word in an example's code (not a comment or a string); a member when
+ *  `.name`, `name(` or `{ name:` does. */
+// Names that must NOT have a runnable example, and why. Anything else in the
+// typings needs one.
+export const NO_RUNNABLE_EXAMPLE = {
+  clearStorage: 'running it erases every game\'s saves on that computer; the Saving page shows it as code to read',
+  start: 'the engine calls it by itself; a sketch that called it would start the game twice',
+};
+
+export function namesWithoutExamples(sections, dtsText) {
+  const { blocks, globals } = parseTypings(dtsText);
+  // Code only: a name in a comment or a string is not an example of it.
+  const code = sections.flatMap((s) => s.pages.map((p) => codeOnly(p.code || ''))).join('\n');
+  const esc = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const missing = new Set();
+  for (const g of globals) {
+    if (g.deprecated || NO_RUNNABLE_EXAMPLE[g.name]) continue;
+    if (!new RegExp(`(^|[^\\w$.])${esc(g.name)}($|[^\\w$])`).test(code)) missing.add(g.name);
+  }
+  const seen = new Map();
+  for (const b of blocks) for (const m of b.members) {
+    if (m.deprecated) continue;
+    const ok = new RegExp(`\\.${esc(m.name)}($|[^\\w$])|(^|[^\\w$.])${esc(m.name)}\\(|[{,]\\s*${esc(m.name)}\\s*:`, 'm').test(code);
+    seen.set(m.name, (seen.get(m.name) || { ok: false, where: b.name }));
+    if (ok) seen.get(m.name).ok = true;
+  }
+  for (const [name, v] of seen) if (!v.ok) missing.add(`${v.where}.${name}`);
+  return [...missing].sort();
+}
+
 export function validate(sections) {
   const errs = [];
   const slugs = new Set();
@@ -299,6 +394,7 @@ export function validate(sections) {
         errs.push(`${where}: deletes while looping over ${g} itself; loop over a copy, [...${g}], so no sprite is skipped`);
       }
       if (p.code && GAME_LOGIC.test(drawBody)) errs.push(`${where}: the example reads keys or moves sprites in draw(); the rules of a game go in update()`);
+      for (const issue of shorthandIssues(p.code || '')) errs.push(`${where}: ${issue}`);
     }
   }
   return errs;
@@ -308,6 +404,7 @@ export function build() {
   const reference = buildReference(readFileSync(DTS, 'utf8'));
   const sections = [...authored, reference];
   const errs = validate(sections);
+  for (const n of namesWithoutExamples(authored, readFileSync(DTS, 'utf8'))) errs.push(`${n}: no runnable example uses it; add one to the page that teaches it`);
   const plain = sections.map((s) => ({ slug: s.slug, title: s.title, pages: s.pages.map((p) => ({ id: p.id, title: p.title, body: p.body, ...(p.code ? { code: p.code } : {}) })) }));
   return { errs, text: `window.MOSHION_DOCS = ${JSON.stringify(plain, null, 1)};\n` };
 }

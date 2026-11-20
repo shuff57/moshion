@@ -7,7 +7,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ROOT } from './harness.mjs';
-import { build, parseTypings, buildReference, shortDoc, validate, fnBody, deletesWhileLooping } from '../scripts/build-docs.mjs';
+import { build, parseTypings, buildReference, shortDoc, validate, fnBody, deletesWhileLooping, shorthandIssues, namesWithoutExamples } from '../scripts/build-docs.mjs';
 
 const results = [];
 function check(name, pass, detail = '') {
@@ -52,11 +52,11 @@ check('D13 the collider kinds stay a list', /'dynamic' moves, falls, gets pushed
 const probe = (code) => validate([{ slug: 'x', title: 'X', pages: [{ id: 'p', title: 'P', body: 'b', code }] }]);
 check('D14 an example that moves sprites but never clears the canvas is refused',
   probe('function setup() { new Canvas(400, 300); new Sprite(10, 10); }').some((e) => /never clears the canvas/.test(e)) &&
-  probe('function setup() { new Canvas(400, 300); new Sprite(10, 10); }\nfunction draw() { background(0); }').length === 0 &&
+  probe('function setup() {\n  new Canvas(400, 300);\n  new Sprite(10, 10);\n}\nfunction draw() {\n  background(0);\n}').length === 0 &&
   probe('function setup() { new Canvas(400, 300); background(0); new Sprite(10, 10); }').some((e) => /never clears the canvas/.test(e)));
 check('D15 deleting while looping over the group itself is refused; over a copy it is fine',
-  probe('function update() {\n  for (const e of enemies) {\n    e.delete();\n  }\n}\nfunction draw() { background(0); }').some((e) => /loop over a copy/.test(e)) &&
-  probe('function update() {\n  for (const e of [...enemies]) {\n    e.delete();\n  }\n}\nfunction draw() { background(0); }').length === 0);
+  probe('function update() {\n  for (const e of enemies) {\n    e.delete();\n  }\n}\nfunction draw() {\n  background(0);\n}').some((e) => /loop over a copy/.test(e)) &&
+  probe('function update() {\n  for (const e of [...enemies]) {\n    e.delete();\n  }\n}\nfunction draw() {\n  background(0);\n}').length === 0);
 
 // fnBody counts braces in code only: a brace in a string, a template or a
 // comment does not end draw() early.
@@ -68,6 +68,29 @@ check('D17 the delete-in-loop rule sees a delete after a nested block, and a loo
   deletesWhileLooping('for (const e of enemies) {\n  if (e.hp > 0) {\n    e.hp--;\n  }\n  e.delete();\n}').join() === 'enemies' &&
   deletesWhileLooping('for (const d of drops) d.delete();').join() === 'drops' &&
   deletesWhileLooping('for (const d of [...drops]) d.delete();').length === 0);
+
+// Proper notation: every body in { }, no a ? b : c, no one-line arrows. Words in a
+// string or a comment are not code, and ?. and ?? are not the ? operator.
+const sh = (code) => shorthandIssues(code).map((i) => i.replace(/^line \d+: /, ''));
+check('D18 shorthand is refused: a body without { }, a one-line arrow, a ternary, a statement beside {',
+  sh('if (a) b();').join() === 'if without { }' &&
+  sh('for (let i = 0; i < 3; i++) n++;').join() === 'for without { }' &&
+  sh('if (a) {\n  b();\n} else c();').join() === 'else without { }' &&
+  sh('let f = (n) => n * 2;').join() === 'an arrow function without a { } body' &&
+  sh('let x = a ? 1 : 2;').join() === 'a ? b : c; write it as if / else' &&
+  sh('if (a) { b(); }').join() === 'statements on the same line as { ; put each on its own line',
+  sh('let x = a ? 1 : 2;'));
+check('D19 proper code passes: braces, else if, do-while, ?. and ??, and shorthand inside strings or comments',
+  sh('if (a) {\n  b();\n} else if (c) {\n  d();\n} else {\n  e();\n}\ndo {\n  n++;\n} while (n < 3);\nlet f = (n) => {\n  return n;\n};\nlet y = s?.x ?? 0;\ntext(\'a ? b : c\', 1, 1); // if (a) b();\nlet o = { x: 1 };').length === 0,
+  sh('do {\n  n++;\n} while (n < 3);'));
+
+// Every name in the typings needs a runnable example: used in code, not in a comment or string.
+const names = (code, d) => namesWithoutExamples([{ slug: 'x', title: 'X', pages: [{ id: 'p', title: 'P', body: 'b', code }] }], d);
+const tinyDts = 'declare function ellipse(x: number): void;\ndeclare function noLoop(): void;\ninterface Sprite {\n  /** Size. */\n  w: number;\n  /** @deprecated use w */\n  width2: number;\n}\ndeclare function start(): void;';
+check('D20 a name is covered only by code, never by a comment or a string; deprecated names and the exempt ones are skipped',
+  names("ellipse(1); // noLoop()\ntext('s.w', 1, 1);", tinyDts).sort().join() === 'Sprite.w,noLoop' &&
+  names('ellipse(1);\nnoLoop();\nlet q = s.w;', tinyDts).length === 0,
+  names("ellipse(1); // noLoop()\ntext('s.w', 1, 1);", tinyDts));
 
 let failed = 0;
 for (const [name, pass, detail] of results) {

@@ -26,9 +26,13 @@ function setup() {
 }
 
 function update() {
-  if (kb.pressing('left'))       player.vel.x = -5;
-  else if (kb.pressing('right')) player.vel.x = 5;
-  else                           player.vel.x = 0;
+  if (kb.pressing('left')) {
+    player.vel.x = -5;
+  } else if (kb.pressing('right')) {
+    player.vel.x = 5;
+  } else {
+    player.vel.x = 0;
+  }
 
   if (kb.presses(' ') && player.colliding(ground)) {
     player.vel.y = -8;
@@ -102,23 +106,52 @@ function draw() {
 What you get back is a Group of the four walls, and each one also has a name: walls.top, walls.bottom, walls.left and walls.right. player.colliding(walls) asks "is the player touching any edge?" and player.colliding(walls.bottom) asks "is it on the floor?"
 
 new Walls(100) makes them thicker (the default is 50), which helps if something fast keeps slipping through. The walls stay where the canvas was when you made them; they do not follow the camera.`,
-      code: `let walls;
+      code: `let walls, balls;
+let lastHit = 'nothing yet';
 
 function setup() {
   new Canvas(400, 300);
   world.gravity.y = 10;
   walls = new Walls();
+  balls = new Group();
 
   for (let i = 0; i < 10; i++) {
-    const ball = new Sprite(40 + i * 35, 60 + (i % 3) * 40, 24);
+    const ball = new balls.Sprite(40 + i * 35, 60 + (i % 3) * 40, 24);
     ball.bounciness = 0.8;
-    ball.vel.x = i % 2 === 0 ? 6 : -6;
-    ball.color = i % 2 === 0 ? 'tomato' : 'gold';
+    if (i % 2 === 0) {
+      ball.vel.x = 6;
+      ball.color = 'tomato';
+    } else {
+      ball.vel.x = -6;
+      ball.color = 'gold';
+    }
+  }
+}
+
+function update() {
+  // each wall has its own name
+  if (balls.collides(walls.top)) {
+    lastHit = 'top';
+  }
+  if (balls.collides(walls.bottom)) {
+    lastHit = 'bottom';
+  }
+  if (balls.collides(walls.left)) {
+    lastHit = 'left';
+  }
+  if (balls.collides(walls.right)) {
+    lastHit = 'right';
   }
 }
 
 function draw() {
   background('#222');
+}
+
+function drawTop() {
+  fill('white');
+  textSize(16);
+  text('last wall hit: ' + lastHit, 10, 24);
 }`,
     },
     {
@@ -202,11 +235,19 @@ function setup() {
 }
 
 function update() {
-  if (kb.pressing('up'))    rocket.applyForce(0, -40);
-  if (kb.pressing('left'))  rocket.applyForce(-20, 0);
-  if (kb.pressing('right')) rocket.applyForce(20, 0);
+  if (kb.pressing('up')) {
+    rocket.applyForce(0, -40);
+  }
+  if (kb.pressing('left')) {
+    rocket.applyForce(-20, 0);
+  }
+  if (kb.pressing('right')) {
+    rocket.applyForce(20, 0);
+  }
 
-  if (kb.presses(' ')) rocket.applyForce(0, -200);
+  if (kb.presses(' ')) {
+    rocket.applyForce(0, -200);
+  }
 }
 
 function draw() {
@@ -220,7 +261,230 @@ function draw() {
 
 world.bounceThreshold is the slowest hit, in pixels per frame, that still makes a sprite bounce. Slower hits just stop.
 
-world.allowSleeping lets resting sprites go to sleep so the physics skips them. By default the world steps itself every frame. world.autoStep = false hands that job to you, and then you call world.physicsUpdate() when you want it to move forward by one step. Most sketches never need that.`,
+world.allowSleeping lets resting sprites go to sleep so the physics skips them. By default the world steps itself every frame. world.autoStep = false hands that job to you, and then you call world.physicsUpdate() when you want it to move forward by one step. Most sketches never need that.
+
+In the example, hold nothing and the balls just sit. Click to set off an explosion with world.explodeAt(x, y, radius, magnitude, falloff). Press the space bar to pause the physics: world.autoStep is false, so the sketch only calls world.physicsUpdate() when it is not paused. While paused, press S to move the physics forward by exactly one step. world.bounceThreshold is set to 2, so slow little hits stop the balls instead of bouncing them forever.`,
+      code: `let paused = false;
+
+function setup() {
+  new Canvas(400, 400);
+  world.gravity.y = 10;
+  world.bounceThreshold = 2;   // hits slower than this do not bounce
+  world.allowSleeping = true;  // resting sprites may go to sleep
+  world.autoStep = false;      // the sketch moves the physics itself
+  new Walls();
+
+  for (let i = 0; i < 8; i++) {
+    const ball = new Sprite(110 + i * 25, 340, 24);
+    ball.bounciness = 0.6;
+    ball.color = 'gold';
+  }
+}
+
+function update() {
+  if (kb.presses(' ')) {
+    paused = !paused;
+  }
+
+  if (mouse.presses()) {
+    // x, y, radius, magnitude, falloff
+    world.explodeAt(mouse.x, mouse.y, 150, 6, 0.2);
+  }
+
+  if (!paused) {
+    world.physicsUpdate();
+  } else if (kb.presses('s')) {
+    world.physicsUpdate();   // one single step
+  }
+}
+
+function draw() {
+  background('#222');
+}
+
+function drawTop() {
+  fill('white');
+  textSize(14);
+  if (paused) {
+    text('paused: press S to step, space to go on', 10, 20);
+  } else {
+    text('click to explode, space to pause', 10, 20);
+  }
+}`,
+    },
+    {
+      id: 'sprites-at-point',
+      title: "Which sprites are at a point?",
+      body: `world.getSpritesAt(x, y) gives back an array of every sprite that is at a point, with the one drawn on top first. It is the question "what is under my mouse?" when several sprites are stacked on top of each other. (world.getSpriteAt(x, y) gives back just the top one.) An empty array, [], means nothing is there.
+
+You can add a radius as a third number, to ask about everything within that distance, and a group as a fourth number to look only at that group's sprites.
+
+In the example, the three overlapping boxes turn white while the mouse is over them, and the number tells you how many were found.`,
+      code: `let boxes;
+
+function setup() {
+  new Canvas(400, 300);
+  world.gravity.y = 0;
+
+  boxes = new Group();
+  boxes.collider = 'static';
+  boxes.w = 120;
+  boxes.h = 120;
+  new boxes.Sprite(150, 150);
+  new boxes.Sprite(210, 170);
+  new boxes.Sprite(260, 140);
+}
+
+function update() {
+  boxes.color = 'slategray';
+  const found = world.getSpritesAt(mouse.x, mouse.y);
+  for (const box of found) {
+    box.color = 'white';
+  }
+}
+
+function draw() {
+  background('#222');
+}
+
+function drawTop() {
+  const found = world.getSpritesAt(mouse.x, mouse.y);
+  fill('white');
+  textSize(16);
+  text('sprites under the mouse: ' + found.length, 10, 24);
+}`,
+    },
+    {
+      id: 'weight-and-spin',
+      title: "Gravity scale, spin and scaled forces",
+      body: `sprite.gravityScale is how much of the world's gravity one sprite feels. 1 is all of it, 0 is weightless, and 0.2 is a slow float. A negative number falls upward.
+
+sprite.rotationDrag slows down spinning, the way .drag slows down moving. 0 means a spinning sprite never slows down on its own. sprite.applyTorque(t) gives a sprite a push around, to make it spin. A positive number turns it clockwise.
+
+sprite.applyForceScaled(fx, fy) is applyForce with the sprite's mass already worked in, so a light sprite and a heavy sprite given the same push speed up by the same amount. Plain applyForce pushes the heavy one less.
+
+In the example, the green ball floats down slowly because of its gravityScale. Press the left or right arrow to spin the wheel with applyTorque. Because of its rotationDrag the wheel slows down on its own after you let go. Press the space bar to push both boxes with applyForceScaled: they move together, even though one of them is five times heavier.`,
+      code: `let floaty, wheel, light, heavy;
+
+function setup() {
+  new Canvas(400, 400);
+  world.gravity.y = 10;
+  new Sprite(200, 390, 400, 20, 'static');
+
+  floaty = new Sprite(60, 40, 30);
+  floaty.color = 'lightgreen';
+  floaty.gravityScale = 0.1;     // feels only a tenth of gravity
+
+  wheel = new Sprite(200, 150, 80, 80);
+  wheel.color = 'khaki';
+  wheel.gravityScale = 0;        // stays where it is
+  wheel.rotationDrag = 2;        // spinning slows down
+
+  light = new Sprite(80, 350, 30, 30);
+  light.color = 'lightyellow';
+  heavy = new Sprite(140, 350, 30, 30);
+  heavy.color = 'gray';
+  heavy.mass = 5 * light.mass;
+}
+
+function update() {
+  if (kb.pressing('left')) {
+    wheel.applyTorque(-20);
+  }
+  if (kb.pressing('right')) {
+    wheel.applyTorque(20);
+  }
+
+  if (kb.presses(' ')) {
+    light.applyForceScaled(200, 0);
+    heavy.applyForceScaled(200, 0);
+  }
+}
+
+function draw() {
+  background('#222');
+}`,
+    },
+    {
+      id: 'mass-and-sleep',
+      title: "Density, sleeping and other physics switches",
+      body: `sprite.density is how much a sprite weighs for its size. A big sprite and a small one with the same density differ only by area. sprite.resetMass() works the mass out again from the size and the density; call it after you change density or size and want the mass to match. sprite.centerOfMass is the point the sprite balances on, in pixels, as a vector with .x and .y.
+
+sprite.isSuperFast = true makes a fast sprite check its path between frames so it cannot skip through a thin wall. Switch it on for bullets.
+
+Resting sprites go to sleep to save work. sprite.sleeping is true while a sprite is asleep. sprite.allowSleeping = false keeps one awake all the time.
+
+sprite.physicsEnabled = false leaves a sprite drawn but out of the physics: nothing pushes it and it pushes nothing. Set it back to true to bring it back.
+
+sprite.surfaceSpeed turns a static sprite into a conveyor belt: things standing on it are carried along at that many pixels per frame.
+
+sprite.jumpPower is how high player.jump() goes: 1 is about 120 pixels, 2 is twice as high.
+
+In the example, the heavy ball has a high density and the light one a low one. The crate on the belt is carried right. Press the space bar to jump, press P to switch the physics of the grey ball off and on, and read the numbers on screen.`,
+      code: `let heavy, light, belt, crate, bullet, jumper, ghost, ground;
+
+function setup() {
+  new Canvas(400, 400);
+  world.gravity.y = 10;
+
+  ground = new Sprite(200, 390, 400, 20, 'static');
+
+  belt = new Sprite(260, 372, 140, 16, 'static');
+  belt.color = 'slategray';
+  belt.surfaceSpeed = 2;       // carries things to the right
+
+  crate = new Sprite(220, 340, 30, 30);
+  crate.color = 'orange';
+
+  heavy = new Sprite(40, 340, 40);
+  heavy.color = 'dimgray';
+  heavy.density = 5;
+  heavy.resetMass();           // work the mass out again
+
+  light = new Sprite(100, 340, 40);
+  light.color = 'lightyellow';
+  light.density = 0.2;
+  light.resetMass();
+
+  bullet = new Sprite(20, 150, 8);
+  bullet.color = 'tomato';
+  bullet.isSuperFast = true;   // never skips through thin walls
+  bullet.gravityScale = 0;
+  bullet.vel.x = 30;
+  new Sprite(390, 150, 6, 100, 'static');
+
+  jumper = new Sprite(370, 300, 24, 36);
+  jumper.color = 'deepskyblue';
+  jumper.rotationLock = true;
+  jumper.jumpPower = 1.5;        // a higher jump than normal
+  jumper.allowSleeping = false;  // never falls asleep
+
+  ghost = new Sprite(150, 250, 30);
+  ghost.color = 'gray';
+}
+
+function update() {
+  if (kb.presses(' ')) {
+    jumper.jump(ground);
+  }
+  if (kb.presses('p')) {
+    ghost.physicsEnabled = !ghost.physicsEnabled;
+  }
+}
+
+function draw() {
+  background('#222');
+}
+
+function drawTop() {
+  fill('white');
+  textSize(13);
+  text('space: jump   p: ghost physics on/off', 10, 20);
+  text('heavy mass ' + round(heavy.mass) + ', light mass ' + round(light.mass), 10, 40);
+  text('crate asleep: ' + crate.sleeping, 10, 60);
+  text('crate centre of mass x: ' + round(crate.centerOfMass.x), 10, 80);
+  text('ghost physics: ' + ghost.physicsEnabled, 10, 100);
+}`,
     },
   ],
 };

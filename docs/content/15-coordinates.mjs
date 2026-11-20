@@ -91,13 +91,21 @@ function setup() {
 }
 
 function update() {
-  if (kb.pressing('right'))     player.vel.x = 3;
-  else if (kb.pressing('left')) player.vel.x = -3;
-  else                          player.vel.x = 0;
+  if (kb.pressing('right')) {
+    player.vel.x = 3;
+  } else if (kb.pressing('left')) {
+    player.vel.x = -3;
+  } else {
+    player.vel.x = 0;
+  }
 
-  if (kb.pressing('up'))        player.vel.y = 3;
-  else if (kb.pressing('down')) player.vel.y = -3;
-  else                          player.vel.y = 0;
+  if (kb.pressing('up')) {
+    player.vel.y = 3;
+  } else if (kb.pressing('down')) {
+    player.vel.y = -3;
+  } else {
+    player.vel.y = 0;
+  }
 
   camera.x = player.x;
   camera.y = player.y;

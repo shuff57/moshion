@@ -26,10 +26,18 @@ function setup() {
 function update() {
   player.vel.x = 0;
   player.vel.y = 0;
-  if (kb.pressing('left'))  player.vel.x = -SPEED;
-  if (kb.pressing('right')) player.vel.x = SPEED;
-  if (kb.pressing('up'))    player.vel.y = -SPEED;
-  if (kb.pressing('down'))  player.vel.y = SPEED;
+  if (kb.pressing('left')) {
+    player.vel.x = -SPEED;
+  }
+  if (kb.pressing('right')) {
+    player.vel.x = SPEED;
+  }
+  if (kb.pressing('up')) {
+    player.vel.y = -SPEED;
+  }
+  if (kb.pressing('down')) {
+    player.vel.y = SPEED;
+  }
 
   player.x = Math.max(15, Math.min(385, player.x));
   player.y = Math.max(15, Math.min(385, player.y));
@@ -60,8 +68,11 @@ function setup() {
 }
 
 function update() {
-  if (kb.pressing('left'))       player.vel.x = -5;
-  else if (kb.pressing('right')) player.vel.x = 5;
+  if (kb.pressing('left')) {
+    player.vel.x = -5;
+  } else if (kb.pressing('right')) {
+    player.vel.x = 5;
+  }
 
   if (kb.presses(' ') && player.colliding(ground)) {
     player.vel.y = -9;
@@ -152,9 +163,13 @@ function setup() {
 }
 
 function update() {
-  if (kb.pressing('up'))        player.vel.y = -4;
-  else if (kb.pressing('down')) player.vel.y = 4;
-  else                          player.vel.y = 0;
+  if (kb.pressing('up')) {
+    player.vel.y = -4;
+  } else if (kb.pressing('down')) {
+    player.vel.y = 4;
+  } else {
+    player.vel.y = 0;
+  }
 
   if (kb.presses(' ')) {
     const b = new bullets.Sprite(player.x + 20, player.y);
@@ -162,7 +177,9 @@ function update() {
   }
 
   for (const b of [...bullets]) {
-    if (b.x > 420) b.delete();
+    if (b.x > 420) {
+      b.delete();
+    }
   }
 }
 
@@ -198,12 +215,20 @@ function setup() {
 }
 
 function update() {
-  if (kb.pressing('left'))       player.vel.x = -4;
-  else if (kb.pressing('right')) player.vel.x = 4;
-  else                           player.vel.x = 0;
-  if (kb.pressing('up'))         player.vel.y = -4;
-  else if (kb.pressing('down'))  player.vel.y = 4;
-  else                           player.vel.y = 0;
+  if (kb.pressing('left')) {
+    player.vel.x = -4;
+  } else if (kb.pressing('right')) {
+    player.vel.x = 4;
+  } else {
+    player.vel.x = 0;
+  }
+  if (kb.pressing('up')) {
+    player.vel.y = -4;
+  } else if (kb.pressing('down')) {
+    player.vel.y = 4;
+  } else {
+    player.vel.y = 0;
+  }
 
   for (const c of [...coins]) {
     if (player.overlapping(c)) {
@@ -261,7 +286,11 @@ function draw() {
   background('#222');
   fill('white');
   textSize(14);
-  text(spawner.active ? 'spawning' : 'stopped', 14, 20);
+  if (spawner.active) {
+    text('spawning', 14, 20);
+  } else {
+    text('stopped', 14, 20);
+  }
 }`,
     },
     {
@@ -288,10 +317,16 @@ function update() {
     state = 'play';
     player.visible = true;
   } else if (state === 'play') {
-    if (kb.pressing('left'))       player.vel.x = -4;
-    else if (kb.pressing('right')) player.vel.x = 4;
-    else                           player.vel.x = 0;
-    if (kb.presses('x')) state = 'gameover';
+    if (kb.pressing('left')) {
+      player.vel.x = -4;
+    } else if (kb.pressing('right')) {
+      player.vel.x = 4;
+    } else {
+      player.vel.x = 0;
+    }
+    if (kb.presses('x')) {
+      state = 'gameover';
+    }
   } else if (state === 'gameover' && kb.presses(' ')) {
     state = 'menu';
     player.visible = false;

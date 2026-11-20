@@ -85,12 +85,20 @@ function setup() {
 
 // update(): keys, movement, touching, score
 function update() {
-  if (kb.pressing('left'))       player.vel.x = -4;
-  else if (kb.pressing('right')) player.vel.x = 4;
-  else                           player.vel.x = 0;
-  if (kb.pressing('up'))         player.vel.y = -4;
-  else if (kb.pressing('down'))  player.vel.y = 4;
-  else                           player.vel.y = 0;
+  if (kb.pressing('left')) {
+    player.vel.x = -4;
+  } else if (kb.pressing('right')) {
+    player.vel.x = 4;
+  } else {
+    player.vel.x = 0;
+  }
+  if (kb.pressing('up')) {
+    player.vel.y = -4;
+  } else if (kb.pressing('down')) {
+    player.vel.y = 4;
+  } else {
+    player.vel.y = 0;
+  }
 
   player.overlaps(coins, (p, coin) => {
     score = score + 1;
@@ -110,7 +118,9 @@ function drawTop() {
   fill('white');
   textSize(16);
   text('Score: ' + score, 10, 24);
-  if (score === 3) text('All the coins!', 10, 48);
+  if (score === 3) {
+    text('All the coins!', 10, 48);
+  }
 }`,
     },
     {
@@ -151,9 +161,13 @@ function setup() {
 
 // EVERY FRAME, BEFORE physics: the rules (keys, movement, score)
 function update() {
-  if (kb.pressing('left'))       player.vel.x = -4;
-  else if (kb.pressing('right')) player.vel.x = 4;
-  else                           player.vel.x = 0;
+  if (kb.pressing('left')) {
+    player.vel.x = -4;
+  } else if (kb.pressing('right')) {
+    player.vel.x = 4;
+  } else {
+    player.vel.x = 0;
+  }
 
   if (kb.presses(' ') && player.colliding(ground)) {
     player.vel.y = -7;

@@ -12,13 +12,20 @@ export default {
 
 The canvas coordinates start at (0, 0) in the top-left. X grows to the right, y grows downward. A 400 by 400 canvas has its center at (200, 200).
 
-The default background is transparent — you'll usually replace it by calling background() inside draw.`,
+The default background is transparent — you'll usually replace it by calling background() inside draw.
+
+width and height are global numbers that hold the size you gave new Canvas(). Use them instead of typing the size again: width / 2 is always the middle across, and height / 2 the middle down. The example draws a line across the middle of the canvas.`,
       code: `function setup() {
   new Canvas(400, 400);
 }
 
 function draw() {
   background('#202030');
+  stroke('white');
+  line(0, height / 2, width, height / 2);
+  noStroke();
+  fill('white');
+  text('The canvas is ' + width + ' wide and ' + height + ' tall', 20, 30);
 }`,
     },
     {
@@ -28,8 +35,11 @@ function draw() {
 
 A solid color takes a name ('black', 'tomato'), a hex string ('#222', '#ff00aa'), or an rgba string. For a see-through background use 'rgba(0, 0, 0, 0.1)' — only 10% opaque, so old frames fade out gradually instead of vanishing.
 
-That fade trick is how you get motion trails without tracking history yourself. The lower the alpha, the longer the trail.`,
+That fade trick is how you get motion trails without tracking history yourself. The lower the alpha, the longer the trail.
+
+clear() wipes the whole canvas to see-through instead of painting a colour. Press the space bar in the example to clear away the trail. noLoop() stops the game loop for good: no more frames, so everything freezes where it is. The example calls it when the ball reaches the right edge.`,
       code: `let p;
+let wipe = false;
 
 function setup() {
   new Canvas(400, 400);
@@ -39,12 +49,20 @@ function setup() {
 }
 
 function update() {
-  p.x = 200 + Math.cos(frameCount / 20) * 150;
-  p.y = 200 + Math.sin(frameCount / 20) * 150;
+  p.x = 20 + frameCount * 2;
+  p.y = 200 + Math.sin(frameCount / 20) * 100;
+  wipe = kb.presses(' ');
+  if (p.x > 380) {
+    noLoop(); // stop the game: no more frames
+  }
 }
 
 function draw() {
-  background('rgba(0, 0, 0, 0.1)');
+  if (wipe) {
+    clear(); // wipe the canvas to see-through
+  } else {
+    background('rgba(0, 0, 0, 0.1)');
+  }
 }`,
     },
     {
@@ -80,7 +98,9 @@ rect and square are placed by their top-left corner. circle is placed by its cen
 
 fill(color) sets the colour inside the next shapes, and stroke(color) sets the outline. noFill() and noStroke() turn either one off, and strokeWeight(n) makes the outline thicker. They stay set until you change them, so set the colour just before the shape it belongs to. square() follows fill() like every other shape: fill('deepskyblue') then square(...) draws a blue square.
 
-A colour can be a name or string, fill('deepskyblue'), or numbers as in p5: fill(80, 250, 123) for green, fill(200) for grey. For a see-through colour add an alpha: fill(0, 0, 0, 120), where the alpha runs from 0 (clear) to 255 (solid), or the string fill('rgba(0, 0, 0, 0.5)'), where it runs from 0 to 1.`,
+A colour can be a name or string, fill('deepskyblue'), or numbers as in p5: fill(80, 250, 123) for green, fill(200) for grey. For a see-through colour add an alpha: fill(0, 0, 0, 120), where the alpha runs from 0 (clear) to 255 (solid), or the string fill('rgba(0, 0, 0, 0.5)'), where it runs from 0 to 1.
+
+ellipse(x, y, w, h) draws an oval centred on (x, y), w wide and h tall. Give it only w and it is a circle.`,
       code: `function setup() {
   new Canvas(400, 300);
 }
@@ -100,6 +120,10 @@ function draw() {
   strokeWeight(4);
   rect(280, 60, 80, 120);
   line(40, 240, 360, 240);
+
+  noStroke();
+  fill('limegreen');
+  ellipse(150, 180, 120, 50);
 }`,
     },
     {
@@ -130,6 +154,7 @@ function draw() {
   fill('white');
   textSize(14);
   text('frame ' + frameCount, 10, 20);
+  text('frames per second: ' + Math.round(frameRate()), 10, 40);
 }`,
     },
     {
@@ -150,9 +175,13 @@ function setup() {
 function update() {
   let seconds = deltaTime / 1000;
   x += 60 * seconds;            // 60 pixels a second
-  if (x > 380) x = 40;
+  if (x > 380) {
+    x = 40;
+  }
 
-  if (cooldown > 0) cooldown -= seconds;
+  if (cooldown > 0) {
+    cooldown -= seconds;
+  }
   if (kb.presses('space') && cooldown <= 0) {
     x += 80;
     cooldown = 1.5;             // one and a half seconds
@@ -165,7 +194,11 @@ function draw() {
   circle(x, 100, 30);
   fill('white');
   textSize(16);
-  text(cooldown > 0 ? 'Dash in ' + cooldown.toFixed(1) + ' s' : 'Dash: READY (space)', 10, 24);
+  if (cooldown > 0) {
+    text('Dash in ' + cooldown.toFixed(1) + ' s', 10, 24);
+  } else {
+    text('Dash: READY (space)', 10, 24);
+  }
 }`,
     },
     {
@@ -178,7 +211,7 @@ Every time you press Run, the numbers are different, so each playthrough deals a
 To get the same numbers every run, call randomSeed(n) at the top of setup() with any whole number. The same seed always gives the same sequence. That helps when you are hunting a bug that only happens with one particular layout: seed it, and the layout comes back every time.`,
       code: `function setup() {
   new Canvas(400, 300);
-  // randomSeed(7); // uncomment: the same stars every run
+  randomSeed(7); // the same stars every run. Delete this line for new stars each time
   for (let i = 0; i < 40; i++) {
     const star = new Sprite(random(400), random(300), random(2, 6));
     star.collider = 'none';
@@ -203,18 +236,65 @@ nf(num, left, right) turns a number into text with a fixed number of digits, whi
 
 millis() is the number of milliseconds since the sketch started. TWO_PI is a full turn in radians and HALF_PI is a quarter turn, next to PI. These are for radians. Sprites always turn in degrees; angleMode() changes only what cos(), sin(), tan(), atan() and atan2() use.`,
       code: `function setup() {
-  new Canvas(400, 200);
+  new Canvas(400, 400);
 }
 
 function draw() {
   background(30);
   fill('white');
   textSize(16);
-  text('dist(0, 0, 3, 4) = ' + dist(0, 0, 3, 4), 20, 40);
-  text('lerp(0, 10, 0.25) = ' + lerp(0, 10, 0.25), 20, 70);
-  text('int(-3.7) = ' + int(-3.7), 20, 100);
-  text('nf(7, 2) = ' + nf(7, 2), 20, 130);
-  text('seconds so far = ' + nf(millis() / 1000, 1, 1), 20, 160);
+  text('dist(0, 0, 3, 4) = ' + dist(0, 0, 3, 4), 20, 30);
+  text('lerp(0, 10, 0.25) = ' + lerp(0, 10, 0.25), 20, 60);
+  text('int(-3.7) = ' + int(-3.7), 20, 90);
+  text('abs(-4) = ' + abs(-4), 20, 120);
+  text('sqrt(9) = ' + sqrt(9), 20, 150);
+  text('pow(2, 3) = ' + pow(2, 3), 20, 180);
+  text('ceil(3.2) = ' + ceil(3.2), 20, 210);
+  text('max(3, 9, 2) = ' + max(3, 9, 2), 20, 240);
+  text('min(3, 9, 2) = ' + min(3, 9, 2), 20, 270);
+  text('atan(1) = ' + nf(atan(1), 1, 3), 20, 300);
+  text('nf(7, 2) = ' + nf(7, 2), 20, 330);
+  text('seconds so far = ' + nf(millis() / 1000, 1, 1), 20, 360);
+
+  noFill();
+  stroke('gold');
+  ellipse(320, 100, 100, 50);
+}`,
+    },
+    {
+      id: 'math-more',
+      title: "More math: map, constrain, angles and PI",
+      body: `map(value, inStart, inStop, outStart, outStop) turns a number from one range into the matching number in another. map(5, 0, 10, 0, 100) is 50, because 5 is halfway through 0 to 10, and 50 is halfway through 0 to 100. The mouse's x is a number from 0 to the canvas width, so map() can turn it into a size or a colour.
+
+constrain(value, low, high) keeps a number inside a range: constrain(15, 0, 10) is 10 and constrain(-3, 0, 10) is 0.
+
+radians(deg) turns degrees into radians and degrees(rad) turns radians into degrees. PI is a half turn in radians (about 3.14), TWO_PI is a full turn and HALF_PI is a quarter turn. RADIANS is the name of the radians setting, for angleMode(RADIANS), which is what you start with.
+
+tan(angle) is the tangent of an angle, and atan2(y, x) is the angle of the point (x, y), measured from the +x axis. Both use radians unless you called angleMode(DEGREES). The example turns the angle from the middle of the canvas to the mouse into degrees.`,
+      code: `function setup() {
+  new Canvas(400, 400);
+  angleMode(RADIANS);
+}
+
+function draw() {
+  background(30);
+  fill('white');
+  textSize(16);
+
+  // map(): mouse x (0 to 400) becomes a circle size (10 to 100)
+  let size = map(mouseX, 0, 400, 10, 100);
+  // constrain(): never smaller than 20 or bigger than 80
+  size = constrain(size, 20, 80);
+  circle(200, 120, size);
+  text('circle size ' + Math.round(size), 20, 30);
+
+  // atan2(): the angle from the middle to the mouse
+  let angle = atan2(mouseY - 200, mouseX - 200);
+  text('angle in radians ' + nf(angle, 1, 2), 20, 230);
+  text('same angle in degrees ' + Math.round(degrees(angle)), 20, 260);
+  text('radians(180) = ' + nf(radians(180), 1, 2), 20, 290);
+  text('tan(PI / 4) = ' + nf(tan(PI / 4), 1, 2), 20, 320);
+  text('TWO_PI = ' + nf(TWO_PI, 1, 2) + ', HALF_PI = ' + nf(HALF_PI, 1, 2), 20, 350);
 }`,
     },
     {
@@ -241,9 +321,22 @@ function draw() {
   fill('white');
   textSize(16);
   let w = v.copy().mult(2);
-  text('v = (' + v.x + ', ' + v.y + '), length ' + v.mag(), 20, 50);
-  text('copy times 2 = (' + w.x + ', ' + w.y + ')', 20, 90);
-  text('v is still (' + v.x + ', ' + v.y + ')', 20, 130);
+  text('v = (' + v.x + ', ' + v.y + '), length ' + v.mag(), 20, 30);
+  text('copy times 2 = (' + w.x + ', ' + w.y + ')', 20, 55);
+  text('v is still (' + v.x + ', ' + v.y + ')', 20, 80);
+
+  let d = v.copy().div(2);
+  text('copy divided by 2 = (' + d.x + ', ' + d.y + ')', 20, 105);
+
+  let s = v.copy().sub(1, 1);
+  text('copy minus (1, 1) = (' + s.x + ', ' + s.y + ')', 20, 130);
+
+  let n = v.copy().normalize();
+  text('copy normalized = (' + nf(n.x, 1, 2) + ', ' + nf(n.y, 1, 2) + ')', 20, 155);
+
+  let t = createVector(0, 0);
+  t.set(7, 8);
+  text('set to (' + t.x + ', ' + t.y + ')', 20, 180);
 }`,
     },
     {
