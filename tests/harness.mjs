@@ -155,17 +155,17 @@ export async function frameErrors(page) {
   return out;
 }
 
-export async function launch() {
+export async function launch(options = {}) {
   // Playwright's own browser first. If that revision isn't installed, fall back
   // to a system Chromium/Chrome (MOSHION_BROWSER overrides the search).
   try {
-    return await chromium.launch({ headless: true });
+    return await chromium.launch({ headless: true, ...options });
   } catch (err) {
     const candidates = [process.env.MOSHION_BROWSER, '/usr/bin/chromium-browser',
       '/usr/bin/chromium', '/usr/bin/google-chrome-stable', '/usr/bin/google-chrome']
       .filter((p) => p && existsSync(p));
     if (!candidates.length) throw err;
-    return await chromium.launch({ headless: true, executablePath: candidates[0] });
+    return await chromium.launch({ headless: true, ...options, executablePath: candidates[0] });
   }
 }
 

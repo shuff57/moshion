@@ -75,6 +75,7 @@ bun tests/docs.spec.mjs           # every example on the docs site actually runs
 bun tests/docs-build.spec.mjs     # docs/data is built from docs/content; the reference lists every typed name
 bun tests/council-fixes.spec.mjs  # engine: newSprite defaults, pressed/remove notes, text 0, vector assignment, rgba
 bun tests/gaps.spec.mjs           # broadphase exactness, culling, square, Tiles, Walls, timers, addSensor
+bun tests/texture-options.spec.mjs # saveTexture {hitbox, smooth}, sprite.useTextureHitbox(), background('textureName'), on real pixels
 bun tests/math-origin.spec.mjs    # world.origin = 'math' (centre, y up) + showGrid/showMouse; default unchanged
 bun tests/tiles-perf.bench.mjs    # NOT a spec: frame cost with 300..2400 tile sprites
 ```

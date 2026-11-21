@@ -154,6 +154,13 @@ declare class Sprite {
   h: number;
   /** 'box' is accepted as another name for 'rect'. Anything else throws. */
   shape: 'circle' | 'rect';
+  /** Make the sprite collide like its picture, not like a plain box or circle.
+   *  The picture's texture must have a saved hitbox (`saveTexture(name, url, { hitbox })`);
+   *  it follows the sprite's width, height and rotation. Returns true when it
+   *  took, and false when the sprite has no texture or the texture has no
+   *  hitbox. Call it again after changing `.texture`. `useTextureHitbox(false)`
+   *  goes back to the usual rectangle or circle. */
+  useTextureHitbox(enabled?: boolean): boolean;
   /** How the sprite takes part in physics:
    *   'dynamic'   moves, falls, gets pushed (the default)
    *   'static'    never moves: floors and walls
@@ -1183,8 +1190,10 @@ declare function drawTop(): void;
   * the loaders load in the background, as always. */
 declare function preload(): void;
 
-/** Paints the whole canvas one colour: a CSS colour, a grey 0-255, or r, g, b (and alpha 0-255). */
-declare function background(c: string | number): void;
+/** Paints the whole canvas one colour (a CSS colour or a grey 0-255), or, given
+ *  the name of a texture, fills the canvas with that picture: cropped to cover,
+ *  fixed in place while the camera moves, and animated if the texture is. */
+declare function background(colorOrTexture: string | number): void;
 declare function background(gray: number, alpha: number): void;
 declare function background(r: number, g: number, b: number, alpha?: number): void;
 /** Text with its baseline on y. The letters rise above the baseline in both
@@ -1338,11 +1347,24 @@ declare function hasTexture(name: string): boolean;
  * equal frames — `sprite.texture = name` then animates it, no addAni needed.
  * `frameDelay` is game frames per animation frame (default 4); `delays` holds
  * each frame for its own number of game frames.
+ *
+ * Two more options. `hitbox: { w, h, mask }` saves a collision shape for the
+ * picture: `mask` is a string of `w * h` characters, row by row, `'1'` where
+ * the picture is solid and `'0'` where it is empty (up to 64 by 64); a sprite
+ * uses it after `sprite.useTextureHitbox()`. `smooth: true` keeps the picture
+ * soft when it is scaled up, for art that is drawn with curves, instead of the
+ * hard-edged squares pixel art gets.
  */
 declare function saveTexture(
   name: string,
   dataUrl: string,
-  anim?: { frames: number; frameDelay?: number; delays?: number[] }
+  anim?: {
+    frames?: number;
+    frameDelay?: number;
+    delays?: number[];
+    hitbox?: { w: number; h: number; mask: string };
+    smooth?: boolean;
+  }
 ): void;
 /** Forget a saved texture. Built-ins cannot be deleted. */
 declare function deleteTexture(name: string): void;

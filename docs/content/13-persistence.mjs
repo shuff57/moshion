@@ -157,5 +157,66 @@ function drawTop() {
   }
 }`,
     },
+    {
+      id: 'smooth-textures',
+      title: "Soft pictures: the smooth option",
+      body: `Pixel art stays crisp when it is scaled up: every little square turns into a bigger square. Art drawn with curves looks wrong that way. saveTexture(name, dataUrl, { smooth: true }) keeps the picture soft when it is scaled, the way an ordinary image is.
+
+The option belongs to the saved name, so every sprite that uses that name draws it softly, and so does a clone.
+
+The example saves the same four-square picture twice: once as it is, once with smooth: true. Both are drawn 120 pixels wide. The left one is hard-edged squares, the right one blends from one colour into the next. It deletes both again after about a second, but only the names it saved itself.`,
+      code: `let crisp;
+let soft;
+let crispName = 'docsDemoCrisp';
+let softName = 'docsDemoSoft';
+let madeCrisp = false;
+let madeSoft = false;
+
+function setup() {
+  new Canvas(400, 200);
+  world.gravity.y = 0;
+
+  const dataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGO4o6GhseAOw68TcjYnogApvAYPvPI98QAAAABJRU5ErkJggg==';
+
+  if (hasTexture(crispName) === false) {
+    saveTexture(crispName, dataUrl);
+    madeCrisp = true;
+    crisp = new Sprite(110, 100, 120, 120);
+    crisp.collider = 'none';
+    crisp.texture = crispName;
+  }
+  if (hasTexture(softName) === false) {
+    saveTexture(softName, dataUrl, { smooth: true });
+    madeSoft = true;
+    soft = new Sprite(290, 100, 120, 120);
+    soft.collider = 'none';
+    soft.texture = softName;
+  }
+}
+
+function update() {
+  if (frameCount === 55) {
+    if (madeCrisp === true) {
+      crisp.remove();
+      deleteTexture(crispName);
+    }
+    if (madeSoft === true) {
+      soft.remove();
+      deleteTexture(softName);
+    }
+  }
+}
+
+function draw() {
+  background('#222');
+}
+
+function drawTop() {
+  fill('white');
+  textSize(13);
+  text('as it is', 70, 28);
+  text('smooth: true', 240, 28);
+}`,
+    },
   ],
 };

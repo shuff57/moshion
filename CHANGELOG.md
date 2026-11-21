@@ -5,6 +5,22 @@ tags (`v0.1.0`) with a GitHub Release. The public site
 (<https://moshion.lefthanddev.com/>) deploys from `main`, so it can be ahead of
 the latest tag.
 
+## Unreleased
+
+Ported from shCode, where these had been local patches on top of v0.1.0, so the
+two now ship one engine.
+
+- `sprite.useTextureHitbox()`: a sprite collides like its picture (an L, a
+  ring, a gap) instead of a plain box or circle. It follows the sprite's size
+  and rotation, survives `clone()`, and works for `overlaps()` too.
+- `background('textureName')`: fills the canvas with a texture, cropped to
+  cover, fixed while the camera moves, animated if the texture is.
+- `saveTexture(name, dataUrl, { hitbox, smooth })`: new options. `hitbox:
+  { w, h, mask }` saves the collision shape; `smooth: true` keeps a picture
+  soft when scaled, for art drawn with curves.
+- Docs: three new pages (hitbox, picture background, smooth option), each with a
+  runnable example.
+
 ## v0.1.0 — first release
 
 The engine, its docs site and the starter games, as used by the shCode

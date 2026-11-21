@@ -588,6 +588,8 @@
   function background(...args) {
     const color = _colorFrom(args);
     if (color === null) return;
+    if (args.length === 1 && typeof args[0] === 'string' && /^[A-Za-z][A-Za-z0-9_]*$/.test(color) &&
+        !global.CSS?.supports('color', color) && _drawTextureBackground(color)) return;
     CTX_.save();
     if (ORIGIN_ === 'math') {
       // The whole canvas, whatever the camera is doing: the same answer the
@@ -770,6 +772,18 @@
     };
   }
 
+  // True for art the student DREW as vectors (shCode's Vector texture maker): its
+  // meta says `smooth: true`, so a sprite draws it with image smoothing on
+  // instead of the hard-edged nearest-neighbour scaling pixel art wants.
+  function _textureSmooth(name) {
+    if (!_savedTextureSrc(name)) return false;
+    let m = getItem(TEXMETA_PREFIX_ + name);
+    if (typeof m === 'string') {
+      try { m = JSON.parse(m); } catch (e) { return false; }
+    }
+    return !!(m && typeof m === 'object' && m.smooth === true);
+  }
+
   function _storeKeys() {
     const ls = _ls();
     // A real localStorage enumerates through .length/.key(i); the sandboxed
@@ -800,6 +814,43 @@
 
   function hasTexture(name) { return _textureSrc(name) !== null; }
 
+  const BACKGROUND_ART_ = new Map();
+  function _drawTextureBackground(name) {
+    const saved = _storedItem(TEX_PREFIX_ + name);
+    const savedMeta = _storedItem(TEXMETA_PREFIX_ + name);
+    let art = BACKGROUND_ART_.get(name);
+    if (!art || art.saved !== saved || art.savedMeta !== savedMeta) {
+      if (saved == null && !Object.prototype.hasOwnProperty.call(_textureCatalog().textures, name)) return false;
+      const src = _textureSrc(name);
+      if (!src) return false;
+      const meta = _textureMeta(name);
+      const ani = meta ? new Ani(name, src, meta.frames, meta.delays) : null;
+      if (ani) ani.frameDelay = meta.frameDelay;
+      art = { saved, savedMeta, ani, img: loadArt_(src), smooth: getItem(TEXMETA_PREFIX_ + name)?.smooth === true, drawnAt: -1 };
+      BACKGROUND_ART_.set(name, art);
+    }
+
+    CTX_.save();
+    CTX_.resetTransform();
+    CTX_.clearRect(0, 0, W_, H_);
+    if (artReady_(art.img) && W_ > 0 && H_ > 0) {
+      const { img, ani } = art;
+      if (ani && art.drawnAt !== FRAME_) {
+        if (art.drawnAt !== -1) ani._advance();
+        art.drawnAt = FRAME_;
+      }
+      const frameWidth = img.naturalWidth / (ani?.frameCount ?? 1);
+      const scale = Math.max(W_ / frameWidth, H_ / img.naturalHeight);
+      const cropWidth = W_ / scale, cropHeight = H_ / scale;
+      const sx = (ani?.frame ?? 0) * frameWidth + (frameWidth - cropWidth) / 2;
+      const sy = (img.naturalHeight - cropHeight) / 2;
+      CTX_.imageSmoothingEnabled = art.smooth;
+      CTX_.drawImage(img, sx, sy, cropWidth, cropHeight, 0, 0, W_, H_);
+    }
+    CTX_.restore();
+    return true;
+  }
+
   /**
    * Save art under a name, so `sprite.texture = name` finds it next run.
    *
@@ -816,22 +867,28 @@
     }
     storeItem(TEX_PREFIX_ + name, dataUrl);
 
+    // The meta record: frames (a strip), hitbox (useTextureHitbox) and smooth
+    // (image smoothing stays on). A still with none of them has no record, and
+    // saving one OVER an animation must drop the old frame count, or the still
+    // gets sliced into N pieces and only a sliver ever draws.
+    const meta = {};
     // frames > 1 means dataUrl is a horizontal strip of that many frames.
     const frames = opts ? Math.floor(opts.frames) : 1;
     if (frames > 1) {
-      const delays = Array.isArray(opts.delays) && opts.delays.length === frames
+      meta.frames = frames;
+      meta.frameDelay = Math.max(1, Math.floor(opts.frameDelay) || 4);
+      meta.delays = Array.isArray(opts.delays) && opts.delays.length === frames
         ? opts.delays.map(function (d) { return Math.max(1, Math.floor(d) || 1); })
         : null;
-      storeItem(TEXMETA_PREFIX_ + name, {
-        frames: frames,
-        frameDelay: Math.max(1, Math.floor(opts.frameDelay) || 4),
-        delays: delays,
-      });
-    } else {
-      // Saving a still OVER an animation must drop the old frame count, or
-      // the still gets sliced into N pieces and only a sliver ever draws.
-      removeItem(TEXMETA_PREFIX_ + name);
     }
+    // hitbox: { w, h, mask }, a w x h grid of '1' (solid) and '0' (empty),
+    // row by row. Checked when a sprite uses it, so a bad one is just ignored.
+    if (opts && opts.hitbox && typeof opts.hitbox === 'object') {
+      meta.hitbox = { w: opts.hitbox.w, h: opts.hitbox.h, mask: opts.hitbox.mask };
+    }
+    if (opts && opts.smooth === true) meta.smooth = true;
+    if (Object.keys(meta).length) storeItem(TEXMETA_PREFIX_ + name, meta);
+    else removeItem(TEXMETA_PREFIX_ + name);
     ART_CACHE_.delete(dataUrl);   // redrawn under the same name: decode again
   }
 
@@ -964,6 +1021,40 @@
     return v;
   }
 
+  // Merge equal horizontal spans across rows. The resulting boxes are disjoint
+  // and preserve concave edges, gaps and disconnected parts of the pixel mask.
+  function _textureHitbox(name) {
+    let meta = getItem(TEXMETA_PREFIX_ + name);
+    if (typeof meta === 'string') {
+      try { meta = JSON.parse(meta); } catch { return null; }
+    }
+    const hitbox = meta?.hitbox;
+    if (!hitbox) return null;
+    const { w, h, mask } = hitbox;
+    if (!Number.isInteger(w) || !Number.isInteger(h) || w < 1 || h < 1 || w > 64 || h > 64 ||
+        typeof mask !== 'string' || mask.length !== w * h || /[^01]/.test(mask)) return null;
+    const boxes = [];
+    let previous = new Map();
+    for (let y = 0; y < h; y++) {
+      const row = new Map();
+      for (let x = 0; x < w;) {
+        if (mask[y * w + x] === '0') { x++; continue; }
+        const left = x;
+        while (x < w && mask[y * w + x] === '1') x++;
+        const span = left * (w + 1) + x;
+        let box = previous.get(span);
+        if (box) box.bottom = (y + 1) / h - 0.5;
+        else {
+          box = { left: left / w - 0.5, right: x / w - 0.5, top: y / h - 0.5, bottom: (y + 1) / h - 0.5 };
+          boxes.push(box);
+        }
+        row.set(span, box);
+      }
+      previous = row;
+    }
+    return boxes.length ? boxes : null;
+  }
+
   const WARNED_ANIS_ = new Set();
   class Sprite {
     constructor(x, y, w, h, bodyType) {
@@ -1076,7 +1167,10 @@
     }
 
     _buildFixture() {
-      if (this._fixture) { this._body.destroyFixture(this._fixture); }
+      if (this._hitboxFixtures) {
+        for (const fixture of this._hitboxFixtures) this._body.destroyFixture(fixture);
+        this._hitboxFixtures = null;
+      } else if (this._fixture) { this._body.destroyFixture(this._fixture); }
       // The collider's size follows w/h, but only through sizes a collider
       // can have: a size of 0, NaN or Infinity changes the drawing and leaves
       // the collider at its last good size (planck has no infinite or empty
@@ -1096,8 +1190,33 @@
         restitution: this._bounciness,
         isSensor: !!this._sensor,
       };
-      this._fixture = this._body.createFixture(fd);
+      if (this._hitbox) {
+        const ySign = ORIGIN_ === 'math' ? -1 : 1;
+        this._hitboxFixtures = this._hitbox.map(({ left, right, top, bottom }) => {
+          const center = pl.Vec2((left + right) * hw, (top + bottom) * hh * ySign);
+          return this._body.createFixture({ ...fd, shape: pl.Box((right - left) * hw, (bottom - top) * hh, center) });
+        });
+        this._fixture = this._hitboxFixtures[0];
+      } else {
+        this._fixture = this._body.createFixture(fd);
+      }
       this._body.setType(this._bodyType);
+    }
+
+    useTextureHitbox(enabled = true) {
+      if (!enabled) {
+        if (this._hitbox) { this._hitbox = null; this._buildFixture(); }
+        return true;
+      }
+      const name = this._texture;
+      if (!name) return false;
+      if (name === this._hitboxName && this._hitbox) return true;
+      const boxes = _textureHitbox(name);
+      if (!boxes) return false;
+      this._hitbox = boxes;
+      this._hitboxName = name;
+      this._buildFixture();
+      return true;
     }
 
     // w/h: the size, and the collider's size. They were plain fields, so
@@ -1689,6 +1808,7 @@
 
       this._texture = String(name);
       this._textureKey = key;
+      this._textureSmooth = _textureSmooth(name);
       this._emoji = null;
 
       if (meta) {
@@ -1790,6 +1910,8 @@
       c._bounciness = this._bounciness;
       c._friction = this._friction;
       c._density = this._density;
+      c._hitbox = this._hitbox;
+      c._hitboxName = this._hitboxName;
       c._buildFixture();
       c._body.setGravityScale(this._body.getGravityScale());
       c._gravityBeforeNone = this._gravityBeforeNone;
@@ -1809,6 +1931,7 @@
       c._img = this._img;
       c._emoji = this._emoji;
       c._texture = this._texture;
+      c._textureSmooth = this._textureSmooth;
       c._pattern = this._pattern || null;
       if (this._anis) {
         c._anis = new Anis();
@@ -1934,6 +2057,11 @@
     // math so this agrees with world.getSpriteAt()'s real circle test;
     // AABB corners can overlap for two circles whose radii don't.
     _overlapsOne(other) {
+      if (this._hitboxFixtures || other._hitboxFixtures) {
+        const aTransform = this._body.getTransform(), bTransform = other._body.getTransform();
+        const a = this._hitboxFixtures || [this._fixture], b = other._hitboxFixtures || [other._fixture];
+        return a.some((af) => b.some((bf) => pl.testOverlap(af.getShape(), 0, bf.getShape(), 0, aTransform, bTransform)));
+      }
       if (this._shape === 'circle' && other._shape === 'circle') {
         const dx = this.x - other.x, dy = this.y - other.y;
         const rr = this.w / 2 + other.w / 2;
@@ -2211,12 +2339,12 @@
         // across a 50x50 sprite stays blocky instead of blurring. A plain
         // .image / addAni still smooths.
         const smoothA = CTX_.imageSmoothingEnabled;
-        if (this._texture) CTX_.imageSmoothingEnabled = false;
+        if (this._texture && !this._textureSmooth) CTX_.imageSmoothingEnabled = false;
         CTX_.drawImage(sheet, this.ani.frame * fw, 0, fw, sheet.naturalHeight, -this.w / 2, -this.h / 2, this.w, this.h);
         CTX_.imageSmoothingEnabled = smoothA;
       } else if (this._img && artReady_(this._img)) {
         const smooth = CTX_.imageSmoothingEnabled;
-        if (this._texture) CTX_.imageSmoothingEnabled = false;
+        if (this._texture && !this._textureSmooth) CTX_.imageSmoothingEnabled = false;
         CTX_.drawImage(this._img, -this.w / 2, -this.h / 2, this.w, this.h);
         CTX_.imageSmoothingEnabled = smooth;
       } else if (this._emoji) {
@@ -2262,7 +2390,13 @@
         CTX_.strokeStyle = 'lime';
         CTX_.lineWidth = 1;
         CTX_.beginPath();
-        if (this.shape === 'circle') {
+        if (this._hitbox) {
+          const ySign = ORIGIN_ === 'math' ? -1 : 1;
+          for (const { left, right, top, bottom } of this._hitbox) {
+            CTX_.rect(left * this._physW, top * this._physH * ySign,
+              (right - left) * this._physW, (bottom - top) * this._physH * ySign);
+          }
+        } else if (this.shape === 'circle') {
           CTX_.arc(0, 0, this.w / 2, 0, Math.PI * 2);
         } else {
           CTX_.rect(-this.w / 2, -this.h / 2, this.w, this.h);
@@ -3583,12 +3717,24 @@
   function _overlapCandidates(list) {
     const n = list.length;
     if (n < OVERLAP_SWEEP_MIN_) return null;
+    const hasTextureHitbox = list.some((s) => s._hitboxFixtures);
     const x0 = new Float64Array(n), x1 = new Float64Array(n);
     const y0 = new Float64Array(n), y1 = new Float64Array(n);
     for (let i = 0; i < n; i++) {
       const s = list[i];
       if (s._overlapsOne !== Sprite.prototype._overlapsOne || s._bounds !== Sprite.prototype._bounds) return null;
       const b = s._bounds();
+      if (hasTextureHitbox) {
+        // The shape query for a texture hitbox uses rotated physics shapes.
+        // Enclose the full rotated frame, including Planck's polygon skin.
+        const w = s._physW || 1, h = s._physH || 1;
+        const angle = s._body.getAngle();
+        const sin = Math.abs(Math.sin(angle)), cos = Math.abs(Math.cos(angle));
+        const hw = Math.max(w, w * cos + h * sin) / 2 + 1;
+        const hh = Math.max(h, h * cos + w * sin) / 2 + 1;
+        b.l = Math.min(b.l, s.x - hw); b.r = Math.max(b.r, s.x + hw);
+        b.t = Math.min(b.t, s.y - hh); b.b = Math.max(b.b, s.y + hh);
+      }
       const l = Math.min(b.l, b.r), r = Math.max(b.l, b.r);
       const t = Math.min(b.t, b.b), bt = Math.max(b.t, b.b);
       // NaN never sorts; an infinite edge makes the sort's subtraction NaN.
@@ -4999,11 +5145,14 @@
     _bridge()[name] = raw;
     _postStore({ op: 'set', key: String(name), value: raw });
   }
-  function getItem(name) {
+  function _storedItem(name) {
     const ls = _ls();
     const store = ls ? null : _bridge();
-    const raw = ls ? ls.getItem(name)
+    return ls ? ls.getItem(name)
       : (Object.prototype.hasOwnProperty.call(store, name) ? store[name] : null);
+  }
+  function getItem(name) {
+    const raw = _storedItem(name);
     if (raw === null || raw === undefined) return null;
     try { return JSON.parse(raw); } catch (e) { return raw; }
   }

@@ -425,5 +425,71 @@ function drawTop() {
   text('landed on the ball: ' + landings + '   left the zone: ' + exits, 10, 20);
 }`,
     },
+    {
+      id: 'texture-hitbox',
+      title: "Collide like the picture: useTextureHitbox",
+      body: `A sprite collides as a plain rectangle or circle, even when its picture is an L or has a hole in it. sprite.useTextureHitbox() makes it collide like the picture instead.
+
+The picture's texture needs a saved hitbox first. saveTexture(name, dataUrl, { hitbox: { w, h, mask } }) saves one. The mask is a string of w * h characters, row by row: '1' where the picture is solid and '0' where it is empty, up to 64 by 64. The hitbox stretches to the sprite's width and height, turns with its rotation, and does not change while the texture animates.
+
+useTextureHitbox() returns true when it worked. It returns false when the sprite has no texture, or its texture has no saved hitbox. Call it again after you change sprite.texture, because it keeps the hitbox of the texture it saw. useTextureHitbox(false) goes back to the usual rectangle or circle.
+
+The example saves a picture that is two squares wide and two tall, with the top right square empty: the mask '1011'. A small dot sits in that empty corner. overlaps() is true for the plain rectangle and false once the hitbox is on. The example deletes its picture again after about a second, and only if it saved the picture itself.`,
+      code: `let art;
+let dot;
+let artName = 'docsDemoCorner';
+let before;
+let plainBox = 'not asked';
+let hitbox = 'not asked';
+let took = 'not asked';
+
+function setup() {
+  new Canvas(400, 200);
+  world.gravity.y = 0;
+
+  const dataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGO4o6GhseAOw68TcjYnogApvAYPvPI98QAAAABJRU5ErkJggg==';
+
+  before = hasTexture(artName);
+  if (before === false) {
+    saveTexture(artName, dataUrl, { hitbox: { w: 2, h: 2, mask: '1011' } });
+
+    art = new Sprite(200, 100, 100, 100, 'static');
+    art.texture = artName;
+
+    // a small dot in the empty top right corner of the picture
+    dot = new Sprite(225, 75, 16, 16);
+    dot.collider = 'none';
+    dot.color = 'tomato';
+
+    plainBox = dot.overlaps(art);
+    took = art.useTextureHitbox();
+    hitbox = dot.overlaps(art);
+  }
+}
+
+function update() {
+  if (frameCount === 55 && before === false) {
+    art.remove();
+    dot.remove();
+    deleteTexture(artName);
+  }
+}
+
+function draw() {
+  background('#222');
+}
+
+function drawTop() {
+  fill('white');
+  textSize(13);
+  if (before === true) {
+    text('The name ' + artName + ' is already taken, so nothing was saved.', 14, 24);
+  } else {
+    text('useTextureHitbox() returned: ' + took, 14, 24);
+    text('dot overlaps the plain rectangle: ' + plainBox, 14, 44);
+    text('dot overlaps with the hitbox on: ' + hitbox, 14, 64);
+  }
+}`,
+    },
   ],
 };

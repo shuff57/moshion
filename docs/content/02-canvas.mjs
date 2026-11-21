@@ -372,5 +372,50 @@ function draw() {
   background('#222');
 }`,
     },
+    {
+      id: 'background-texture',
+      title: "A picture as the background",
+      body: `background() can also take the name of a texture. background('sunset') fills the whole canvas with that picture instead of one colour. Call it first thing in draw(), just like a colour.
+
+The picture is scaled until it covers the canvas, and the sides or the top and bottom are cropped when the shapes do not match. It stays fixed when the camera moves, so sprites slide over it. An animated texture plays at its own speed. A name that is also a colour, like 'red', is read as the colour, so give a texture a name that is not one.
+
+The example saves a picture under a new name and uses it as the background while the camera sways from side to side. After about two and a half seconds it deletes the picture, and only if it saved the picture itself, and the background falls back to a plain colour.`,
+      code: `let ball;
+let artName = 'docsDemoBackdrop';
+let saved = false;
+
+function setup() {
+  new Canvas(400, 200);
+  world.gravity.y = 10;
+
+  const dataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGO4o6GhseAOw68TcjYnogApvAYPvPI98QAAAABJRU5ErkJggg==';
+
+  if (hasTexture(artName) === false) {
+    saveTexture(artName, dataUrl);
+    saved = true;
+  }
+
+  ball = new Sprite(200, 40, 30);
+  ball.color = 'white';
+  ball.bounciness = 0.8;
+  new Sprite(200, 195, 600, 10, 'static');
+}
+
+function update() {
+  camera.x = 200 + 40 * Math.sin(frameCount / 30);
+  if (frameCount === 150 && saved === true) {
+    deleteTexture(artName);
+    saved = false;
+  }
+}
+
+function draw() {
+  if (saved === true) {
+    background(artName);
+  } else {
+    background('#222');
+  }
+}`,
+    },
   ],
 };

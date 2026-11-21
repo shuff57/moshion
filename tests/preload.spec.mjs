@@ -273,9 +273,7 @@ function setup() { new Canvas(200, 200); levels.world1.push(4); notThere(); }`);
 // real click it plays. A browser that keeps sound off until a gesture, as
 // every student's does.
 {
-  const strict = await (await import('playwright')).chromium.launch({
-    headless: true, args: ['--autoplay-policy=user-gesture-required'],
-  }).catch(() => null);
+  const strict = await launch({ args: ['--autoplay-policy=user-gesture-required'] }).catch(() => null);
   if (!strict) {
     check('P15 play() before the first click', false, 'could not launch a strict-autoplay browser');
   } else {
