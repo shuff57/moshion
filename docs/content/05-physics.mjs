@@ -491,7 +491,7 @@ function drawTop() {
       title: "Very fast sprites and moving ground",
       body: `sprite.isSuperFast = true makes a fast sprite check its path between frames so it cannot skip through a thin wall. Switch it on for bullets.
 
-sprite.surfaceSpeed turns a static sprite into a conveyor belt: things standing on it are carried along at that many pixels per frame. The belt only grips what has friction, so give both the belt and the thing on it a friction above 0.
+sprite.surfaceSpeed turns a static sprite into a conveyor belt: things standing on it are carried along at that many pixels per frame. A positive speed carries them right and a negative one left, whichever sprite you made first. The surface runs round the sprite like a real belt loop, so something pressed against its underside goes the other way. The belt only grips what has friction, so give both the belt and the thing on it a friction above 0.
 
 sprite.physicsEnabled = false leaves a sprite drawn but out of the physics: nothing pushes it, gravity does not pull it and it pushes nothing. Set it back to true to bring it back.
 

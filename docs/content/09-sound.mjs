@@ -81,9 +81,9 @@ If something went wrong, sound.error holds a message and the sound stays silent.
 
 sound.ready is a promise that finishes when the file has loaded, so sound.ready.then(...) runs your code at that moment. masterVolume() with nothing in it tells you the master level, and masterVolume(0.5) sets it.
 
-sound.stop() cuts off every copy of the sound that is playing, including a loop. sound.pause() does the same thing: the web cannot resume a stopped sound, so pause() is only another name for stop(), and play() or loop() afterwards starts it again from the beginning.
+sound.stop() cuts off every copy of the sound that is playing, including a loop, and the next play() or loop() starts it from the beginning. sound.pause() stops it too, but remembers the place: the next loop() (or play(), for music you started with play()) carries on from where it was. sound.paused is true while it waits there. That is what a pause menu wants. Pausing a short effect just stops it.
 
-In the example, press space to play the coin and m to mute or unmute everything with masterVolume(). Press l to start the music loop, s to stop it with sound.stop() and p to pause it with sound.pause(). The screen shows each status value. sound.playing is only true for the moment the coin is ringing, so press space and watch it. For the music it stays true until you stop it.`,
+In the example, press space to play the coin and m to mute or unmute everything with masterVolume(). Press l to start the music loop, s to stop it with sound.stop() and p to pause it with sound.pause(); press l again after p and the music carries on, after s it starts over. The screen shows each status value. sound.playing is only true for the moment the coin is ringing, so press space and watch it. For the music it stays true until you stop or pause it.`,
       code: `let coin;
 let song;
 let readyMessage = 'waiting for the file...';
@@ -137,9 +137,10 @@ function drawTop() {
   text('ready: ' + readyMessage, 14, 186);
   text('masterVolume: ' + masterVolume(), 14, 212);
   text('music playing: ' + song.playing, 14, 238);
+  text('music paused: ' + song.paused, 14, 262);
   fill('#888');
   textSize(12);
-  text('space = coin   m = mute   l = loop music   s = stop   p = pause', 14, 275);
+  text('space = coin   m = mute   l = loop music   s = stop   p = pause', 14, 288);
 }`,
     },
   ],

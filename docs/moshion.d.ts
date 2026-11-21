@@ -394,7 +394,10 @@ declare class Sprite {
   physicsType: Collider;
   /** False leaves the sprite drawn but out of the simulation. */
   physicsEnabled: boolean;
-  /** Conveyor-belt tangent speed, px/frame, re-applied to live contacts. */
+  /** Makes the sprite a conveyor belt: what stands on it is carried this many pixels per frame, right when
+   *  positive, left when negative, whichever sprite was made first. The surface runs round the sprite like a
+   *  belt loop (clockwise on the screen when positive), so something under it goes the other way. Both
+   *  sprites need a friction above 0 for the belt to grip. */
   surfaceSpeed: number;
   /** The opposite of physicsEnabled (the same flag, read the other way). */
   visualOnly: boolean;
@@ -751,9 +754,13 @@ declare class Sound {
    *  remembered and starts as soon as it lands — `music.loop()` in setup()
    *  always runs before the download finishes. */
   loop(clip?: string): unknown;
-  /** Web Audio cannot resume a stopped source, so this is stop(). Kept
-   *  because it is the word people reach for. */
+  /** Stops the sound but remembers the place: the next loop() (or play(),
+   *  for music started with play()) carries on from there. The place is the
+   *  loop's, else the newest play() still sounding; other voices just stop.
+   *  stop() forgets it. */
   pause(): void;
+  /** True between pause() and the next play(), loop() or stop(). */
+  readonly paused: boolean;
   /** Stops every voice of this sound. */
   stop(): void;
   /** True while any voice of this sound is playing. */

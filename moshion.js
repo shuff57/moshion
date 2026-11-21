@@ -3446,13 +3446,21 @@
       if (!(a instanceof Sprite) || !(b instanceof Sprite)) continue;
       // surfaceSpeed (Sprite, SPEC-surface #1): re-applied to every ACTIVE
       // contact this frame, not stored on the fixture — see the getter
-      // comment on surfaceSpeed for why. A's belt speed adds, B's
-      // subtracts, so two conveyors moving the same real-world direction
-      // partially cancel in the contact's shared tangent frame instead of
-      // doubling; a plain single-conveyor-vs-static case is unaffected
-      // (whichever side is static contributes 0).
-      const beltSpeed = (a._surfaceSpeed || 0) - (b._surfaceSpeed || 0);
-      if (beltSpeed) c.setTangentSpeed(beltSpeed * FPS / PXM);
+      // comment on surfaceSpeed for why.
+      // What it means: the sprite's surface runs round it CLOCKWISE ON THE
+      // SCREEN at that speed, like a belt loop, so a thing on top of a
+      // positive belt goes right and a thing under it goes left, whichever
+      // sprite was made first and in either world.origin.
+      // planck's tangent speed is the target for dot(vB - vA, t), with
+      // t = cross(n, 1) and n pointing from A to B. A surface spinning
+      // clockwise in a y-down frame moves at -s*t on A's side of the contact
+      // and +s*t on B's, so the bodies' relative speed that friction aims
+      // for is -(sA + sB). In 'math' mode the world is y-up, where clockwise
+      // on the screen is the other way round, so the sign flips. (This was
+      // sA - sB until 2026-11-21: the direction then depended on which
+      // sprite planck had as A, i.e. on creation order.)
+      const beltSum = (a._surfaceSpeed || 0) + (b._surfaceSpeed || 0);
+      if (beltSum) c.setTangentSpeed((ORIGIN_ === 'math' ? beltSum : -beltSum) * FPS / PXM);
       if (!now.has(a)) now.set(a, new Set());
       if (!now.has(b)) now.set(b, new Set());
       now.get(a).add(b);
@@ -4648,6 +4656,8 @@
       // Skipped instead, and said once (owner's decision 2026-11-17). Only
       // before the FIRST gesture: after it, resume() is on its way and a
       // play() in that instant sounds a few ms late, which is fine.
+      // After pausing a clip, play() with no name carries on with that clip.
+      if (clipName === undefined && this._pausedAt) clipName = this._pausedAt.clip;
       if (this._buffer && AUDIO_CTX_ && AUDIO_CTX_.state === 'suspended' && !GESTURE_SEEN_) {
         _warnSoundOnce('locked:' + this.url, `${_soundLabel(this.url)}.play() did nothing: sound turns on after the first click or key press. ` +
           'Play it on an event (a key press, a hit) instead of in setup(), or use .loop() for music, which starts at the first click.');
@@ -4668,13 +4678,19 @@
       const clip = this._clip(clipName);
       if (clip === 'unknown') return null;
       src.loop = false;
+      // After pause(), play() carries on from where it stopped (to the end
+      // of the sound or clip, once). A different clip name starts afresh.
+      const from = this._resumeFrom(clipName, clip);
+      const start = from !== null ? from : clip ? clip.offset : 0;
+      const end = clip && clip.duration !== undefined ? clip.offset + clip.duration : this._buffer.duration;
       try {
-        if (clip) src.start(0, clip.offset, clip.duration);
+        if (clip || from !== null) src.start(0, start, Math.max(0, end - start));
         else src.start(0);
       } catch {
         this.blocked = true;
         return null;
       }
+      this._anchor(src, start, clip ? clip.offset : 0, end, false, clipName);
       this._voices.push(src);
       src.onended = () => {
         const i = this._voices.indexOf(src);
@@ -4689,6 +4705,7 @@
      */
     loop(clipName) {
       if (this._loopVoice) return this._loopVoice;
+      if (clipName === undefined && this._pausedAt) clipName = this._pausedAt.clip;
       const src = this._voice();
       if (!src) {
         // The overwhelmingly common line is `music.loop()` in setup(), which
@@ -4700,11 +4717,14 @@
         // play() deliberately does NOT do this. A looping track starting a
         // beat late is correct; a coin chime arriving 300ms after the coin
         // is worse than no chime, so one-shots stay no-ops.
+        // loop() again after a pause() that came before the file landed:
+        // the student wants the music after all.
+        if (this._buffer === null && !this._pausedAt) this._paused = false;
         if (!this._pendingLoop && this._buffer === null) {
           this._pendingLoop = true;
           this.ready.then(() => {
             this._pendingLoop = false;
-            if (this._buffer && !this._loopVoice) this.loop(clipName);
+            if (this._buffer && !this._loopVoice && !this._paused) this.loop(clipName);
           });
         }
         return null;
@@ -4717,29 +4737,91 @@
         src.loopStart = clip.offset;
         src.loopEnd = clip.offset + (clip.duration || 0);
       }
+      // After pause(), loop() carries on from where it stopped.
+      const from = this._resumeFrom(clipName, clip);
+      const start = from !== null ? from : clip ? clip.offset : 0;
       try {
-        if (clip) src.start(0, clip.offset, undefined);
+        if (clip || from !== null) src.start(0, start, undefined);
         else src.start(0);
       } catch {
         this.blocked = true;
         return null;
       }
+      const loopEnd = clip && clip.duration !== undefined ? clip.offset + clip.duration : this._buffer.duration;
+      this._anchor(src, start, clip ? clip.offset : 0, loopEnd, true, clipName);
       this._loopVoice = src;
       src.onended = () => { if (this._loopVoice === src) this._loopVoice = null; };
       return src;
     }
 
-    // Web Audio has no pause: a stopped BufferSource cannot be restarted.
-    // pause() is therefore stop(), and is kept because it is the word a
-    // student reaches for. Documented rather than faked with an offset,
-    // which would be a resume() that silently drifts.
-    pause() { this.stop(); }
+    // Web Audio cannot pause a BufferSource: a stopped one cannot be
+    // restarted. So pause() remembers WHERE the sound was and stops it, and
+    // the next play() or loop() starts a new source at that point.
+    // The position is worked out from the audio clock, never counted in
+    // frames: every voice keeps an anchor (where in the file it was, and the
+    // audio time then), and changing `rate` moves the anchor to "now", so a
+    // speed change mid-play cannot make the resume point drift.
+    // The voice remembered is the loop if there is one, else the newest
+    // one-shot still sounding (music started with play()); every other voice
+    // just stops, since a short effect has nothing worth carrying on.
+    // Pausing twice keeps the first position; stop() forgets it.
+    pause() {
+      const ctx = _audioCtx();
+      const live = this._loopVoice || this._voices[this._voices.length - 1] || null;
+      if (live && ctx && live.__anchor) {
+        const pos = this._position(live, ctx.currentTime);
+        if (pos !== null) this._pausedAt = { pos, clip: live.__anchor.clip };
+      }
+      if (this._pausedAt || this._pendingLoop) this._paused = true;
+      this._stopVoices();
+    }
+
+    get paused() { return !!this._paused; }
 
     stop() {
+      this._paused = false;
+      this._pausedAt = null;
+      this._stopVoices();
+    }
+
+    _stopVoices() {
       for (const v of this._voices.slice()) { try { v.stop(); } catch { /* already ended */ } }
       this._voices = [];
       if (this._loopVoice) { try { this._loopVoice.stop(); } catch { /* already ended */ } }
       this._loopVoice = null;
+    }
+
+    // Where a paused sound picks up, or null to start from the beginning.
+    // Used once: the pause is over either way. A different clip than the
+    // one paused starts afresh.
+    _resumeFrom(clipName, clip) {
+      const at = this._pausedAt;
+      this._paused = false;
+      this._pausedAt = null;
+      if (!at) return null;
+      if (clipName !== at.clip) return null;
+      const lo = clip ? clip.offset : 0;
+      const hi = clip && clip.duration !== undefined ? clip.offset + clip.duration : this._buffer.duration;
+      return at.pos >= lo && at.pos < hi ? at.pos : null;
+    }
+
+    _anchor(src, from, lo, hi, looping, clip) {
+      const ctx = _audioCtx();
+      src.__anchor = { from, at: ctx ? ctx.currentTime : 0, lo, hi, looping, clip };
+    }
+
+    // Seconds into the file this voice is playing now, or null once a
+    // one-shot has finished.
+    _position(src, now) {
+      const a = src.__anchor;
+      let pos = a.from + Math.max(0, now - a.at) * this._rate;
+      if (a.looping) {
+        const len = a.hi - a.lo;
+        if (len > 0 && pos >= a.hi) pos = a.lo + ((pos - a.lo) % len);
+      } else if (pos >= a.hi) {
+        return null;
+      }
+      return pos;
     }
 
     get playing() { return this._voices.length > 0 || this._loopVoice !== null; }
@@ -4760,6 +4842,15 @@
     /** Playback speed. Also shifts pitch — cheap variety from one effect. */
     get rate() { return this._rate; }
     set rate(v) {
+      // Re-anchor first, at the old speed, so pause() still knows the place.
+      const ctx = _audioCtx();
+      if (ctx) {
+        for (const s of this._allVoices()) {
+          if (!s.__anchor) continue;
+          const pos = this._position(s, ctx.currentTime);
+          if (pos !== null) { s.__anchor.from = pos; s.__anchor.at = ctx.currentTime; }
+        }
+      }
       this._rate = Number(v) || 1;
       for (const s of this._allVoices()) s.playbackRate.value = this._rate;
     }
