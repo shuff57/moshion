@@ -45,6 +45,13 @@ tests are the Playwright spec suite under `tests/`.
 
 ## Commands
 
+Setup: the specs need Playwright and a Chromium (`bun add -d playwright` or
+`npm i -D playwright`, then `bunx playwright install chromium`; there is no
+`package.json` in the repo on purpose). If Playwright's own browser is missing,
+`tests/harness.mjs` falls back to a system Chromium/Chrome; set
+`MOSHION_BROWSER=/path/to/chrome` to choose one. Each spec serves on its own
+fixed port, so run them one at a time, and not while another run is going.
+
 Each spec is a standalone script that serves the repo, drives a real Chromium
 and prints `PASS`/`FAIL` per assertion (exit 0 only if all pass):
 

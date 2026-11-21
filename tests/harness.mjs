@@ -4,7 +4,7 @@
 // simulation + state inspection helpers for scenario assertions.
 import { chromium } from 'playwright';
 import { createServer } from 'node:http';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { join, extname, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -156,10 +156,16 @@ export async function frameErrors(page) {
 }
 
 export async function launch() {
+  // Playwright's own browser first. If that revision isn't installed, fall back
+  // to a system Chromium/Chrome (MOSHION_BROWSER overrides the search).
   try {
     return await chromium.launch({ headless: true });
-  } catch {
-    return await chromium.launch({ headless: true, executablePath: '/usr/bin/chromium-browser' });
+  } catch (err) {
+    const candidates = [process.env.MOSHION_BROWSER, '/usr/bin/chromium-browser',
+      '/usr/bin/chromium', '/usr/bin/google-chrome-stable', '/usr/bin/google-chrome']
+      .filter((p) => p && existsSync(p));
+    if (!candidates.length) throw err;
+    return await chromium.launch({ headless: true, executablePath: candidates[0] });
   }
 }
 

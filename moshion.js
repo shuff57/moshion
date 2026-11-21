@@ -1,4 +1,5 @@
-/* teaching-engine.js — beginner-game-API API spike, physics via planck.js (Box2D).
+/* moSHion v0.1.0 — a beginner-friendly 2D game engine, physics via planck.js (Box2D).
+ * (File header originally written as "teaching-engine.js", the API spike.)
  *
  * Goal: prove we can reimplement the exact API surface Q2 of the curriculum
  * already teaches, license-clean (our facade is MIT; planck.js is MIT, a
