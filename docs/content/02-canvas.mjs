@@ -8,7 +8,9 @@ export default {
     {
       id: 'creating-the-canvas',
       title: "Creating the canvas",
-      body: `new Canvas(width, height) inside setup() makes the drawing surface for your sketch. Without it, nothing shows up. Call it first, before you make any sprites, so the engine knows how big the world is.
+      body: `new Canvas(width, height)
+
+Call it inside setup() to make the drawing surface for your sketch. Without it, nothing shows up. Call it first, before you make any sprites, so the engine knows how big the world is.
 
 The canvas coordinates start at (0, 0) in the top-left. X grows to the right, y grows downward. A 400 by 400 canvas has its center at (200, 200).
 
@@ -31,7 +33,9 @@ function draw() {
     {
       id: 'background',
       title: "Background and clearing",
-      body: `background(color) paints over the whole canvas. Call it first thing in draw() so last frame's pixels are erased before new ones go down. Skip it and you'll see comet-like trails behind every moving sprite.
+      body: `background(color)
+
+This paints over the whole canvas. Call it first thing in draw() so last frame's pixels are erased before new ones go down. Skip it and you'll see comet-like trails behind every moving sprite.
 
 A solid color takes a name ('black', 'tomato'), a hex string ('#222', '#ff00aa'), or an rgba string. For a see-through background use 'rgba(0, 0, 0, 0.1)' — only 10% opaque, so old frames fade out gradually instead of vanishing.
 
@@ -296,7 +300,12 @@ function draw() {
     {
       id: 'vectors',
       title: "Vectors: createVector",
-      body: `A vector is a pair of numbers, x and y, with some maths built in. createVector(x, y) makes one (new Vector(x, y) does the same). It is handy for a position or a speed you want to add up.
+      body: `A vector is a pair of numbers, x and y, with some maths built in. It is handy for a position or a speed you want to add up.
+
+createVector(x, y)
+new Vector(x, y)
+
+Either form makes the same kind of vector.
 
 v.add(x, y), v.sub(x, y), v.mult(n) and v.div(n) CHANGE v and also hand it back, so you can chain them. v.set(x, y) replaces both numbers. v.copy() makes a separate vector, so changing the copy leaves v alone. v.mag() is its length: createVector(3, 4).mag() is 5. v.normalize() shrinks it to length 1 while keeping its direction, and v.dist(other) is the distance to another point: createVector(3, 4).dist(createVector(0, 0)) is 5.
 

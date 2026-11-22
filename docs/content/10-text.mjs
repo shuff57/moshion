@@ -8,7 +8,9 @@ export default {
     {
       id: 'displaying-text',
       title: "Displaying text",
-      body: `text(string, x, y) draws text on the canvas at (x, y). Call it from draw() so it gets re-drawn every frame — otherwise background() will erase it.
+      body: `text(words, x, y)
+
+Pass the text to display, then its canvas position. Call it from draw() so it gets re-drawn every frame — otherwise background() will erase it.
 
 textSize(px) sets the font size in pixels. fill(color) sets the text color (yes, the same fill you use for shapes). textAlign('left' | 'center' | 'right') changes how x positions the string — 'left' puts x at the left edge, 'center' puts x at the middle.
 

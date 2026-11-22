@@ -18,6 +18,10 @@ moSHion runs in "global mode." That means Canvas, Sprite, world, kb, and friends
 
 The same rule applies to preload, setup, update, draw and drawTop. When you define a top-level function with one of those names, the engine finds it and calls it at the right time ("The sketch lifecycle" in Start here says when).
 
+new Sprite(x, y, width, height)
+
+The first two numbers place the sprite's center. The next two set its size in pixels. In the example, new Sprite(200, 100, 40, 40) puts a 40 by 40 sprite at (200, 100). The floor passes 'static' as its last argument so it stays in place.
+
 To share a sprite between setup and update, declare a let at the top of your file and assign to it inside setup. If you use const inside setup, the variable is trapped there and update can't see it.`,
       code: `let player;
 

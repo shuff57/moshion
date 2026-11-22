@@ -12,7 +12,10 @@ export default {
 
 Settings for how a sprite looks and what it is made of also change the sprites already in the group: enemies.color = 'red' turns every current enemy red, and the next one made too. That covers color, stroke, layer, visible, opacity, scale, text, size (w, h, diameter), collider, bounciness, friction, density and drag. A group's scale can change one direction on its own: walls.scale.y = 3 makes every wall three times as tall and leaves its width alone, and walls.scale = 2 sets both. Where a sprite is and how it moves (x, y, vel, rotation, life) only set the starting value for new sprites, and so does any property you invent yourself, like enemies.hp = 3.
 
-Create a group with new Group(). Then spawn sprites into it with new groupName.Sprite(...) — note the capital S. That factory reads the group's color, diameter, collider, and other defaults, copies them onto the new sprite, and adds the sprite to the group.
+new Group()
+new groupName.Sprite(x, y, width, height)
+
+The first call makes an empty group. The second creates a sprite inside that group. The position and size use the same order as new Sprite(). You can leave out the size to use the group defaults, as the example does with new stars.Sprite(100, 100). That factory reads the group's color, diameter, collider, and other defaults, copies them onto the new sprite, and adds the sprite to the group.
 
 Common defaults to set right after creating a group: color, diameter (for circles) or w/h, collider ('none' is useful for pickups and decorations), and layer.`,
       code: `let stars;
@@ -124,11 +127,13 @@ function draw() {
     {
       id: 'tile-maps',
       title: "Tile maps from text",
-      body: `new Tiles(map, x, y, w, h, legend) builds a level out of rows of text. map is an array of strings, one per row. legend says which Group each character builds: { '#': walls, 'c': coins }. Any character the legend doesn't name, like a space or a dot, is an empty cell.
+      body: `new Tiles(map, x, y, tileWidth, tileHeight, legend)
+
+This builds a level out of rows of text. map is an array of strings, one per row. legend says which Group each character builds: { '#': walls, 'c': coins }. Any character the legend doesn't name, like a space or a dot, is an empty cell.
 
 Each tile is made with new group.Sprite(), so the group's defaults apply exactly as if you had made it by hand: walls.collider = 'static' makes every wall static, and coins.diameter = 14 makes every coin a small circle instead of a full tile.
 
-x and y are the centre of the top-left tile, the same way a sprite's x and y are its centre, and w and h are the size of one tile. For 40-pixel tiles starting in the canvas corner, pass 20, 20, 40, 40.
+x and y are the centre of the top-left tile, the same way a sprite's x and y are its centre, and tileWidth and tileHeight set the size of one tile. For 40-pixel tiles starting in the canvas corner, pass 20, 20, 40, 40.
 
 What you get back is itself a Group holding every sprite it made, so level.delete() clears the whole level when you want to load the next one.`,
       code: `let walls, coins, player, level;

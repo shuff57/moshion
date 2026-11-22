@@ -66,9 +66,9 @@ function draw() {
       title: "Overlap callbacks",
       body: `sprite.overlaps(other) returns true if the two sprites intersect (bounding-box math for rectangles, real circle-distance math for two circles). Pass a Group and it returns true if any member overlaps.
 
-You can also pass a callback as the second argument: sprite.overlaps(group, (self, other) => { ... }). The callback fires once per overlapping pair, while the group is being checked. The check goes through a copy of the group, so it's safe to delete() sprites inside the callback.
+sprite.overlaps(target, callback)
 
-This is the cleanest way to collect pickups: player.overlaps(coins, (p, coin) => { score++; coin.delete(); }).`,
+The target is a sprite or a group. The callback receives the sprite doing the check and the sprite it found, in that order. It runs once per overlapping pair. The check goes through a copy of the group, so it is safe to delete sprites inside the callback. In the example, player.overlaps(coins, collectCoin) runs collectCoin for each coin the player touches.`,
       code: `let player, coins;
 let score = 0;
 
@@ -103,10 +103,12 @@ function update() {
     player.vel.y = 0;
   }
 
-  player.overlaps(coins, (p, coin) => {
-    score++;
-    coin.delete();
-  });
+  player.overlaps(coins, collectCoin);
+}
+
+function collectCoin(player, coin) {
+  score++;
+  coin.delete();
 }
 
 function draw() {
@@ -241,7 +243,9 @@ function drawTop() {
     {
       id: 'ray-casting',
       title: "Ray casting",
-      body: `world.rayCast(x1, y1, x2, y2, callback) casts a ray from one point to another and calls your callback for every physics shape the ray touches. The callback receives (sprite, point, normal, fraction): sprite is the Sprite that was hit (or null), point is the hit position in world pixels, normal is the surface normal (a unit vector pointing away from the surface), and fraction is how far along the ray the hit happened, from 0 to 1.
+      body: `world.rayCast(startX, startY, endX, endY, callback)
+
+This casts a ray from one point to another and calls your callback for every physics shape the ray touches. The callback receives (sprite, point, normal, fraction): sprite is the Sprite that was hit (or null), point is the hit position in world pixels, normal is the surface normal (a unit vector pointing away from the surface), and fraction is how far along the ray the hit happened, from 0 to 1.
 
 What you return from the callback controls how the ray continues. Return the fraction you were handed (or a smaller number) to clip the ray there — the standard pattern for finding the single closest hit. Return 0 to stop at the first hit. Return 1 to keep going past every hit (all objects on the line). Return -1 to ignore a hit and keep looking — useful for skipping sprites whose collider is 'none', which rayCast does report: if (sprite && sprite.collider === 'none') { return -1; }. (A sensor made with addSensor() is reported as the sprite it rides on, so that test does not skip it.)
 

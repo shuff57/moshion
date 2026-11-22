@@ -241,7 +241,14 @@ function draw() {
 
 joint.delete() takes a joint away, and joint.remove() does the same. sprite.joints lists the joints on a sprite.
 
-Joints take an options object as the last argument. anchor is the point in the world where the joint pins the two sprites together, and each kind of joint has its own default for it. lowerLimit and upperLimit belong to HingeJoint: they stop it turning past an angle, in degrees from the pose it started in. maxForce is how hard a GrabberJoint is allowed to pull, and it is 100 unless you say otherwise.
+new HingeJoint(spriteA, spriteB, options)
+new DistanceJoint(spriteA, spriteB, options)
+new SliderJoint(spriteA, spriteB, options)
+new WheelJoint(spriteA, spriteB, options)
+new GrabberJoint(spriteA, spriteB, options)
+new GlueJoint(spriteA, spriteB)
+
+Give the two sprites first. Where supported, the optional settings object goes last. GlueJoint only takes the two sprites. anchor is the point in the world where the joint pins the two sprites together, and each kind of joint has its own default for it. lowerLimit and upperLimit belong to HingeJoint: they stop it turning past an angle, in degrees from the pose it started in. maxForce is how hard a GrabberJoint is allowed to pull, and it is 100 unless you say otherwise.
 
 In the example, a hinge and a distance joint hold three sprites together. The numbers on screen come from sprite.joints, the list of joints on a sprite. Press the space bar to take away the first joint with joint.delete(), and press R to take away the other one with joint.remove().`,
       code: `let anchor, middle, ball;

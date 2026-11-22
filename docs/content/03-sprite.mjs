@@ -10,7 +10,9 @@ export default {
       title: "Your first sprite",
       body: `A Sprite is the basic building block of any moSHion game. Every sprite has a position, a size, and (usually) a physics body that moves and collides automatically.
 
-new Sprite(x, y, width, height) creates a rectangular sprite centered on (x, y). With no extra argument it's dynamic, meaning gravity pulls it and it bumps into other sprites. Gravity starts at 0, so this one stays where you put it until you set world.gravity.y.
+new Sprite(x, y, width, height)
+
+This creates a rectangular sprite centered on (x, y). With no extra argument it's dynamic, meaning gravity pulls it and it bumps into other sprites. Gravity starts at 0, so this one stays where you put it until you set world.gravity.y.
 
 Store the sprite in a variable declared outside setup() so update() and draw() can reach it later. Without a reference, you can't move it or check its state.`,
       code: `let player;
@@ -155,9 +157,12 @@ function draw() {
     {
       id: 'shape-options',
       title: "Shape options",
-      body: `moSHion picks the collider shape from the constructor arguments. Two numbers make a 50×50 square: new Sprite(x, y). Three numbers make a circle: new Sprite(x, y, diameter). Four numbers make a rectangle: new Sprite(x, y, w, h).
+      body: `new Sprite(x, y)
+new Sprite(x, y, diameter)
+new Sprite(x, y, width, height)
+new Sprite(x, y, width, height, collider)
 
-You can also pass a body type as the last argument: new Sprite(x, y, w, h, 'static').
+Two numbers make a 50×50 square, three make a circle, and four make a rectangle. Every form places the center at (x, y). Add a collider such as 'static' after the numbers to choose how the sprite behaves in physics.
 
 new Sprite() with no numbers at all makes a 50×50 square in the middle of what the camera shows.
 
@@ -279,7 +284,9 @@ function draw() {
     {
       id: 'speed-and-direction-together',
       title: "Setting speed and direction together",
-      body: `sprite.setSpeedAndDirection(speed, direction) sets both at once: speed in pixels per frame, direction in degrees (0 points right, 90 points down). It is the same as setting .speed and .direction one after the other, in one line.
+      body: `sprite.setSpeedAndDirection(speed, direction)
+
+This sets both at once, speed in pixels per frame, direction in degrees (0 points right, 90 points down). It is the same as setting .speed and .direction one after the other, in one line.
 
 sprite.isMoving is true while the sprite has any speed at all and false once it stands still. It is read-only. Use it to switch a walking picture on and off, or to wait until something has stopped.
 

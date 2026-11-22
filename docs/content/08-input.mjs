@@ -10,9 +10,10 @@ export default {
       title: "Keyboard basics",
       body: `The global kb object reports keyboard state every frame.
 
-kb.pressing('key') returns true while the key is held down. Use it for continuous actions like walking.
+kb.pressing(key)
+kb.presses(key)
 
-kb.presses('key') is true only on the first frame of a press (edge-triggered). Use it for single-shot actions like jumping or firing.
+Pass a key name such as 'left' or 'space'. Use pressing() for an action that repeats while the key is held, such as walking. Use presses() for an action that happens once per press, such as jumping.
 
 Key names are lowercase strings: 'left', 'right', 'up', 'down', 'a', 'w', 'enter', 'shift', 'escape', and either 'space' or ' ' for the space bar. Spelling is forgiving — 'space', 'ArrowRight' and 'arrowright' all find the key they name.
 

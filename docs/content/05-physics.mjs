@@ -248,7 +248,9 @@ function draw() {
     {
       id: 'forces',
       title: "Applying forces",
-      body: `sprite.applyForce(fx, fy) pushes a sprite with a force in newtons — the physics engine's own force unit, not pixels. Pass the x and y components as two separate numbers. Call it every frame for continuous thrust, or once for a shove.
+      body: `sprite.applyForce(forceX, forceY)
+
+This pushes a sprite with a force in newtons — the physics engine's own force unit, not pixels. Pass the x and y components as two separate numbers. In the example, rocket.applyForce(0, -40) pushes up. Call it every frame for continuous thrust, or once for a shove.
 
 Forces respect mass — heavier sprites react less to the same push than light ones do. This is different from setting .vel directly, which overrides physics entirely.
 

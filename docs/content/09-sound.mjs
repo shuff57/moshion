@@ -8,7 +8,9 @@ export default {
     {
       id: 'sound',
       title: "Sound",
-      body: `loadSound('file.mp3') gives you a Sound. Call .play() for a one-off effect and .loop() for music that should keep going.
+      body: `loadSound(nameOrPath)
+
+Pass a built-in name such as 'coin' or a file path such as 'file.mp3' to get a Sound. Call .play() for a one-off effect and .loop() for music that should keep going.
 
 The built-in sounds load by name, no path needed: loadSound('coin'). They are blip, clang, coin, crown, dice, door, explode, hit, jump, laser, levelup, lose, music, pop, potion, powerup, select, step, sword, title, tone, whoosh and win. A sound you save under one of those names plays instead of the built-in one.
 
