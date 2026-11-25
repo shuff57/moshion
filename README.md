@@ -2,7 +2,7 @@
 
 **moSHion** is a beginner-friendly 2D game engine for the web: a simple drawing
 canvas with **real Box2D physics** (via [planck.js][]) in one API. It was built
-for the [shCode](https://github.com/shuff57/shCode) high-school JavaScript
+for the [seSHion](https://github.com/shuff57/seSHion) high-school JavaScript
 course, where students write sprites-and-physics games in a sandboxed iframe.
 
 The whole API is a handful of globals — `Sprite`, `Group`, `world`, `camera`,
@@ -182,10 +182,10 @@ starts after 400 ms with an empty store either way.
 
 ## History
 
-moSHion began life as an in-app engine for the shCode course. An early version
+moSHion began life as an in-app engine for the seSHion course (then called shCode). An early version
 vendored [q5play](https://github.com/quinton-ashley/q5play) source and art;
 that was removed and the engine rewritten as an original, license-clean facade
-(2026-08-25). The public repo is a fresh-history extract of shCode's
+(2026-08-25). The public repo is a fresh-history extract of seSHion's
 `public/moshion/`.
 
 ## License
